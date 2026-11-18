@@ -13,6 +13,7 @@ import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
@@ -57,6 +58,7 @@ import com.larkplayer.feature.settings.ui.PlaybackSettingsScreen
 import com.larkplayer.feature.settings.ui.RecentlyDeletedScreen
 import com.larkplayer.feature.settings.ui.SettingsScreen
 import com.larkplayer.feature.settings.ui.ThemeScreen
+import com.larkplayer.feature.settings.ui.UpdateSettingsScreen
 import kotlinx.coroutines.launch
 
 private object Routes {
@@ -79,6 +81,7 @@ private object Routes {
     const val THEME = "theme"
     const val ABOUT = "about"
     const val FEEDBACK = "feedback"
+    const val UPDATES = "updates"
 }
 
 @Composable
@@ -128,6 +131,7 @@ fun AppNavGraph() {
                 onLanguage = { navController.navigate(Routes.LANGUAGE) },
                 onFeedback = { navController.navigate(Routes.FEEDBACK) },
                 onAbout = { navController.navigate(Routes.ABOUT) },
+                onUpdates = { navController.navigate(Routes.UPDATES) },
             )
         }
         composable(Routes.PLAY_TIME) { PlayTimeScreen(onBack = { navController.popBackStack() }) }
@@ -140,6 +144,7 @@ fun AppNavGraph() {
         composable(Routes.THEME) { ThemeScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.ABOUT) { AboutScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.FEEDBACK) { FeedbackScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.UPDATES) { UpdateSettingsScreen(onBack = { navController.popBackStack() }) }
     }
 }
 
@@ -179,6 +184,10 @@ private fun LibraryHome(navController: NavHostController) {
                 DrawerItem("Respaldar y guardar", Icons.Rounded.CloudUpload) {
                     scope.launch { drawerState.close() }
                     navController.navigate(Routes.BACKUP)
+                }
+                DrawerItem("Actualizaciones", Icons.Rounded.SystemUpdate) {
+                    scope.launch { drawerState.close() }
+                    navController.navigate(Routes.UPDATES)
                 }
             }
         },

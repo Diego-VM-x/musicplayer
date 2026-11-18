@@ -4,6 +4,15 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-18 — Fase 11: actualizador in-app (GitHub Releases)
+
+- **Nuevo módulo `core:update`** con el flujo de la guía `ACTUALIZADOR-IMPLEMENTACION.md`, adaptado sin Firebase: `AppUpdate.kt` (GitHub + DownloadManager + verificación + instalación), `UpdateManager.kt` (estado y preferencias), `UpdateState.kt`, `UpdateScheduler.kt` (Workers), `ApkDownloadReceiver.kt` y `UpdateInstallActivity.kt`.
+- **Ajustes → Actualizaciones** (`feature:settings/ui/UpdateSettingsScreen.kt`): versión instalada, estado (Buscando/Disponible/Descargando/Verificando/Lista/Error), botones Buscar, Descargar, Usar datos móviles, Cancelar e Instalar; campo para configurar el repositorio `usuario/proyecto` y opciones Descarga automática y Solo Wi-Fi. También accesible desde el drawer.
+- **Seguridad**: solo HTTPS, tamaño + SHA-256 + package + versionCode + firma verificados antes de instalar; el receiver solo acepta el ID de descarga guardado; las notas del release se sanitizan; el estado se excluye del backup.
+- **Convención de publicación**: asset `larkplayer-<versionCode>.apk` en un release público de GitHub. El repositorio se introduce en Ajustes → Actualizaciones (no hay valor por defecto).
+- **Manifiesto**: permiso `REQUEST_INSTALL_PACKAGES`, `FileProvider` con `file_paths.xml`, actividad del instalador, receiver de `DOWNLOAD_COMPLETE` y reglas de backup que excluyen `lark_update.xml`.
+- `LarkApp` y `MainActivity.onResume()` inicializan/programan las comprobaciones (mínimo 5 min entre consultas automáticas, Worker periódico de 15 min).
+
 ## 2026-11-18 — Fase 10: corrección del mini-player, EQ y segundo plano
 
 - **Mini-player corregido** (`ui/MiniPlayer.kt`): la capa desenfocada usaba `fillMaxSize()` dentro de un contenedor sin altura, por lo que la carátula a tamaño original tapaba toda la pantalla al volver a la biblioteca. El contenedor ahora tiene altura fija de 74 dp y la imagen usa `matchParentSize()`.

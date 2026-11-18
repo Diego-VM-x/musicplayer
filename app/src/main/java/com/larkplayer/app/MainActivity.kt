@@ -23,6 +23,7 @@ import com.larkplayer.core.common.MediaScanBus
 import com.larkplayer.core.datastore.SettingsDataStore
 import com.larkplayer.core.designsystem.theme.LarkTheme
 import com.larkplayer.core.model.ThemeConfig
+import com.larkplayer.core.update.UpdateManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -97,5 +98,6 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         scanBus.requestScan()
+        UpdateManager.checkNow(manual = false)
     }
 }

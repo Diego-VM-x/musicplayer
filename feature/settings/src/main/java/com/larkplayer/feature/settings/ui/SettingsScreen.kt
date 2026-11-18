@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.MailOutline
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.WatchLater
 import androidx.compose.material3.Text
@@ -66,6 +67,7 @@ fun SettingsScreen(
     onLanguage: () -> Unit,
     onFeedback: () -> Unit,
     onAbout: () -> Unit,
+    onUpdates: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val config by viewModel.themeConfig.collectAsStateWithLifecycle(ThemeConfig())
@@ -100,6 +102,12 @@ fun SettingsScreen(
         )
 
         LarkCard(Modifier.fillMaxWidth()) {
+            SettingsRow(
+                icon = Icons.Rounded.SystemUpdate,
+                title = "Actualizaciones",
+                subtitle = "Buscar e instalar versiones nuevas",
+                onClick = onUpdates,
+            )
             SettingsRow(
                 icon = Icons.Rounded.WatchLater,
                 title = "Tiempo de reproducción",

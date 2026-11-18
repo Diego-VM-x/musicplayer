@@ -22,6 +22,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:datastore"))
     implementation(project(":core:designsystem"))
+    implementation(project(":core:update"))
     implementation(project(":feature:player"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

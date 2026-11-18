@@ -22,6 +22,7 @@ include(":core:common")
 include(":core:database")
 include(":core:datastore")
 include(":core:designsystem")
+include(":core:update")
 
 include(":feature:player")
 include(":feature:library")

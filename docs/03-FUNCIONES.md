@@ -98,6 +98,8 @@
 | Pantalla de bloqueo | `feature:widget` | `PlayerNotification.kt` (MediaSession) | ⏳ |
 | Permisos de almacenamiento/media | `core:common` | `MediaFileUtils.kt` | ⏳ |
 | Barra de estado transparente con degradado (sin desplazar la UI) | `app` | `MainActivity.kt` | ✅ |
+| Actualizador in-app (GitHub Releases, verificación e instalación) | `core:update`, `feature:settings` | `AppUpdate.kt`, `UpdateManager.kt`, `UpdateSettingsScreen.kt` | ✅ |
+| Pantalla «Actualizaciones» en ajustes y drawer | `feature:settings`, `app` | `UpdateSettingsScreen.kt`, `AppNavGraph.kt` | ✅ |
 | Navegación | `app` | `navigation/AppNavGraph.kt` | ✅ |
 | Application / Hilt | `app` | `LarkApp.kt` | ⏳ |
 

@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.larkplayer.core.update.UpdateManager
 import dagger.hilt.android.HiltAndroidApp
 import timber.log.Timber
 import java.io.File
@@ -25,6 +26,8 @@ class LarkApp : Application(), Configuration.Provider {
         super.onCreate()
         if (BuildConfig.DEBUG) Timber.plant(Timber.DebugTree())
         installCrashLogger()
+        UpdateManager.initFromPackage(this)
+        UpdateManager.checkNow(manual = false)
     }
 
     /**
