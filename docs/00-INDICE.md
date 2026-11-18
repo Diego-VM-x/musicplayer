@@ -11,5 +11,6 @@
 | [`06-DECISIONES.md`](06-DECISIONES.md) | Decisiones técnicas (por qué ExoPlayer, por qué no iJK, etc.) |
 | [`07-COMPATIBILIDAD.md`](07-COMPATIBILIDAD.md) | Permisos, versiones, SDK y matriz de dispositivos |
 | [`08-REPO.md`](08-REPO.md) | Estado e instrucciones del repositorio Git |
+| [`09-APPLE-GLASS.md`](09-APPLE-GLASS.md) | Rediseño Apple Music / liquid glass y fix de detección de música |
 
 Regla: **todo cambio de código se documenta en `05-CAMBIOS.md`** y, si introduce una función nueva, se registra en `03-FUNCIONES.md`.

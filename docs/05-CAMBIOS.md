@@ -71,10 +71,20 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 - **Commit inicial del repo:** `f0b5579 feat: initial LarkClean native player (Fases 0-4)` — 80 archivos versionados, working tree limpio.
 - Corregido `.gitignore`: `build/` (todos los niveles) en vez de `/build` (solo raíz) — evita indexar artefactos de build.
 
-### Próximos cambios (Fase 6 — opcional)
-- [ ] Verificar apariencia en emulador/dispositivo y ajustar
-- [ ] Build `assembleRelease` con R8/shrinkResources para medir tamaño final
-- [ ] Añadir remote y push (GitHub/GitLab/Codeberg)
-- [ ] Completar funcionalidades pendientes: Playlists UI real, ringtone, búsqueda online de letras, widget Glance
+## 2026-11-18 — Fase 6: Apple Music glass + detección de música + funciones
+
+Ver [`09-APPLE-GLASS.md`](09-APPLE-GLASS.md) para el detalle completo.
+
+- **Fix detección:** `MediaScanBus`, auto-scan en `LibraryViewModel.init`/`onResume`, query MIME_TYPE en `MediaFileUtils`, permiso `READ_MEDIA_VISUAL_USER_SELECTED`.
+- **Liquid glass:** `ApplePalette`, `GlassSurface`, `BlurredBackdrop`, `GlassNavigationBar`, `GlassIconButton`; tema oscuro por defecto.
+- **Pantallas rediseñadas:** Player, MiniPlayer, Library, Lyrics, Equalizer + nuevas Queue y SleepTimer.
+- **Funciones nuevas:** playlists UI, ringtone, letras .lrc locales, cola reproducible, temporizador de sueño, ecualizador real.
+- **Navegación:** rutas `queue`, `sleep`, `equalizer`; bottom bar glass.
+
+### Próximos cambios (Fase 7)
+- [ ] Confirmar build tras los cambios
+- [ ] Widget Glance (pendiente)
+- [ ] Build release + push
+
 
 

@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larkplayer.app.navigation.AppNavGraph
+import com.larkplayer.core.common.MediaScanBus
 import com.larkplayer.core.datastore.SettingsDataStore
 import com.larkplayer.core.designsystem.theme.LarkTheme
 import com.larkplayer.core.model.ThemeConfig
@@ -25,10 +26,11 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsDataStore: SettingsDataStore
+    @Inject lateinit var scanBus: MediaScanBus
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* result handled silently — library re-scans on resume */ }
+    ) { scanBus.requestScan() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,7 +50,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestMediaPermissions() {
-        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permissions = if (Build.VERSION.SDK_INT >= 34) {
+            arrayOf(
+                Manifest.permission.READ_MEDIA_AUDIO,
+                Manifest.permission.READ_MEDIA_VIDEO,
+                Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+                Manifest.permission.POST_NOTIFICATIONS,
+            )
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             arrayOf(
                 Manifest.permission.READ_MEDIA_AUDIO,
                 Manifest.permission.READ_MEDIA_VIDEO,
@@ -61,5 +70,11 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
         if (missing.isNotEmpty()) permissionLauncher.launch(missing.toTypedArray())
+        else scanBus.requestScan()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        scanBus.requestScan()
     }
 }

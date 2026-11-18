@@ -35,8 +35,8 @@ class SettingsDataStore @Inject constructor(
 
     val themeConfig: Flow<ThemeConfig> = context.settingsDataStore.data.map { p ->
         ThemeConfig(
-            useDynamicColor = p[Keys.DYNAMIC_COLOR] ?: true,
-            themeMode = p[Keys.THEME_MODE] ?: 2,
+            useDynamicColor = p[Keys.DYNAMIC_COLOR] ?: false,
+            themeMode = p[Keys.THEME_MODE] ?: 1,
             overrides = (p[Keys.COLOR_OVERRIDES] ?: "").parseColors(),
         )
     }

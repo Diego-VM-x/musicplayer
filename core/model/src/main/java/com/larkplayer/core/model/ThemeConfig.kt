@@ -15,7 +15,7 @@ data class ColorItem(
 )
 
 data class ThemeConfig(
-    val useDynamicColor: Boolean = true,
-    val themeMode: Int = 2, // 0 light, 1 dark, 2 system
+    val useDynamicColor: Boolean = false,
+    val themeMode: Int = 1, // 0 light, 1 dark, 2 system — dark by default (Apple Music style)
     val overrides: List<ColorItem> = emptyList(),
 )

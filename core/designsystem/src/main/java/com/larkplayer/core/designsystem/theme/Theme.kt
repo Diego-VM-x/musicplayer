@@ -17,10 +17,16 @@ import androidx.core.view.WindowCompat
 import com.larkplayer.core.model.ThemeConfig
 
 private val DarkColors = darkColorScheme(
-    primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80,
+    primary = ApplePalette.Red,
+    secondary = ApplePalette.Pink,
+    tertiary = ApplePalette.Purple,
+    background = ApplePalette.Background,
+    surface = ApplePalette.Surface,
 )
 private val LightColors = lightColorScheme(
-    primary = Purple40, secondary = PurpleGrey40, tertiary = Pink40,
+    primary = ApplePalette.Red,
+    secondary = ApplePalette.Pink,
+    tertiary = ApplePalette.Purple,
 )
 
 @Composable

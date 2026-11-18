@@ -12,15 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
@@ -41,7 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -51,82 +50,90 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.larkplayer.core.designsystem.theme.Purple40
-import com.larkplayer.core.designsystem.theme.Purple80
+import com.larkplayer.core.designsystem.component.BlurredBackdrop
+import com.larkplayer.core.designsystem.component.GlassIconButton
+import com.larkplayer.core.designsystem.component.GlassSurface
+import com.larkplayer.core.designsystem.theme.ApplePalette
 
 /**
- * Full now-playing screen. Visual design approximates Lark Player's player:
- * gradient backdrop, large rounded artwork, centered meta, seek bar and
- * transport controls. All colors come from MaterialTheme so custom themes apply.
+ * Apple Music inspired now-playing screen with liquid-glass surfaces.
  */
 @Composable
 fun PlayerScreen(
     onBack: () -> Unit,
     onLyrics: () -> Unit = {},
+    onQueue: () -> Unit = {},
+    onSleepTimer: () -> Unit = {},
+    onEqualizer: () -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val accent = MaterialTheme.colorScheme.primary
     var sliderPos by remember(state.position) { mutableFloatStateOf(state.position.toFloat()) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // Gradient backdrop (Lark uses album-art-derived colors; ours uses theme accent).
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(420.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(accent.copy(alpha = 0.55f), Color.Transparent)
-                    )
-                )
-        )
+    Box(modifier = Modifier.fillMaxSize().background(ApplePalette.Background)) {
+        // Blurred album art backdrop — the signature Apple Music look.
+        BlurredBackdrop(model = state.albumArt)
 
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
-                }
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("NOW PLAYING", color = Color.White.copy(0.7f), fontSize = 11.sp, letterSpacing = 2.sp)
-                    Text(state.title, color = Color.White, fontSize = 13.sp, maxLines = 1)
-                }
-                IconButton(onClick = {}) {
-                    Icon(Icons.Default.MoreVert, "More", tint = Color.White)
+            // Glass top bar
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                alpha = 0.08f,
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GlassIconButton(onClick = onBack) {
+                        Icon(Icons.Default.KeyboardArrowDown, "Close", tint = Color.White)
+                    }
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("PLAYING FROM", color = ApplePalette.TextSecondary,
+                            fontSize = 10.sp, letterSpacing = 2.sp)
+                        Text("Library", color = Color.White, fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold)
+                    }
+                    GlassIconButton(onClick = onEqualizer) {
+                        Icon(Icons.Default.FavoriteBorder, "Equalizer", tint = Color.White)
+                    }
                 }
             }
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(36.dp))
 
-            // Artwork
+            // Artwork with a soft glow
             AsyncImage(
                 model = state.albumArt,
                 contentDescription = "Album art",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(280.dp)
-                    .clip(RoundedCornerShape(24.dp))
+                    .size(290.dp)
+                    .shadow(38.dp, RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             )
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(40.dp))
 
-            Text(
-                state.title,
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-            )
-            Text(state.artist, color = Color.White.copy(0.7f), fontSize = 15.sp)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(state.title, color = Color.White, fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(state.artist, color = accent, fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium, maxLines = 1)
+                }
+                GlassIconButton(onClick = {}) {
+                    Icon(Icons.Default.FavoriteBorder, "Favorite", tint = Color.White)
+                }
+            }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(26.dp))
 
-            // Seek bar
             Slider(
                 value = sliderPos.coerceIn(0f, state.duration.toFloat().coerceAtLeast(1f)),
                 onValueChange = { sliderPos = it },
@@ -135,82 +142,87 @@ fun PlayerScreen(
                 colors = SliderDefaults.colors(
                     thumbColor = Color.White,
                     activeTrackColor = Color.White,
-                    inactiveTrackColor = Color.White.copy(0.3f),
+                    inactiveTrackColor = Color.White.copy(0.28f),
                 ),
                 modifier = Modifier.fillMaxWidth(),
             )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatTime(state.position), color = Color.White.copy(0.7f), fontSize = 12.sp)
-                Text(formatTime(state.duration), color = Color.White.copy(0.7f), fontSize = 12.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(formatTime(state.position), color = ApplePalette.TextSecondary, fontSize = 12.sp)
+                Text("-" + formatTime(state.duration - state.position).let {
+                    if (state.duration > state.position) it else formatTime(0)
+                }, color = ApplePalette.TextSecondary, fontSize = 12.sp)
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(18.dp))
 
-            // Transport controls
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = viewModel::toggleShuffle) {
-                    Icon(
-                        Icons.Default.Shuffle, "Shuffle",
-                        tint = if (state.shuffle) accent else Color.White.copy(0.6f),
-                    )
+                    Icon(Icons.Default.Shuffle, "Shuffle",
+                        tint = if (state.shuffle) accent else Color.White.copy(0.55f))
                 }
                 IconButton(onClick = viewModel::skipPrevious) {
-                    Icon(Icons.Default.SkipPrevious, "Previous", tint = Color.White, modifier = Modifier.size(36.dp))
+                    Icon(Icons.Default.SkipPrevious, "Previous", tint = Color.White,
+                        modifier = Modifier.size(42.dp))
                 }
-                // Main play button
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(RoundedCornerShape(36.dp))
-                        .background(accent),
-                    contentAlignment = Alignment.Center,
+                // Main play button — white glass circle
+                GlassSurface(
+                    shape = RoundedCornerShape(50),
+                    alpha = 0.95f,
+                    borderAlpha = 0.6f,
+                    elevation = 18.dp,
                 ) {
-                    IconButton(onClick = viewModel::togglePlayPause, modifier = Modifier.size(72.dp)) {
+                    IconButton(onClick = viewModel::togglePlayPause, modifier = Modifier.size(76.dp)) {
                         AnimatedContent(state.isPlaying) { playing ->
                             Icon(
                                 if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
                                 if (playing) "Pause" else "Play",
-                                tint = Color.White,
-                                modifier = Modifier.size(40.dp),
+                                tint = ApplePalette.Background,
+                                modifier = Modifier.size(42.dp),
                             )
                         }
                     }
                 }
                 IconButton(onClick = viewModel::skipNext) {
-                    Icon(Icons.Default.SkipNext, "Next", tint = Color.White, modifier = Modifier.size(36.dp))
+                    Icon(Icons.Default.SkipNext, "Next", tint = Color.White,
+                        modifier = Modifier.size(42.dp))
                 }
                 IconButton(onClick = viewModel::cycleRepeat) {
                     val icon = if (state.repeatMode == 2) Icons.Default.RepeatOne else Icons.Default.Repeat
-                    Icon(
-                        icon, "Repeat",
-                        tint = if (state.repeatMode != 0) accent else Color.White.copy(0.6f),
-                    )
+                    Icon(icon, "Repeat",
+                        tint = if (state.repeatMode != 0) accent else Color.White.copy(0.55f))
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(24.dp))
 
-            // Secondary actions
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                IconButton(onClick = onLyrics) {
-                    Icon(Icons.Default.Lyrics, "Lyrics", tint = Color.White.copy(0.8f))
-                }
-                IconButton(onClick = {}) {
-                    Icon(Icons.Default.FavoriteBorder, "Favorite", tint = Color.White.copy(0.8f))
-                }
-                IconButton(onClick = {}) {
-                    Icon(Icons.Default.Timer, "Sleep timer", tint = Color.White.copy(0.8f))
-                }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                MiniGlassAction(Icons.Default.Lyrics, "Lyrics", onLyrics)
+                MiniGlassAction(Icons.Default.QueueMusic, "Queue", onQueue)
+                MiniGlassAction(Icons.Default.Timer, "Sleep timer", onSleepTimer)
             }
         }
     }
 }
 
+@Composable
+private fun MiniGlassAction(icon: androidx.compose.ui.graphics.vector.ImageVector,
+                           label: String, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        GlassSurface(shape = RoundedCornerShape(50), alpha = 0.09f) {
+            IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+                Icon(icon, label, tint = Color.White, modifier = Modifier.size(22.dp))
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(label, color = ApplePalette.TextSecondary, fontSize = 10.sp)
+    }
+}
+
 private fun formatTime(ms: Long): String {
-    val total = ms / 1000
+    val total = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(total / 60, total % 60)
 }

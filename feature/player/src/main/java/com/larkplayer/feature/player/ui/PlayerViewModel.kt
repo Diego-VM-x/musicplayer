@@ -95,6 +95,15 @@ class PlayerViewModel @Inject constructor(
         listener = null
     }
 
+    val sleepTimerRemaining = repository.sleepTimerRemaining
+
+    fun queue() = repository.currentQueue()
+    fun currentIndex() = repository.currentIndex()
+    fun playAtIndex(index: Int) = repository.playAtIndex(index)
+    fun removeFromQueue(index: Int) = repository.removeFromQueue(index)
+    fun setSleepTimer(minutes: Int) = repository.setSleepTimer(minutes)
+    fun cancelSleepTimer() = repository.cancelSleepTimer()
+
     fun togglePlayPause() = repository.togglePlayPause()
     fun skipNext() = repository.skipNext()
     fun skipPrevious() = repository.skipPrevious()

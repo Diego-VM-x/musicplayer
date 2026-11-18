@@ -11,9 +11,14 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.larkplayer.core.common.Result
 import com.larkplayer.core.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,8 +31,13 @@ import javax.inject.Singleton
 class PlayerRepository @Inject constructor(
     @ApplicationContext context: Context,
 ) {
+    private val scope = CoroutineScope(SupervisorJob())
     private val _controller = MutableStateFlow<MediaController?>(null)
     val controller: StateFlow<MediaController?> = _controller.asStateFlow()
+
+    private val _sleepTimerRemaining = MutableStateFlow(0L)
+    val sleepTimerRemaining: StateFlow<Long> = _sleepTimerRemaining.asStateFlow()
+    private var sleepJob: Job? = null
 
     init {
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -59,6 +69,48 @@ class PlayerRepository @Inject constructor(
     fun seekTo(ms: Long) { _controller.value?.seekTo(ms) }
     fun setShuffle(on: Boolean) { _controller.value?.shuffleModeEnabled = on }
     fun setRepeat(mode: Int) { _controller.value?.repeatMode = mode }
+
+    // ---- Queue ----
+    fun currentQueue(): List<MediaItem> = _controller.value?.mediaItemCount?.let { count ->
+        (0 until count).mapNotNull { _controller.value?.getMediaItemAt(it) }
+    } ?: emptyList()
+
+    fun currentIndex(): Int = _controller.value?.currentMediaItemIndex ?: -1
+
+    fun playAtIndex(index: Int) {
+        _controller.value?.let { c ->
+            c.seekTo(index, 0L)
+            c.play()
+        }
+    }
+
+    fun removeFromQueue(index: Int) {
+        _controller.value?.removeMediaItem(index)
+    }
+
+    // ---- Sleep timer ----
+    fun setSleepTimer(minutes: Int) {
+        sleepJob?.cancel()
+        if (minutes <= 0) { _sleepTimerRemaining.value = 0L; return }
+        val totalMs = minutes * 60_000L
+        _sleepTimerRemaining.value = totalMs
+        sleepJob = scope.launch {
+            var remaining = totalMs
+            while (remaining > 0) {
+                delay(1_000)
+                remaining -= 1_000
+                _sleepTimerRemaining.value = remaining.coerceAtLeast(0)
+            }
+            _controller.value?.pause()
+            _sleepTimerRemaining.value = 0L
+        }
+    }
+
+    fun cancelSleepTimer() {
+        sleepJob?.cancel()
+        sleepJob = null
+        _sleepTimerRemaining.value = 0L
+    }
 
     private fun Song.toMediaItem(): MediaItem = MediaItem.Builder()
         .setUri(contentUri)

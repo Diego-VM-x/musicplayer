@@ -19,9 +19,15 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:designsystem"))
+    implementation(project(":feature:player"))
+    implementation(libs.androidx.media3.exoplayer)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.navigation.compose)
 }
