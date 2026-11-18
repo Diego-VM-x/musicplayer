@@ -129,9 +129,9 @@ class LibraryViewModel @Inject constructor(
         player.addToQueue(song)
     }
 
-    suspend fun createPlaylist(name: String) {
-        runCatching { playlistRepository.create(name) }
-    }
+    /** Returns the new playlist id so the UI can immediately ask for songs. */
+    suspend fun createPlaylist(name: String): Long? =
+        runCatching { playlistRepository.create(name) }.getOrNull()
     fun renamePlaylist(id: Long, name: String) = viewModelScope.launch {
         runCatching { playlistRepository.rename(id, name) }
     }

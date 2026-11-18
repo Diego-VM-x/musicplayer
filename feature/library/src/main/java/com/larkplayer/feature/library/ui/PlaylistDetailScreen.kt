@@ -639,6 +639,7 @@ private fun PlaylistEditor(
     val context = LocalContext.current
     var newName by remember { mutableStateOf(name) }
     var coverUri by remember { mutableStateOf(cover) }
+    var cropping by remember { mutableStateOf<String?>(null) }
 
     val pickCover = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
@@ -648,7 +649,7 @@ private fun PlaylistEditor(
                     Intent.FLAG_GRANT_READ_URI_PERMISSION,
                 )
             }
-            coverUri = uri.toString()
+            cropping = uri.toString()
         }
     }
 
@@ -719,6 +720,18 @@ private fun PlaylistEditor(
                     )
                 }
             }
+        }
+
+        cropping?.let { source ->
+            CoverCropper(
+                sourceUri = source,
+                accent = accent,
+                onCancel = { cropping = null },
+                onApply = { result ->
+                    coverUri = result
+                    cropping = null
+                },
+            )
         }
     }
 }

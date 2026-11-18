@@ -135,6 +135,7 @@ class PlayerViewModel @Inject constructor(
     fun skipPrevious() = repository.skipPrevious()
     fun seek(ms: Long) = repository.seekTo(ms)
     fun toggleShuffle() = repository.setShuffle(!_uiState.value.shuffle)
+    fun setRepeatMode(mode: Int) = repository.setRepeat(mode)
     fun cycleRepeat() {
         val next = when (_uiState.value.repeatMode) {
             Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL

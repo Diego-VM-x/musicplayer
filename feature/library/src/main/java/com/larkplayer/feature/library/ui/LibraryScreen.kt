@@ -15,6 +15,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -72,6 +73,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -135,6 +137,8 @@ fun LibraryScreen(
     var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
     var createDialog by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
+    var pendingAddPlaylistId by remember { mutableStateOf<Long?>(null) }
+    var newPlaylistSongs by remember { mutableStateOf(emptySet<Long>()) }
     var pickerForIds by remember { mutableStateOf<Set<Long>?>(null) }
     var playlistToDelete by remember { mutableStateOf<PlaylistWithCover?>(null) }
 
@@ -279,7 +283,25 @@ fun LibraryScreen(
                     )
                 }
 
-                Box(Modifier.weight(1f)) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .pointerInput(state.tab) {
+                            var dragged = 0f
+                            detectHorizontalDragGestures(
+                                onDragEnd = { dragged = 0f },
+                            ) { change, amount ->
+                                change.consume()
+                                dragged += amount
+                                if (kotlin.math.abs(dragged) >= 72f) {
+                                    val next = (state.tab + if (dragged < 0f) 1 else -1)
+                                        .coerceIn(0, TABS.lastIndex)
+                                    if (next != state.tab) viewModel.onTabChange(next)
+                                    dragged = 0f
+                                }
+                            }
+                        },
+                ) {
                     when (state.tab) {
                         0 -> EmptyTab(
                             icon = Icons.Rounded.Album,
@@ -392,6 +414,71 @@ fun LibraryScreen(
         }
     }
 
+    // ---- Ask which songs to add right after creating a playlist ----
+    pendingAddPlaylistId?.let { playlistId ->
+        LarkSheet(onDismissRequest = { pendingAddPlaylistId = null }) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
+                Text("Agregar canciones", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Elige las canciones para tu nueva playlist",
+                    color = ApplePalette.TextSecondary,
+                    fontSize = 11.5.sp,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+                )
+                LazyColumn(Modifier.height(360.dp)) {
+                    itemsIndexed(state.songs, key = { _, song -> song.id }) { _, song ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    newPlaylistSongs = if (song.id in newPlaylistSongs) {
+                                        newPlaylistSongs - song.id
+                                    } else newPlaylistSongs + song.id
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SoftCheck(
+                                selected = song.id in newPlaylistSongs,
+                                onClick = {
+                                    newPlaylistSongs = if (song.id in newPlaylistSongs) {
+                                        newPlaylistSongs - song.id
+                                    } else newPlaylistSongs + song.id
+                                },
+                            )
+                            Spacer(Modifier.width(14.dp))
+                            SongArtwork(song, Modifier.size(42.dp), RoundedCornerShape(9.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(song.title, color = Color.White, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(song.artist, color = ApplePalette.TextSecondary, fontSize = 10.5.sp, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GlassPillButton(
+                        "Omitir",
+                        onClick = { pendingAddPlaylistId = null },
+                        modifier = Modifier.weight(1f),
+                    )
+                    GlassPillButton(
+                        if (newPlaylistSongs.isEmpty()) "Agregar" else "Agregar (${newPlaylistSongs.size})",
+                        onClick = {
+                            newPlaylistSongs.forEach { viewModel.addToPlaylist(playlistId, it) }
+                            pendingAddPlaylistId = null
+                            onOpenPlaylist(playlistId)
+                        },
+                        modifier = Modifier.weight(1f),
+                        filled = true,
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+        }
+    }
+
     // ---- Add selection to playlist ----
     pickerForIds?.let { ids ->
         LarkSheet(onDismissRequest = { pickerForIds = null }) {
@@ -467,7 +554,14 @@ fun LibraryScreen(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .clickable(enabled = newName.isNotBlank()) {
-                            scope.launch { viewModel.createPlaylist(newName.trim()) }
+                            val name = newName.trim()
+                            scope.launch {
+                                val id = viewModel.createPlaylist(name)
+                                if (id != null) {
+                                    pendingAddPlaylistId = id
+                                    newPlaylistSongs = emptySet()
+                                }
+                            }
                             newName = ""
                             createDialog = false
                         }

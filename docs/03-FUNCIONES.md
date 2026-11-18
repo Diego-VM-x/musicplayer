@@ -13,6 +13,10 @@
 | UI del reproductor (carátula, controles, progreso) | `feature:player` | `ui/PlayerScreen.kt` | ✅ |
 | Mini-player | `feature:player` | `ui/MiniPlayer.kt` | ✅ |
 | Reproducción en segundo plano | `feature:player` | `PlaybackService.kt` (first-party FGS) | ✅ |
+| Transición/crossfade configurable (1–12 s) y avance automático | `feature:player` | `PlayerRepository.kt` (`crossfadeLoop`), `SettingsDataStore` | ✅ |
+| Preferencias de shuffle/repetición persistentes | `feature:player` | `PlayerRepository.kt` (`setShuffle`, `setRepeat`) | ✅ |
+| Controles de repetir/repetir una/aleatorio en la cola | `feature:player` | `ui/QueueScreen.kt` (`QueueToggle`) | ✅ |
+| Mini-player con fondo desenfocado | `feature:player` | `ui/MiniPlayer.kt` | ✅ |
 
 ## Biblioteca
 
@@ -28,7 +32,9 @@
 | Asignar ringtone | `feature:library` | `scanner/MediaScanner.kt` (SAF write) | ⏳ |
 | UI biblioteca | `feature:library` | `ui/LibraryScreen.kt` | ⏳ |
 | Detalle de playlist (carátula, reproducir/aleatorio, orden) | `feature:library` | `ui/PlaylistDetailScreen.kt`, `ui/PlaylistDetailViewModel.kt` | ✅ |
-| Editar playlist (nombre + portada SAF) | `feature:library` | `ui/PlaylistDetailScreen.kt` (`PlaylistEditor`), `PlaylistRepository.kt` | ✅ |
+| Editar playlist (nombre + portada SAF recortada) | `feature:library` | `ui/PlaylistDetailScreen.kt` (`PlaylistEditor`), `ui/CoverCropper.kt`, `PlaylistRepository.kt` | ✅ |
+| Crear playlist y pedir canciones de inmediato | `feature:library` | `ui/LibraryScreen.kt`, `LibraryViewModel.createPlaylist()` | ✅ |
+| Deslizar entre pestañas de la biblioteca | `feature:library` | `ui/LibraryScreen.kt` (`detectHorizontalDragGestures`) | ✅ |
 | Agregar canciones a playlist / quitar / reordenar | `feature:library` | `PlaylistRepository.kt` (`addSongs`, `removeSongs`, `reorder`) | ✅ |
 | Conteo de reproducciones ("Más reproducido") | `core:database` | `dao/Daos.kt` (`PlayCount`), `PlaylistRepository.playCounts()` | ✅ |
 | Selección múltiple y barra flotante de acciones | `feature:library` | `ui/LibraryScreen.kt`, `ui/PlaylistDetailScreen.kt` | ✅ |
@@ -89,6 +95,7 @@
 | Widget pantalla de inicio | `feature:widget` | `LarkGlanceWidget.kt` | ⏳ |
 | Pantalla de bloqueo | `feature:widget` | `PlayerNotification.kt` (MediaSession) | ⏳ |
 | Permisos de almacenamiento/media | `core:common` | `MediaFileUtils.kt` | ⏳ |
+| Barra de estado transparente con degradado (sin desplazar la UI) | `app` | `MainActivity.kt` | ✅ |
 | Navegación | `app` | `navigation/AppNavGraph.kt` | ✅ |
 | Application / Hilt | `app` | `LarkApp.kt` | ⏳ |
 

@@ -55,8 +55,12 @@ class PlayerRepository @Inject constructor(
 
     @Volatile private var crossfadeEnabled = false
     @Volatile private var crossfadeMs = 4_000L
+    @Volatile private var gaplessEnabled = true
+    @Volatile private var desiredShuffle = false
+    @Volatile private var desiredRepeat = Player.REPEAT_MODE_OFF
     @Volatile private var fadeInUntil = 0L
     private var lastMediaId: String? = null
+    private var lastPosition = 0L
     private var pendingPlayMs = 0L
 
     private var connecting = false
@@ -72,6 +76,21 @@ class PlayerRepository @Inject constructor(
         }
         scope.launch {
             settings.crossfadeSeconds.collect { seconds -> crossfadeMs = seconds * 1_000L }
+        }
+        scope.launch {
+            settings.gapless.collect { enabled -> gaplessEnabled = enabled }
+        }
+        scope.launch {
+            settings.shuffle.collect { enabled ->
+                desiredShuffle = enabled
+                withController { it.shuffleModeEnabled = enabled }
+            }
+        }
+        scope.launch {
+            settings.repeatMode.collect { mode ->
+                desiredRepeat = mode
+                withController { it.repeatMode = mode }
+            }
         }
         scope.launch { crossfadeLoop() }
         scope.launch { listeningTimeLoop() }
@@ -99,6 +118,12 @@ class PlayerRepository @Inject constructor(
             connecting = false
             runCatching { future.get() }
                 .onSuccess { controller ->
+                    // Restore the user's shuffle/repeat preferences on every reconnect.
+                    runCatching {
+                        controller.shuffleModeEnabled = desiredShuffle
+                        controller.repeatMode = desiredRepeat
+                        controller.volume = 1f
+                    }
                     _controller.value = controller
                     pendingAction?.let { action ->
                         pendingAction = null
@@ -149,8 +174,17 @@ class PlayerRepository @Inject constructor(
     fun skipNext() = withController { it.seekToNextMediaItem() }
     fun skipPrevious() = withController { it.seekToPreviousMediaItem() }
     fun seekTo(ms: Long) = withController { it.seekTo(ms) }
-    fun setShuffle(on: Boolean) = withController { it.shuffleModeEnabled = on }
-    fun setRepeat(mode: Int) = withController { it.repeatMode = mode }
+    fun setShuffle(on: Boolean) {
+        desiredShuffle = on
+        withController { it.shuffleModeEnabled = on }
+        scope.launch { runCatching { settings.setShuffle(on) } }
+    }
+
+    fun setRepeat(mode: Int) {
+        desiredRepeat = mode
+        withController { it.repeatMode = mode }
+        scope.launch { runCatching { settings.setRepeatMode(mode) } }
+    }
 
     // ---- Queue ----
 
@@ -203,39 +237,54 @@ class PlayerRepository @Inject constructor(
 
     // ---- Crossfade ----------------------------------------------------------
 
+    /**
+     * Applies the user's "Transición de sonido": with crossfade disabled (or gapless
+     * enabled) the volume stays at 1. With crossfade enabled we fade out during the
+     * configured number of seconds before the end and fade in the incoming track.
+     */
     private suspend fun crossfadeLoop() {
         while (scope.isActive) {
             val c = _controller.value
-            if (c != null && c.isConnected && crossfadeEnabled) {
+            if (c == null || !c.isConnected) {
+                connect()
+            } else {
                 runCatching {
-                    if (c.isPlaying) {
+                    if (!crossfadeEnabled) {
+                        if (c.volume != 1f) c.volume = 1f
+                    } else if (c.isPlaying) {
+                        val now = SystemClock.elapsedRealtime()
                         val currentId = c.currentMediaItem?.mediaId
-                        if (currentId != null && currentId != lastMediaId) {
-                            lastMediaId = currentId
-                            fadeInUntil = SystemClock.elapsedRealtime() + crossfadeMs
-                        }
-                        val duration = c.duration
                         val position = c.currentPosition
-                        val remaining = duration - position
-                        val fadeInRemaining = fadeInUntil - SystemClock.elapsedRealtime()
-                        val volume = when {
-                            fadeInRemaining > 0 -> 1f - (fadeInRemaining.toFloat() / crossfadeMs) * 0.9f
-                            remaining in 0..crossfadeMs -> (remaining.toFloat() / crossfadeMs).coerceIn(0.05f, 1f)
-                            else -> 1f
+                        val restarted = currentId != null && currentId == lastMediaId &&
+                            lastPosition - position > 1_000L
+                        if (currentId != lastMediaId || restarted) {
+                            lastMediaId = currentId
+                            fadeInUntil = now + crossfadeMs
                         }
-                        c.volume = volume.coerceIn(0.05f, 1f)
+                        lastPosition = position
+                        val duration = c.duration
+                        val remaining = duration - position
+                        val fadeOut = if (duration > 0 && remaining <= crossfadeMs) {
+                            (remaining.toFloat() / crossfadeMs).coerceIn(0f, 1f)
+                        } else 1f
+                        val fadeInRemaining = fadeInUntil - now
+                        val fadeIn = if (fadeInRemaining > 0) {
+                            1f - (fadeInRemaining.toFloat() / crossfadeMs).coerceIn(0f, 1f)
+                        } else 1f
+                        c.volume = minOf(fadeOut, fadeIn).coerceIn(0f, 1f)
+                    } else if (c.volume != 1f && fadeInUntil <= SystemClock.elapsedRealtime()) {
+                        c.volume = 1f
                     }
                 }
-            } else if (c == null || !c.isConnected) {
-                connect()
             }
-            delay(150)
+            delay(120)
         }
     }
 
     private fun resetVolume() {
         runCatching { _controller.value?.volume = 1f }
         lastMediaId = null
+        lastPosition = 0L
         fadeInUntil = 0L
     }
 

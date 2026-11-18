@@ -4,6 +4,17 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-18 — Fase 9: transiciones, cola, gestos y barra de estado
+
+- **Mini-player con desenfoque** (`ui/MiniPlayer.kt`): la carátula se dibuja desenfocada tras la píldora con un velo oscuro, para que el título y el artista se lean sobre cualquier portada.
+- **Transición de sonido funcional** (`PlayerRepository.kt`): `crossfadeEnabled` + `crossfadeSeconds` (1–12 s, de Ajustes → Reproducción) controlan un fundido de salida al finalizar la pista y de entrada en la siguiente. Se detecta también el reinicio con «repetir una». Se respeta `gapless`.
+- **Avance automático y preferencias persistentes**: Media3 pasa a la siguiente canción al terminar; `shuffle` y `repeatMode` se guardan en DataStore y se restauran al reconectar el `MediaController`. Los botones de la cola y del reproductor ya persisten el cambio.
+- ** Cola con controles** (`ui/QueueScreen.kt`): botones flotantes de Repetir / Repetir una / Sin repetir y Aleatorio al pie de «A continuación», con el estado activo coloreado.
+- **Deslizamiento entre pestañas** (`ui/LibraryScreen.kt`): gesto horizontal sobre el contenido cambia entre Videos, Canciones, Playlists, Carpetas, Artistas y Álbumes sin tocar las píldoras.
+- **Barra de estado transparente** (`MainActivity.kt`): `decorFitsSystemWindows=false` + `statusBarColor=TRANSPARENT` y un degradado a pantalla completa; el contenido se desplaza con `statusBarsPadding()`, por lo que la interfaz no sube.
+- **Crear playlist** (`LibraryScreen.kt`, `LibraryViewModel.kt`): el nombre introducido se guarda y se abre de inmediato una hoja para elegir canciones (o «Omitir»); al terminar se abre el detalle de la playlist.
+- **Recorte de portada** (`ui/CoverCropper.kt`): el editor permite recortar la imagen elegida desde SAF con pellizco/arrastre y guarda un JPEG cuadrado de 512×512 en almacenamiento privado.
+
 ## 2026-11-18 — Fase 8: playlists completas + liquid glass
 
 - **Detalle de playlist** (`feature:library/ui/PlaylistDetailScreen.kt`, `PlaylistDetailViewModel.kt`, ruta `playlist/{playlistId}`):

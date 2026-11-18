@@ -7,12 +7,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larkplayer.app.navigation.AppNavGraph
 import com.larkplayer.core.common.MediaScanBus
@@ -36,14 +40,31 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         requestMediaPermissions()
 
+        // Draw behind the status bar but keep the UI below it: the gradient shows
+        // through the transparent bar without shifting the whole interface up.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        WindowCompat.getInsetsController(window, window.decorView)
+            .isAppearanceLightStatusBars = false
+
         setContent {
             val config by settingsDataStore.themeConfig.collectAsStateWithLifecycle(ThemeConfig())
             LarkTheme(config = config) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+                                    MaterialTheme.colorScheme.background,
+                                )
+                            )
+                        ),
                 ) {
-                    AppNavGraph()
+                    Box(Modifier.fillMaxSize().statusBarsPadding()) {
+                        AppNavGraph()
+                    }
                 }
             }
         }

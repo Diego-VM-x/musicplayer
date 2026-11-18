@@ -61,7 +61,8 @@ Rutas: `library`, `player`, `playlist/{playlistId}`, `settings`, `lyrics`, `queu
 - Playlists: entrada «Nueva playlist»; después carátula de portada, nombre y número de canciones. Tocar abre el detalle; pulsación larga ofrece eliminar.
 - Artistas: arte circular; Álbumes y Carpetas: filas con subtítulo.
 - Pulsación larga sobre una canción: entra en **selección múltiple** («N seleccionado(s)») con barra flotante de acciones: Agregar a, A continuación, Compartir, Ocultar y Borrar (borrado real vía MediaStore).
-- El diálogo «Nueva playlist» es una tarjeta de cristal con campo de texto y contador 0/200.
+- El diálogo «Nueva playlist» es una tarjeta de cristal con campo de texto y contador 0/200; al crearla se pide de inmediato qué canciones agregar (o «Omitir»).
+- Se puede **deslizar horizontalmente** sobre el contenido para cambiar de pestaña sin tocar las píldoras.
 - Mensaje del último escaneo y botón «Volver a escanear» cuando no hay canciones.
 
 ### Detalle de playlist — `feature/library/ui/PlaylistDetailScreen.kt`
@@ -71,12 +72,13 @@ Rutas: `library`, `player`, `playlist/{playlistId}`, `settings`, `lyrics`, `queu
 - Botones de cristal «Reproducir» y «Aleatorio»; la selección de orden manual muestra flechas para mover canciones.
 - Menú de orden: Más recientes, Más reproducido, A a Z y Organizar manualmente.
 - Menú «...»: Agregar canciones, Administrar (selección) y Eliminar lista de reproducción.
-- Editor a pantalla completa: imagen desde el selector de archivos del sistema y nombre con contador.
+- Editor a pantalla completa: imagen desde el selector de archivos del sistema, **recorte cuadrado** con pellizco/arrastre (`CoverCropper.kt`) y nombre con contador.
 - La selección múltiple permite agregar a otra playlist, poner a continuación, compartir, ocultar y quitar de la playlist.
 
 ### Mini-player — `feature/player/ui/MiniPlayer.kt`
 
-Píldora ancha teñida con el acento de la carátula, carátula 46 dp, título del color de acento,
+Píldora ancha teñida con el acento de la carátula y **fondo desenfocado de la propia portada**
+con velo oscuro para que el texto se lea siempre. Carátula 48 dp, título del color de acento,
 artista – álbum, botón de repetición con arco de progreso y botón circular de reproducir/pausar.
 
 ### Reproductor — `feature/player/ui/PlayerScreen.kt`

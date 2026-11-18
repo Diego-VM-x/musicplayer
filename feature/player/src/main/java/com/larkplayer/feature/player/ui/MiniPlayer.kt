@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -66,17 +67,29 @@ fun MiniPlayer(
         )
     )
 
-    Row(
+    // Blurred artwork behind the pill: keeps the title/artist readable over any cover.
+    Box(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .clip(RoundedCornerShape(26.dp))
-            .background(background)
-            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(26.dp))
-            .clickable(onClick = onOpen)
-            .padding(horizontal = 10.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clickable(onClick = onOpen),
     ) {
+        AsyncImage(
+            model = state.albumArt,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().blur(22.dp),
+        )
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(background)
+                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(26.dp))
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
         Box(
             Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFF2A2A2E)),
             contentAlignment = Alignment.Center,
@@ -156,6 +169,7 @@ fun MiniPlayer(
                 tint = accent,
                 modifier = Modifier.size(25.dp),
             )
+        }
         }
     }
 }
