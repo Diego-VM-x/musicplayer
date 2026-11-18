@@ -13,8 +13,8 @@
 | Módulos `core` (model, common, database, datastore, designsystem) | ✅ Completo |
 | Módulos `feature` (player, library, lyrics, backup, settings, theme) | ⏳ Pendiente |
 | App `app` (navegación, DI, pantallas) | ✅ Completo |
-| Repo Git inicial | ✅ Completo (sin commit final) |
-| Build `assembleDebug` y APK final | 🔄 En progreso (corrigiendo errores) |
+| Repo Git inicial | ✅ Completo (commit `f0b5579`, 80 archivos) |
+| Build `assembleDebug` y APK | ✅ BUILD SUCCESSFUL — `app/build/outputs/apk/debug/app-debug.apk` (~22.4 MB) |
 
 ## Stack (solo lo necesario)
 

@@ -62,10 +62,19 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 - **Repo Git inicializado** en `lark-clean/` con identidad local → [`08-REPO.md`](08-REPO.md).
 - `.gitignore` ampliado con `.kotlin/` y `build_debug.log`.
 
-### Próximos cambios (Fase 5)
-- [ ] Confirmar `assembleDebug` exitoso y localizar el APK
+  6. `LyricsView.kt`: añadido `import androidx.compose.runtime.remember`.
+  7. `app/build.gradle.kts`: `buildFeatures { buildConfig = true }` (AGP 8 no genera BuildConfig por defecto).
+
+## 2026-11-18 — Fase 5: build exitoso + commit
+
+- **`assembleDebug` → BUILD SUCCESSFUL** (415 tareas). APK generado: `app/build/outputs/apk/debug/app-debug.apk` (~22.4 MB, sin ofuscar).
+- **Commit inicial del repo:** `f0b5579 feat: initial LarkClean native player (Fases 0-4)` — 80 archivos versionados, working tree limpio.
+- Corregido `.gitignore`: `build/` (todos los niveles) en vez de `/build` (solo raíz) — evita indexar artefactos de build.
+
+### Próximos cambios (Fase 6 — opcional)
 - [ ] Verificar apariencia en emulador/dispositivo y ajustar
-- [ ] Commit inicial del repo
-- [ ] (Opcional) build `assembleRelease` con R8/shrinkResources para medir tamaño final
+- [ ] Build `assembleRelease` con R8/shrinkResources para medir tamaño final
+- [ ] Añadir remote y push (GitHub/GitLab/Codeberg)
+- [ ] Completar funcionalidades pendientes: Playlists UI real, ringtone, búsqueda online de letras, widget Glance
 
 

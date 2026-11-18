@@ -4,7 +4,8 @@
 
 - Repositorio inicializado en `lark-clean/` (`git init`).
 - `user.name` = `LarkClean Dev`, `user.email` = `dev@larkclean.local` (local al repo).
-- Se hará el **commit inicial** una vez el build `assembleDebug` pase.
+- ✅ **Commit inicial realizado:** `f0b5579 feat: initial LarkClean native player (Fases 0-4)` — 80 archivos, working tree limpio.
+- ✅ Build `assembleDebug` exitoso. APK en `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Ignorados (.gitignore)
 
