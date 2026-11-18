@@ -73,6 +73,16 @@ object MediaFileUtils {
         Uri.parse("content://media/external/audio/albumart/$albumId")
 
     /** Looks for a sibling .lrc file next to the audio file. */
+    fun hasLocalLyrics(songPath: String): Boolean = runCatching {
+        val file = java.io.File(songPath)
+        listOf(
+            java.io.File(file.parentFile, "${file.nameWithoutExtension}.lrc"),
+            java.io.File(file.parentFile, "${file.nameWithoutExtension}.LRC"),
+            java.io.File(android.os.Environment.getExternalStorageDirectory(), "Lyrics/${file.nameWithoutExtension}.lrc"),
+        ).any { it.exists() }
+    }.getOrDefault(false)
+
+    /** Looks for a sibling .lrc file next to the audio file. */
     fun findLocalLyrics(songPath: String): String? = runCatching {
         val file = java.io.File(songPath)
         val candidates = listOf(

@@ -16,6 +16,10 @@ data class ColorItem(
 
 data class ThemeConfig(
     val useDynamicColor: Boolean = false,
-    val themeMode: Int = 1, // 0 light, 1 dark, 2 system — dark by default (Apple Music style)
+    val themeMode: Int = 1, // 0 light, 1 dark, 2 system — dark by default (Lark style)
     val overrides: List<ColorItem> = emptyList(),
+    /** ARGB color picked in Tema > accent row. Defaults to Lark blue. */
+    val accentColor: Long = 0xFF0A84FF,
+    /** 0 = Pequeño, 1 = Medio, 2 = Grande */
+    val themeSize: Int = 1,
 )

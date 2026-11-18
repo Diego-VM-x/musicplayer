@@ -1,12 +1,13 @@
 package com.larkplayer.feature.player.ui
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,27 +15,28 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,19 +46,19 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.larkplayer.core.designsystem.component.BlurredBackdrop
-import com.larkplayer.core.designsystem.component.GlassIconButton
-import com.larkplayer.core.designsystem.component.GlassSurface
+import com.larkplayer.core.designsystem.component.LarkGradientBackground
 import com.larkplayer.core.designsystem.theme.ApplePalette
+import com.larkplayer.feature.player.AlbumColorRepository
 
 /**
- * Apple Music inspired now-playing screen with liquid-glass surfaces.
+ * Lark's now-playing screen: huge rounded artwork, coloured title, thin progress
+ * line, three big transport controls and the EQ / Letras / queue row.
  */
 @Composable
 fun PlayerScreen(
@@ -65,160 +67,217 @@ fun PlayerScreen(
     onQueue: () -> Unit = {},
     onSleepTimer: () -> Unit = {},
     onEqualizer: () -> Unit = {},
+    onSettings: () -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val accent = MaterialTheme.colorScheme.primary
-    var sliderPos by remember(state.position) { mutableFloatStateOf(state.position.toFloat()) }
+    val accentInt by viewModel.accent.collectAsStateWithLifecycle()
+    val accent = Color(accentInt)
 
-    Box(modifier = Modifier.fillMaxSize().background(ApplePalette.Background)) {
-        // Blurred album art backdrop — the signature Apple Music look.
-        BlurredBackdrop(model = state.albumArt)
+    var sliderValue by remember(state.id) { mutableFloatStateOf(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
 
+    LaunchedEffect(state.position, dragging) {
+        if (!dragging) sliderValue = state.position.toFloat()
+    }
+
+    LarkGradientBackground(accent = accent, strength = 0.46f) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp)
+                .padding(top = 10.dp),
         ) {
-            // Glass top bar
-            GlassSurface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                alpha = 0.08f,
+            // Artwork
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .shadow(24.dp, RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF242428)),
+                contentAlignment = Alignment.Center,
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    GlassIconButton(onClick = onBack) {
-                        Icon(Icons.Default.KeyboardArrowDown, "Close", tint = Color.White)
-                    }
-                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("PLAYING FROM", color = ApplePalette.TextSecondary,
-                            fontSize = 10.sp, letterSpacing = 2.sp)
-                        Text("Library", color = Color.White, fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold)
-                    }
-                    GlassIconButton(onClick = onEqualizer) {
-                        Icon(Icons.Default.FavoriteBorder, "Equalizer", tint = Color.White)
-                    }
-                }
+                Icon(
+                    Icons.Default.QueueMusic,
+                    null,
+                    tint = Color(0xFF5C5C64),
+                    modifier = Modifier.size(64.dp),
+                )
+                AsyncImage(
+                    model = state.albumArt,
+                    contentDescription = "Carátula",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
 
-            Spacer(Modifier.height(36.dp))
+            Spacer(Modifier.height(22.dp))
 
-            // Artwork with a soft glow
-            AsyncImage(
-                model = state.albumArt,
-                contentDescription = "Album art",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(290.dp)
-                    .shadow(38.dp, RoundedCornerShape(22.dp))
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            Text(
+                state.title,
+                color = accent,
+                fontSize = 25.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                letterSpacing = (-0.4).sp,
             )
-
-            Spacer(Modifier.height(40.dp))
-
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(state.title, color = Color.White, fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold, maxLines = 1)
-                    Text(state.artist, color = accent, fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium, maxLines = 1)
+            Spacer(Modifier.height(5.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    state.artist.ifBlank { "Artista desconocido" },
+                    color = Color(0xFFB9B9C0),
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = viewModel::toggleFavorite) {
+                    Icon(
+                        if (state.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        if (state.isFavorite) "Quitar de favoritos" else "Favorito",
+                        tint = if (state.isFavorite) accent else Color.White,
+                        modifier = Modifier.size(23.dp),
+                    )
                 }
-                GlassIconButton(onClick = {}) {
-                    Icon(Icons.Default.FavoriteBorder, "Favorite", tint = Color.White)
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Default.MoreVert, "Más opciones", tint = Color.White, modifier = Modifier.size(23.dp))
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Ecualizador") },
+                            leadingIcon = { Icon(Icons.Default.Equalizer, null) },
+                            onClick = { menuOpen = false; onEqualizer() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Temporizador para dormir") },
+                            leadingIcon = { Icon(Icons.Default.Timer, null) },
+                            onClick = { menuOpen = false; onSleepTimer() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Ajustes") },
+                            onClick = { menuOpen = false; onSettings() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Ir a la biblioteca") },
+                            onClick = { menuOpen = false; onBack() },
+                        )
+                    }
                 }
             }
 
-            Spacer(Modifier.height(26.dp))
+            Spacer(Modifier.weight(1f))
 
+            LaunchedEffect(state.position) { /* keeps slider synced above */ }
             Slider(
-                value = sliderPos.coerceIn(0f, state.duration.toFloat().coerceAtLeast(1f)),
-                onValueChange = { sliderPos = it },
-                onValueChangeFinished = { viewModel.seek(sliderPos.toLong()) },
+                value = sliderValue.coerceIn(0f, state.duration.toFloat().coerceAtLeast(1f)),
+                onValueChange = {
+                    dragging = true
+                    sliderValue = it
+                },
+                onValueChangeFinished = {
+                    viewModel.seek(sliderValue.toLong())
+                    dragging = false
+                },
                 valueRange = 0f..state.duration.toFloat().coerceAtLeast(1f),
                 colors = SliderDefaults.colors(
-                    thumbColor = Color.White,
-                    activeTrackColor = Color.White,
-                    inactiveTrackColor = Color.White.copy(0.28f),
+                    thumbColor = accent,
+                    activeTrackColor = accent,
+                    inactiveTrackColor = Color.White.copy(alpha = 0.20f),
                 ),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(24.dp),
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatTime(state.position), color = ApplePalette.TextSecondary, fontSize = 12.sp)
-                Text("-" + formatTime(state.duration - state.position).let {
-                    if (state.duration > state.position) it else formatTime(0)
-                }, color = ApplePalette.TextSecondary, fontSize = 12.sp)
+                Text(formatTime(state.position), color = Color(0xFF8E8E95), fontSize = 11.5.sp)
+                Text(formatTime(state.duration), color = Color(0xFF8E8E95), fontSize = 11.5.sp)
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(20.dp))
 
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = viewModel::toggleShuffle) {
-                    Icon(Icons.Default.Shuffle, "Shuffle",
-                        tint = if (state.shuffle) accent else Color.White.copy(0.55f))
+                IconButton(onClick = viewModel::skipPrevious, modifier = Modifier.size(56.dp)) {
+                    Icon(
+                        Icons.Default.SkipPrevious,
+                        "Anterior",
+                        tint = accent,
+                        modifier = Modifier.size(38.dp),
+                    )
                 }
-                IconButton(onClick = viewModel::skipPrevious) {
-                    Icon(Icons.Default.SkipPrevious, "Previous", tint = Color.White,
-                        modifier = Modifier.size(42.dp))
+                IconButton(onClick = viewModel::togglePlayPause, modifier = Modifier.size(76.dp)) {
+                    Icon(
+                        if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        if (state.isPlaying) "Pausar" else "Reproducir",
+                        tint = accent,
+                        modifier = Modifier.size(58.dp),
+                    )
                 }
-                // Main play button — white glass circle
-                GlassSurface(
-                    shape = RoundedCornerShape(50),
-                    alpha = 0.95f,
-                    borderAlpha = 0.6f,
-                    elevation = 18.dp,
-                ) {
-                    IconButton(onClick = viewModel::togglePlayPause, modifier = Modifier.size(76.dp)) {
-                        AnimatedContent(state.isPlaying) { playing ->
-                            Icon(
-                                if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                if (playing) "Pause" else "Play",
-                                tint = ApplePalette.Background,
-                                modifier = Modifier.size(42.dp),
-                            )
-                        }
-                    }
-                }
-                IconButton(onClick = viewModel::skipNext) {
-                    Icon(Icons.Default.SkipNext, "Next", tint = Color.White,
-                        modifier = Modifier.size(42.dp))
-                }
-                IconButton(onClick = viewModel::cycleRepeat) {
-                    val icon = if (state.repeatMode == 2) Icons.Default.RepeatOne else Icons.Default.Repeat
-                    Icon(icon, "Repeat",
-                        tint = if (state.repeatMode != 0) accent else Color.White.copy(0.55f))
+                IconButton(onClick = viewModel::skipNext, modifier = Modifier.size(56.dp)) {
+                    Icon(
+                        Icons.Default.SkipNext,
+                        "Siguiente",
+                        tint = accent,
+                        modifier = Modifier.size(38.dp),
+                    )
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.weight(1f))
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                MiniGlassAction(Icons.Default.Lyrics, "Lyrics", onLyrics)
-                MiniGlassAction(Icons.Default.QueueMusic, "Queue", onQueue)
-                MiniGlassAction(Icons.Default.Timer, "Sleep timer", onSleepTimer)
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 18.dp, top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PlayerBottomAction(
+                    icon = Icons.Default.Equalizer,
+                    label = null,
+                    modifier = Modifier.weight(1f),
+                    onClick = onEqualizer,
+                )
+                PlayerBottomLabel("Letras", Modifier.weight(1.3f), onClick = onLyrics)
+                PlayerBottomAction(
+                    icon = Icons.Default.QueueMusic,
+                    label = null,
+                    modifier = Modifier.weight(1f),
+                    onClick = onQueue,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun MiniGlassAction(icon: androidx.compose.ui.graphics.vector.ImageVector,
-                           label: String, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        GlassSurface(shape = RoundedCornerShape(50), alpha = 0.09f) {
-            IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
-                Icon(icon, label, tint = Color.White, modifier = Modifier.size(22.dp))
-            }
+private fun PlayerBottomAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String?,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = modifier.clickable(onClick = onClick).padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, label, tint = Color(0xFFCFCFD5), modifier = Modifier.size(23.dp))
+        if (label != null) {
+            Spacer(Modifier.height(3.dp))
+            Text(label, color = Color(0xFFCFCFD5), fontSize = 11.sp)
         }
-        Spacer(Modifier.height(6.dp))
-        Text(label, color = ApplePalette.TextSecondary, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun PlayerBottomLabel(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier.clickable(onClick = onClick).padding(vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = Color(0xFFD6D6DA), fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
 

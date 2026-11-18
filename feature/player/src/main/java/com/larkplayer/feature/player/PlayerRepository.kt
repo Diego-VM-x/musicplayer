@@ -2,13 +2,14 @@ package com.larkplayer.feature.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.SystemClock
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
-import com.larkplayer.core.common.Result
+import com.larkplayer.core.datastore.SettingsDataStore
 import com.larkplayer.core.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -18,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -26,10 +28,13 @@ import javax.inject.Singleton
 /**
  * Connects to the playback service via MediaController and exposes player state.
  * Replaces the original app's PlayerRepository + MediaSessionHandler.
+ *
+ * Also owns the sleep timer, crossfade volume ramp and listening-time counter.
  */
 @Singleton
 class PlayerRepository @Inject constructor(
     @ApplicationContext context: Context,
+    private val settings: SettingsDataStore,
 ) {
     private val scope = CoroutineScope(SupervisorJob())
     private val _controller = MutableStateFlow<MediaController?>(null)
@@ -39,6 +44,12 @@ class PlayerRepository @Inject constructor(
     val sleepTimerRemaining: StateFlow<Long> = _sleepTimerRemaining.asStateFlow()
     private var sleepJob: Job? = null
 
+    @Volatile private var crossfadeEnabled = false
+    @Volatile private var crossfadeMs = 4_000L
+    @Volatile private var fadeInUntil = 0L
+    private var lastMediaId: String? = null
+    private var pendingPlayMs = 0L
+
     init {
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
@@ -47,6 +58,18 @@ class PlayerRepository @Inject constructor(
                 .onSuccess { controller -> _controller.value = controller }
                 .onFailure { error -> Timber.e(error, "Failed to connect to PlaybackService") }
         }, MoreExecutors.directExecutor())
+
+        scope.launch {
+            settings.crossfadeEnabled.collect { enabled ->
+                crossfadeEnabled = enabled
+                if (!enabled) resetVolume()
+            }
+        }
+        scope.launch {
+            settings.crossfadeSeconds.collect { seconds -> crossfadeMs = seconds * 1_000L }
+        }
+        scope.launch { crossfadeLoop() }
+        scope.launch { listeningTimeLoop() }
     }
 
     fun playSongs(songs: List<Song>, startIndex: Int = 0) {
@@ -55,6 +78,10 @@ class PlayerRepository @Inject constructor(
         c.setMediaItems(items, startIndex, 0L)
         c.prepare()
         c.play()
+    }
+
+    fun addToQueue(song: Song) {
+        _controller.value?.addMediaItem(song.toMediaItem())
     }
 
     fun play(song: Song) = playSongs(listOf(song))
@@ -112,7 +139,56 @@ class PlayerRepository @Inject constructor(
         _sleepTimerRemaining.value = 0L
     }
 
-    private fun Song.toMediaItem(): MediaItem = MediaItem.Builder()
+    // ---- Crossfade ----
+    private suspend fun crossfadeLoop() {
+        while (scope.isActive) {
+            val c = _controller.value
+            if (c != null && crossfadeEnabled && c.isPlaying) {
+                val currentId = c.currentMediaItem?.mediaId
+                if (currentId != null && currentId != lastMediaId) {
+                    lastMediaId = currentId
+                    fadeInUntil = SystemClock.elapsedRealtime() + crossfadeMs
+                }
+                val duration = c.duration
+                val position = c.currentPosition
+                val remaining = duration - position
+                val fadeInRemaining = fadeInUntil - SystemClock.elapsedRealtime()
+                val volume = when {
+                    fadeInRemaining > 0 -> 1f - (fadeInRemaining.toFloat() / crossfadeMs) * 0.9f
+                    remaining in 0..crossfadeMs -> (remaining.toFloat() / crossfadeMs).coerceIn(0.05f, 1f)
+                    else -> 1f
+                }
+                runCatching { c.volume = volume.coerceIn(0.05f, 1f) }
+            }
+            delay(150)
+        }
+    }
+
+    private fun resetVolume() {
+        runCatching { _controller.value?.volume = 1f }
+        lastMediaId = null
+        fadeInUntil = 0L
+    }
+
+    // ---- Listening stats ----
+    private suspend fun listeningTimeLoop() {
+        while (scope.isActive) {
+            delay(10_000)
+            val playing = _controller.value?.isPlaying == true
+            if (playing) {
+                pendingPlayMs += 10_000
+                if (pendingPlayMs >= 30_000) {
+                    settings.addPlayTime(pendingPlayMs)
+                    pendingPlayMs = 0
+                }
+            } else if (pendingPlayMs > 0) {
+                settings.addPlayTime(pendingPlayMs)
+                pendingPlayMs = 0
+            }
+        }
+    }
+
+    internal fun Song.toMediaItem(): MediaItem = MediaItem.Builder()
         .setUri(contentUri)
         .setMediaId(id.toString())
         .setMediaMetadata(

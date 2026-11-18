@@ -10,6 +10,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -17,16 +18,17 @@ import androidx.core.view.WindowCompat
 import com.larkplayer.core.model.ThemeConfig
 
 private val DarkColors = darkColorScheme(
-    primary = ApplePalette.Red,
-    secondary = ApplePalette.Pink,
-    tertiary = ApplePalette.Purple,
+    primary = ApplePalette.Blue,
+    secondary = ApplePalette.Purple,
+    tertiary = ApplePalette.Pink,
     background = ApplePalette.Background,
     surface = ApplePalette.Surface,
+    surfaceVariant = ApplePalette.SurfaceElevated,
 )
 private val LightColors = lightColorScheme(
-    primary = ApplePalette.Red,
-    secondary = ApplePalette.Pink,
-    tertiary = ApplePalette.Purple,
+    primary = ApplePalette.Blue,
+    secondary = ApplePalette.Purple,
+    tertiary = ApplePalette.Pink,
 )
 
 @Composable
@@ -48,13 +50,17 @@ fun LarkTheme(
         dark -> DarkColors
         else -> LightColors
     }
-    val colors = base.withOverrides(config.overrides, dark)
+    val accent = Color(config.accentColor.toInt())
+    val themed = if (dynamic) base else base.copy(primary = accent, secondary = accent)
+    val colors = themed.withOverrides(config.overrides, dark)
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colors.primary.toArgb()
+            // Keep the status bar black in dark mode — Lark never tints it.
+            window.statusBarColor = colors.background.toArgb()
+            window.navigationBarColor = colors.background.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !dark
         }
     }

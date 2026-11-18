@@ -1,92 +1,189 @@
 package com.larkplayer.feature.player.ui
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.larkplayer.core.designsystem.component.GlassSurface
 import com.larkplayer.core.designsystem.theme.ApplePalette
 
-/** Apple Music style compact player: translucent floating glass pill. */
+/**
+ * Floating mini-player pill. Uses the artwork accent so it blends with the
+ * library, exactly like Lark's bottom bar.
+ */
 @Composable
 fun MiniPlayer(
     onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
     viewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    if (state.title == "No media") return
+    val accentInt by viewModel.accent.collectAsStateWithLifecycle()
+    if (state.id <= 0) return
+    val accent = Color(accentInt)
 
-    GlassSurface(
-        modifier = Modifier
+    val background = Brush.horizontalGradient(
+        listOf(
+            accent.copy(alpha = 0.34f),
+            accent.copy(alpha = 0.18f),
+            accent.copy(alpha = 0.26f),
+        )
+    )
+
+    Row(
+        modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .clickable(onClick = onOpen),
-        shape = RoundedCornerShape(18.dp),
-        alpha = 0.13f,
-        borderAlpha = 0.3f,
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF15121A))
+            .background(background)
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AsyncImage(
-                    model = state.albumArt,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(9.dp)),
-                )
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(state.title, color = Color.White, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-                    Text(state.artist, color = ApplePalette.TextSecondary, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-                }
-                IconButton(onClick = viewModel::togglePlayPause) {
-                    Icon(
-                        if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (state.isPlaying) "Pause" else "Play",
-                        tint = Color.White,
-                    )
-                }
-                IconButton(onClick = viewModel::skipNext) {
-                    Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White)
-                }
-            }
-            LinearProgressIndicator(
-                progress = { if (state.duration > 0) state.position.toFloat() / state.duration else 0f },
-                modifier = Modifier.fillMaxWidth().height(2.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = Color.White.copy(0.12f),
+        Box(
+            Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF2A2A2E)),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = state.albumArt,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                state.title,
+                color = accent,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(1.dp))
+            Text(
+                buildString {
+                    append(state.artist)
+                    if (state.album.isNotBlank() && !state.album.equals("<unknown>", true)) {
+                        append(" - ").append(state.album)
+                    }
+                },
+                color = Color(0xFFC9C3D4),
+                fontSize = 10.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        // Repeat toggle with a progress ring.
+        Box(
+            Modifier.size(38.dp).clip(CircleShape).clickable(onClick = viewModel::cycleRepeat),
+            contentAlignment = Alignment.Center,
+        ) {
+            val progress = if (state.duration > 0) {
+                (state.position.toFloat() / state.duration).coerceIn(0f, 1f)
+            } else 0f
+            Canvas(Modifier.size(32.dp)) {
+                drawArc(
+                    color = accent.copy(alpha = 0.85f),
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress,
+                    useCenter = false,
+                    style = Stroke(width = 2.2.dp.toPx()),
+                    size = Size(size.width, size.height),
+                )
+            }
+            Icon(
+                if (state.repeatMode == 2) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                "Repetir",
+                tint = Color.White,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+        Spacer(Modifier.width(4.dp))
+
+        // Play / pause
+        Box(
+            Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.10f))
+                .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape)
+                .clickable(onClick = viewModel::togglePlayPause),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                if (state.isPlaying) "Pausar" else "Reproducir",
+                tint = accent,
+                modifier = Modifier.size(25.dp),
+            )
+        }
+    }
+}
+
+/** Compact preview used by the Tema screen. */
+@Composable
+fun MiniPlayerPreview(accent: Color, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(accent.copy(alpha = 0.25f))
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFF3A3A40)))
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text("Spread My Wings", color = accent, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text("Zendaya", color = Color(0xFFBEB6C9), fontSize = 6.sp, maxLines = 1)
+        }
+        Icon(Icons.Default.Repeat, null, tint = Color.White, modifier = Modifier.size(11.dp))
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier.size(24.dp).clip(CircleShape).border(1.dp, Color.White.copy(0.5f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Default.PlayArrow, null, tint = accent, modifier = Modifier.size(14.dp))
         }
     }
 }

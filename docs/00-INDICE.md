@@ -12,5 +12,6 @@
 | [`07-COMPATIBILIDAD.md`](07-COMPATIBILIDAD.md) | Permisos, versiones, SDK y matriz de dispositivos |
 | [`08-REPO.md`](08-REPO.md) | Estado e instrucciones del repositorio Git |
 | [`09-APPLE-GLASS.md`](09-APPLE-GLASS.md) | Rediseño Apple Music / liquid glass y fix de detección de música |
+| [`10-LARK-UI.md`](10-LARK-UI.md) | Rediseño fiel a las capturas de Lark (sin barra inferior, tema, idioma, ajustes) |
 
 Regla: **todo cambio de código se documenta en `05-CAMBIOS.md`** y, si introduce una función nueva, se registra en `03-FUNCIONES.md`.

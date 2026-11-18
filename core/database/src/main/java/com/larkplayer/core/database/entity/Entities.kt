@@ -1,5 +1,6 @@
 package com.larkplayer.core.database.entity
 
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -22,6 +23,13 @@ data class PlaylistEntity(
     val name: String,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+)
+
+/** Projection used by the Playlists tab (cover art + song count). */
+data class PlaylistWithCover(
+    @Embedded val playlist: PlaylistEntity,
+    val songCount: Int,
+    val coverAlbumId: Long,
 )
 
 @Entity(tableName = "playlist_songs", primaryKeys = ["playlistId", "songId"])

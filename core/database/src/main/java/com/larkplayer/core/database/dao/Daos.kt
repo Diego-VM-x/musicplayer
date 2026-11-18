@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import com.larkplayer.core.database.entity.HistoryEntity
 import com.larkplayer.core.database.entity.PlaylistEntity
 import com.larkplayer.core.database.entity.PlaylistSong
+import com.larkplayer.core.database.entity.PlaylistWithCover
 import com.larkplayer.core.database.entity.QueueEntity
 import com.larkplayer.core.database.entity.SongEntity
 import kotlinx.coroutines.flow.Flow
@@ -28,6 +29,22 @@ interface SongDao {
 interface PlaylistDao {
     @Query("SELECT * FROM playlists ORDER BY updatedAt DESC")
     fun observePlaylists(): Flow<List<PlaylistEntity>>
+
+    @Query(
+        """
+        SELECT p.*,
+            (SELECT COUNT(*) FROM playlist_songs ps WHERE ps.playlistId = p.id) AS songCount,
+            COALESCE(
+                (SELECT s.albumId FROM playlist_songs ps
+                 INNER JOIN songs s ON s.id = ps.songId
+                 WHERE ps.playlistId = p.id ORDER BY ps.position LIMIT 1),
+                -1
+            ) AS coverAlbumId
+        FROM playlists p
+        ORDER BY p.updatedAt DESC
+        """
+    )
+    fun observePlaylistsWithCovers(): Flow<List<PlaylistWithCover>>
 
     @Insert
     suspend fun insert(playlist: PlaylistEntity): Long

@@ -64,8 +64,15 @@
 | Modelos de dominio | `core:model` | `Song.kt`, `Playlist.kt`, `Lyric.kt`, `ThemeConfig.kt` | ✅ |
 | Consulta MediaStore | `core:common` | `MediaFileUtils.kt` (`queryAudio`, `albumArtUri`) | ✅ |
 | Persistencia Room (playlists/historial/cola) | `core:database` | `entity/Entities.kt`, `dao/Daos.kt`, `LarkDatabase.kt` | ✅ |
-| Idioma (es/en/fr/de/pt/ar…) | `feature:settings` | `ui/SettingsScreen.kt` | ⏳ |
-| Pantalla de ajustes | `feature:settings` | `ui/SettingsScreen.kt` | ⏳ |
+| Idioma (es/en/fr/de/pt/ar…) | `feature:settings` | `ui/LanguageScreen.kt` | ✅ |
+| Pantalla de ajustes | `feature:settings` | `ui/SettingsScreen.kt`, `ui/SettingsCommon.kt` | ✅ |
+| Ajustes de reproducción (junto a otras apps, sin pausas, crossfade) | `feature:settings` | `ui/PlaybackSettingsScreen.kt` | ✅ |
+| Tema (modo, acento, tamaño, previsualización) | `feature:settings` | `ui/ThemeScreen.kt` | ✅ |
+| Tiempo de reproducción | `feature:settings` | `ui/PlayTimeScreen.kt` | ✅ |
+| Notificaciones (reproducción / bloqueo) | `feature:settings` | `ui/NotificationSettingsScreen.kt` | ✅ |
+| Sobre / Opinión / Eliminado recientemente | `feature:settings` | `ui/AboutScreen.kt`, `ui/FeedbackScreen.kt`, `ui/RecentlyDeletedScreen.kt` | ✅ |
+| Archivos ocultos | `feature:library` | `ui/HiddenFilesScreen.kt` | ✅ |
+| Acento pastel por carátula | `feature:player` | `AlbumColorRepository.kt` | ✅ |
 
 ## Sistema
 
@@ -75,7 +82,7 @@
 | Widget pantalla de inicio | `feature:widget` | `LarkGlanceWidget.kt` | ⏳ |
 | Pantalla de bloqueo | `feature:widget` | `PlayerNotification.kt` (MediaSession) | ⏳ |
 | Permisos de almacenamiento/media | `core:common` | `MediaFileUtils.kt` | ⏳ |
-| Navegación | `app` | `navigation/NavGraph.kt` | ⏳ |
+| Navegación | `app` | `navigation/AppNavGraph.kt` | ✅ |
 | Application / Hilt | `app` | `LarkApp.kt` | ⏳ |
 
 ## Leyenda de estado

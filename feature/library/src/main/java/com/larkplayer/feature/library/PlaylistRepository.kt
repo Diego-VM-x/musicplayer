@@ -3,9 +3,9 @@ package com.larkplayer.feature.library
 import com.larkplayer.core.database.dao.PlaylistDao
 import com.larkplayer.core.database.entity.PlaylistEntity
 import com.larkplayer.core.database.entity.PlaylistSong
-import com.larkplayer.core.model.Playlist
+import com.larkplayer.core.database.entity.PlaylistWithCover
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,6 +14,7 @@ class PlaylistRepository @Inject constructor(
     private val dao: PlaylistDao,
 ) {
     val playlists: Flow<List<PlaylistEntity>> = dao.observePlaylists()
+    val playlistsWithCovers: Flow<List<PlaylistWithCover>> = dao.observePlaylistsWithCovers()
 
     suspend fun create(name: String): Long = dao.insert(PlaylistEntity(name = name))
 
@@ -30,6 +31,8 @@ class PlaylistRepository @Inject constructor(
     }
 
     suspend fun removeSong(playlistId: Long, songId: Long) = dao.removeSong(playlistId, songId)
+
+    suspend fun songsOnce(playlistId: Long) = dao.observeSongs(playlistId).first()
 
     fun songs(playlistId: Long): Flow<List<com.larkplayer.core.database.entity.SongEntity>> =
         dao.observeSongs(playlistId)

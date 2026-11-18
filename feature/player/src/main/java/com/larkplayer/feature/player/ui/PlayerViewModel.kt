@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import com.larkplayer.core.datastore.SettingsDataStore
+import com.larkplayer.feature.player.AlbumColorRepository
 import com.larkplayer.feature.player.PlayerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -16,23 +18,31 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class PlayerUiState(
-    val title: String = "No media",
+    val id: Long = -1L,
+    val title: String = "Sin reproducción",
     val artist: String = "",
+    val album: String = "",
     val albumArt: String? = null,
     val isPlaying: Boolean = false,
     val position: Long = 0L,
     val duration: Long = 0L,
     val shuffle: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val isFavorite: Boolean = false,
 )
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val repository: PlayerRepository,
+    private val albumColors: AlbumColorRepository,
+    private val settings: SettingsDataStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
+
+    /** Accent extracted from the current artwork, shared by player + mini-player + library. */
+    val accent: StateFlow<Int> = albumColors.accent
 
     private var listener: Player.Listener? = null
     private var observedController: MediaController? = null
@@ -44,6 +54,11 @@ class PlayerViewModel @Inject constructor(
                 detachListener()
                 observedController = controller
                 if (controller != null) attachListener(controller)
+            }
+        }
+        viewModelScope.launch {
+            settings.favorites.collect { favorites ->
+                _uiState.value = _uiState.value.copy(isFavorite = _uiState.value.id in favorites)
             }
         }
         // Progress ticker
@@ -64,11 +79,17 @@ class PlayerViewModel @Inject constructor(
         val l = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val meta = mediaItem?.mediaMetadata
+                val id = mediaItem?.mediaId?.toLongOrNull() ?: -1L
                 _uiState.value = _uiState.value.copy(
-                    title = meta?.title?.toString() ?: "Unknown",
+                    id = id,
+                    title = meta?.title?.toString() ?: "Desconocido",
                     artist = meta?.artist?.toString() ?: "",
+                    album = meta?.albumTitle?.toString() ?: "",
                     albumArt = meta?.artworkUri?.toString(),
                 )
+                viewModelScope.launch {
+                    albumColors.load(meta?.artworkUri?.toString())
+                }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _uiState.value = _uiState.value.copy(isPlaying = isPlaying)
@@ -116,6 +137,11 @@ class PlayerViewModel @Inject constructor(
             else -> Player.REPEAT_MODE_OFF
         }
         repository.setRepeat(next)
+    }
+
+    fun toggleFavorite() {
+        val id = _uiState.value.id
+        if (id > 0) viewModelScope.launch { settings.toggleFavorite(id) }
     }
 
     override fun onCleared() {
