@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -141,6 +142,7 @@ fun PlayerScreen(
             Box(
                 Modifier
                     .fillMaxWidth()
+                    .heightIn(max = 300.dp)
                     .aspectRatio(1f)
                     .shadow(24.dp, RoundedCornerShape(26.dp))
                     .clip(RoundedCornerShape(26.dp))
@@ -272,12 +274,14 @@ fun PlayerScreen(
             ) {
                 PlayerBottomAction(
                     icon = Icons.Rounded.Equalizer,
+                    label = "Ecualizador",
                     modifier = Modifier.weight(1f),
                     onClick = onEqualizer,
                 )
                 PlayerBottomLabel("Letras", Modifier.weight(1.3f), onClick = onLyrics)
                 PlayerBottomAction(
                     icon = Icons.Rounded.QueueMusic,
+                    label = "A continuación",
                     modifier = Modifier.weight(1f),
                     onClick = onQueue,
                 )
@@ -289,6 +293,7 @@ fun PlayerScreen(
 @Composable
 private fun PlayerBottomAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -296,7 +301,9 @@ private fun PlayerBottomAction(
         modifier = modifier.clickable(onClick = onClick).padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, null, tint = ApplePalette.TextSecondary, modifier = Modifier.size(23.dp))
+        Icon(icon, label, tint = ApplePalette.TextSecondary, modifier = Modifier.size(23.dp))
+        Spacer(Modifier.height(4.dp))
+        Text(label, color = Color(0xFFD6D6DA), fontSize = 10.5.sp)
     }
 }
 

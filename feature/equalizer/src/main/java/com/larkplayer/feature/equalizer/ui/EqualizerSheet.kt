@@ -18,7 +18,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,7 +39,7 @@ fun EqualizerScreen(
     onBack: () -> Unit,
     viewModel: EqualizerViewModel = hiltViewModel(),
 ) {
-    val bands = remember { viewModel.bands() }
+    val bands by viewModel.bands.collectAsStateWithLifecycle()
     val accent = MaterialTheme.colorScheme.primary
 
     Column(
@@ -122,7 +123,7 @@ fun EqualizerScreen(
         }
         Spacer(Modifier.height(20.dp))
         Text(
-            "Los cambios se aplican en tiempo real y se conservan para la próxima sesión.",
+            "Los cambios se aplican en tiempo real sobre la canción que se está reproduciendo.",
             color = Color(0xFF6F6F77),
             fontSize = 11.sp,
             lineHeight = 16.sp,

@@ -16,7 +16,9 @@
 | Transición/crossfade configurable (1–12 s) y avance automático | `feature:player` | `PlayerRepository.kt` (`crossfadeLoop`), `SettingsDataStore` | ✅ |
 | Preferencias de shuffle/repetición persistentes | `feature:player` | `PlayerRepository.kt` (`setShuffle`, `setRepeat`) | ✅ |
 | Controles de repetir/repetir una/aleatorio en la cola | `feature:player` | `ui/QueueScreen.kt` (`QueueToggle`) | ✅ |
-| Mini-player con fondo desenfocado | `feature:player` | `ui/MiniPlayer.kt` | ✅ |
+| Mini-player con fondo desenfocado (altura acotada) | `feature:player` | `ui/MiniPlayer.kt` | ✅ |
+| Reproducción en segundo plano configurable | `core:datastore`, `feature:settings`, `feature:player` | `SettingsDataStore.backgroundPlayback`, `PlaybackSettingsScreen`, `PlaybackService` | ✅ |
+| Ecualizador con re-adjunción de audio session | `feature:equalizer` | `EqualizerViewModel.kt` | ✅ |
 
 ## Biblioteca
 

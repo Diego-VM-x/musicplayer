@@ -1,5 +1,10 @@
 package com.larkplayer.feature.settings.ui
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,6 +38,7 @@ fun PlaybackSettingsScreen(
 ) {
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val accent = MaterialTheme.colorScheme.primary
+    val context = LocalContext.current
 
     SettingsPage(title = "Ajustes de reproducción", onBack = onBack) {
         PlayToggleRow(
@@ -39,6 +46,32 @@ fun PlaybackSettingsScreen(
             title = "Reproduce junto con otras aplicaciones",
             checked = playback.playWithOthers,
             onCheckedChange = viewModel::setPlayWithOthers,
+            accent = accent,
+        )
+
+        Spacer(Modifier.height(26.dp))
+
+        PlayToggleRow(
+            icon = Icons.Rounded.Headphones,
+            title = "Reproducir en segundo plano",
+            subtitle = "La música sigue al salir de la app o apagar la pantalla",
+            checked = playback.backgroundPlayback,
+            onCheckedChange = { enabled ->
+                viewModel.setBackgroundPlayback(enabled)
+                if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    runCatching {
+                        val pm = context.getSystemService(PowerManager::class.java)
+                        if (pm?.isIgnoringBatteryOptimizations(context.packageName) == false) {
+                            context.startActivity(
+                                Intent(
+                                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                    Uri.parse("package:${context.packageName}"),
+                                ),
+                            )
+                        }
+                    }
+                }
+            },
             accent = accent,
         )
 

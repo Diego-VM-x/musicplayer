@@ -4,6 +4,14 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-18 — Fase 10: corrección del mini-player, EQ y segundo plano
+
+- **Mini-player corregido** (`ui/MiniPlayer.kt`): la capa desenfocada usaba `fillMaxSize()` dentro de un contenedor sin altura, por lo que la carátula a tamaño original tapaba toda la pantalla al volver a la biblioteca. El contenedor ahora tiene altura fija de 74 dp y la imagen usa `matchParentSize()`.
+- **Reproductor** (`ui/PlayerScreen.kt`): la carátula tiene un máximo de 300 dp para que la fila inferior (Ecualizador / Letras / A continuación) quede siempre visible, y ahora lleva etiquetas de texto.
+- **Ecualizador funcional** (`feature:equalizer`): `EqualizerViewModel` expone las bandas como `StateFlow` y vuelve a adjuntar el efecto cuando el `audioSessionId` cambia (antes se intentaba una sola vez y podía quedar vacío). Los sliders se actualizan en tiempo real.
+- **Segundo plano** (`SettingsDataStore`, `SettingsViewModel`, `PlaybackSettingsScreen`, `PlaybackService`): nuevo ajuste «Reproducir en segundo plano» que solicita excluir la app de la optimización de batería y mantiene el servicio en primer plano mientras suene música, aunque se oculte la notificación. Android exige esa notificación para el servicio.
+- La cola «A continuación» conserva los tres botones (Repetir, Repetir una, Aleatorio) y el reproductor los de Ecualizador / Letras / A continuación.
+
 ## 2026-11-18 — Fase 9: transiciones, cola, gestos y barra de estado
 
 - **Mini-player con desenfoque** (`ui/MiniPlayer.kt`): la carátula se dibuja desenfocada tras la píldora con un velo oscuro, para que el título y el artista se lean sobre cualquier portada.

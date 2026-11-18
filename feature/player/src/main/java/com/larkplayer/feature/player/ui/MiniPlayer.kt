@@ -71,7 +71,8 @@ fun MiniPlayer(
     Box(
         modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .height(74.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(26.dp))
             .clickable(onClick = onOpen),
     ) {
@@ -84,10 +85,10 @@ fun MiniPlayer(
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)))
         Row(
             Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .background(background)
                 .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(26.dp))
-                .padding(horizontal = 10.dp, vertical = 9.dp),
+                .padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
         Box(

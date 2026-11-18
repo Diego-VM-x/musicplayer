@@ -83,11 +83,12 @@ artista – álbum, botón de repetición con arco de progreso y botón circular
 
 ### Reproductor — `feature/player/ui/PlayerScreen.kt`
 
-- Carátula cuadrada redondeada (radio 18 dp) a todo el ancho.
+- Carátula redondeada (radio 26 dp) a todo el ancho, con altura máxima de 300 dp para no tapar los controles.
 - Título grande en color de acento + artista; corazón de favorito y menú de 3 puntos
   (Ecualizador, Temporizador, Ajustes, Volver a la biblioteca).
 - Línea de progreso fina con tiempos, anterior / reproducir / siguiente en color de acento.
-- Fila inferior: ecualizador, **Letras**, cola.
+- Fila inferior con tres botones etiquetados: **Ecualizador**, **Letras**, **A continuación**.
+- «A continuación» muestra la cola y, al pie, los botones Repetir / Repetir una / Aleatorio.
 
 ### Ajustes — `feature/settings/ui/`
 

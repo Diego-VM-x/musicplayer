@@ -15,6 +15,7 @@ import javax.inject.Inject
 
 data class PlaybackSettings(
     val playWithOthers: Boolean = true,
+    val backgroundPlayback: Boolean = true,
     val gapless: Boolean = true,
     val crossfade: Boolean = false,
     val crossfadeSeconds: Int = 4,
@@ -47,21 +48,26 @@ class SettingsViewModel @Inject constructor(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), 0,
     )
 
+    // `combine` supports up to 5 sources, so the notification flag is merged last.
     val playback: StateFlow<PlaybackSettings> = combine(
-        dataStore.playWithOthers,
-        dataStore.gapless,
-        dataStore.crossfadeEnabled,
-        dataStore.crossfadeSeconds,
+        combine(
+            dataStore.playWithOthers,
+            dataStore.backgroundPlayback,
+            dataStore.gapless,
+            dataStore.crossfadeEnabled,
+            dataStore.crossfadeSeconds,
+        ) { together, background, gapless, crossfade, seconds ->
+            PlaybackSettings(
+                playWithOthers = together,
+                backgroundPlayback = background,
+                gapless = gapless,
+                crossfade = crossfade,
+                crossfadeSeconds = seconds,
+            )
+        },
         dataStore.notificationPlayback,
-    ) { together, gapless, crossfade, seconds, notif ->
-        PlaybackSettings(
-            playWithOthers = together,
-            gapless = gapless,
-            crossfade = crossfade,
-            crossfadeSeconds = seconds,
-            notificationPlayback = notif,
-        )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PlaybackSettings())
+    ) { base, notif -> base.copy(notificationPlayback = notif) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PlaybackSettings())
 
     val notificationLockScreen: StateFlow<Boolean> = dataStore.notificationLockScreen.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), true,
@@ -73,6 +79,7 @@ class SettingsViewModel @Inject constructor(
     fun setAccentColor(argb: Long) = viewModelScope.launch { dataStore.setAccentColor(argb) }
     fun setGapless(enabled: Boolean) = viewModelScope.launch { dataStore.setGapless(enabled) }
     fun setPlayWithOthers(enabled: Boolean) = viewModelScope.launch { dataStore.setPlayWithOthers(enabled) }
+    fun setBackgroundPlayback(enabled: Boolean) = viewModelScope.launch { dataStore.setBackgroundPlayback(enabled) }
     fun setCrossfade(enabled: Boolean) = viewModelScope.launch { dataStore.setCrossfadeEnabled(enabled) }
     fun setCrossfadeSeconds(seconds: Int) = viewModelScope.launch { dataStore.setCrossfadeSeconds(seconds) }
     fun setLanguage(tag: String) = viewModelScope.launch { dataStore.setLanguage(tag) }

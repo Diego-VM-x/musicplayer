@@ -33,6 +33,9 @@ class PlaybackService : MediaSessionService() {
     /** Mirrors the "Notificación de reproducción" preference. */
     @Volatile private var showNotification = true
 
+    /** Mirrors "Reproducir en segundo plano": keeps the foreground service alive. */
+    @Volatile private var backgroundPlayback = true
+
     override fun onCreate() {
         super.onCreate()
         session = MediaSession.Builder(this, player)
@@ -57,6 +60,11 @@ class PlaybackService : MediaSessionService() {
                 showNotification = enabled
             }
         }
+        scope.launch {
+            settings.backgroundPlayback.collect { enabled ->
+                backgroundPlayback = enabled
+            }
+        }
         Timber.d("PlaybackService created")
     }
 
@@ -70,11 +78,14 @@ class PlaybackService : MediaSessionService() {
         session: MediaSession,
         startInForegroundRequired: Boolean,
     ) {
-        if (!showNotification && !startInForegroundRequired) {
+        // Android only guarantees background playback while this is a foreground
+        // service, so keep it alive whenever the user allows background playback
+        // or a track is actually playing — even if the media notification is hidden.
+        if (showNotification || backgroundPlayback || startInForegroundRequired || player.isPlaying) {
+            super.onUpdateNotification(session, startInForegroundRequired)
+        } else {
             stopForeground(STOP_FOREGROUND_REMOVE)
-            return
         }
-        super.onUpdateNotification(session, startInForegroundRequired)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
