@@ -65,10 +65,12 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             while (isActive) {
                 observedController?.let { c ->
-                    _uiState.value = _uiState.value.copy(
-                        position = c.currentPosition,
-                        duration = c.duration.takeIf { it > 0 } ?: _uiState.value.duration,
-                    )
+                    runCatching {
+                        _uiState.value = _uiState.value.copy(
+                            position = c.currentPosition,
+                            duration = c.duration.takeIf { it > 0 } ?: _uiState.value.duration,
+                        )
+                    }
                 }
                 delay(250)
             }
@@ -102,17 +104,20 @@ class PlayerViewModel @Inject constructor(
             }
         }
         listener = l
-        c.addListener(l)
-        l.onMediaItemTransition(c.currentMediaItem, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
-        _uiState.value = _uiState.value.copy(
-            isPlaying = c.isPlaying,
-            shuffle = c.shuffleModeEnabled,
-            repeatMode = c.repeatMode,
-        )
+        runCatching {
+            c.addListener(l)
+            l.onMediaItemTransition(c.currentMediaItem, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+            _uiState.value = _uiState.value.copy(
+                isPlaying = c.isPlaying,
+                shuffle = c.shuffleModeEnabled,
+                repeatMode = c.repeatMode,
+            )
+        }.onFailure { observedController = null }
     }
 
     private fun detachListener() {
-        listener?.let { observedController?.removeListener(it) }
+        val l = listener ?: return
+        runCatching { observedController?.removeListener(l) }
         listener = null
     }
 

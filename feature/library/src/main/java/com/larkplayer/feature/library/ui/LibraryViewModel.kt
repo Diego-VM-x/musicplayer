@@ -109,14 +109,16 @@ class LibraryViewModel @Inject constructor(
 
     fun play(songs: List<Song>, index: Int) {
         player.playSongs(songs, index)
-        songs.getOrNull(index)?.let { viewModelScope.launch { repository.recordPlay(it.id) } }
+        songs.getOrNull(index)?.let { song ->
+            viewModelScope.launch { runCatching { repository.recordPlay(song.id) } }
+        }
     }
 
     fun playPlaylist(playlistId: Long) = viewModelScope.launch {
         val songs = playlistRepository.songsOnce(playlistId).map { it.toDomain() }
         if (songs.isNotEmpty()) {
             player.playSongs(songs, 0)
-            repository.recordPlay(songs.first().id)
+            runCatching { repository.recordPlay(songs.first().id) }
         }
     }
 
@@ -127,11 +129,17 @@ class LibraryViewModel @Inject constructor(
         player.addToQueue(song)
     }
 
-    suspend fun createPlaylist(name: String) = playlistRepository.create(name)
-    fun renamePlaylist(id: Long, name: String) = viewModelScope.launch { playlistRepository.rename(id, name) }
-    fun deletePlaylist(id: Long) = viewModelScope.launch { playlistRepository.delete(id) }
+    suspend fun createPlaylist(name: String) {
+        runCatching { playlistRepository.create(name) }
+    }
+    fun renamePlaylist(id: Long, name: String) = viewModelScope.launch {
+        runCatching { playlistRepository.rename(id, name) }
+    }
+    fun deletePlaylist(id: Long) = viewModelScope.launch {
+        runCatching { playlistRepository.delete(id) }
+    }
     fun addToPlaylist(playlistId: Long, songId: Long) = viewModelScope.launch {
-        playlistRepository.addSong(playlistId, songId)
+        runCatching { playlistRepository.addSong(playlistId, songId) }
     }
 
     private fun sort(list: List<Song>, mode: Int): List<Song> = when (mode) {

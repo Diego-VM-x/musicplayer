@@ -170,7 +170,10 @@ private fun LibraryHome(navController: NavHostController) {
         },
     ) {
         Box(Modifier.fillMaxSize()) {
-            LibraryScreen(onOpenPlayer = { navController.navigate(Routes.PLAYER) })
+            LibraryScreen(
+                onOpenPlayer = { navController.navigate(Routes.PLAYER) },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+            )
             MiniPlayer(
                 onOpen = { navController.navigate(Routes.PLAYER) },
                 modifier = Modifier.align(Alignment.BottomCenter),

@@ -91,10 +91,9 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         scope.cancel()
-        session?.run {
-            player.release()
-            release()
-        }
+        // The ExoPlayer instance is application-scoped: releasing it here would
+        // leave the next MediaSession with a dead player and crash on playback.
+        session?.release()
         session = null
         super.onDestroy()
         Timber.d("PlaybackService destroyed")

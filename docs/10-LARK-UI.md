@@ -34,7 +34,7 @@ Componentes compartidos en `core/designsystem/.../component/LarkComponents.kt`:
 
 - **Biblioteca** (destino inicial) → mini-player flotante encima de la lista.
 - **Reproductor** a pantalla completa (se abre desde una canción o el mini-player).
-- **Ajustes** desde el menú de 3 puntos del reproductor o deslizando el `ModalNavigationDrawer`.
+- **Ajustes** desde el icono de engranaje de la cabecera, el menú de 3 puntos del reproductor o deslizando el `ModalNavigationDrawer`.
 - Todas las subpantallas de ajustes cuelgan del `NavHost`.
 
 Rutas: `library`, `player`, `settings`, `lyrics`, `queue`, `sleep`, `equalizer`, `backup`,
@@ -49,6 +49,7 @@ Rutas: `library`, `player`, `settings`, `lyrics`, `queue`, `sleep`, `equalizer`,
 - Buscador opcional bajo la cabecera.
 - Pestañas en píldoras desplazables: Videos, Canciones, Playlists, Carpetas, Artistas, Álbumes.
 - Canciones: filas oscuras redondeadas con insignia `LETRAS` cuando existe un `.lrc` junto al archivo.
+  La carátula ocupa todo el alto de la fila, sin borde ni margen (esquinas redondeadas solo a la izquierda).
 - El **tamaño de tema** cambia la lista: 0 = compacta (46 dp), 1 = media (52 dp), 2 = cuadrícula de 2 columnas.
 - Playlists: primera tarjeta «Nueva playlist»; después carátula de portada, nombre y número de canciones.
 - Artistas: arte circular; Álbumes y Carpetas: filas con subtítulo.

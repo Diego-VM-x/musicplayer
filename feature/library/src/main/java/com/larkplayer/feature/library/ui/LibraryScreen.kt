@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -105,6 +107,7 @@ private val TABS = listOf("Videos", "Canciones", "Playlists", "Carpetas", "Artis
 @Composable
 fun LibraryScreen(
     onOpenPlayer: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel(),
 ) {
@@ -143,8 +146,10 @@ fun LibraryScreen(
                         fontSize = 25.sp,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = (-0.5).sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
-                    Spacer(Modifier.weight(1f))
                     HeaderIcon(Icons.Default.Search, "Buscar") {
                         searching = !searching
                         if (!searching) viewModel.onQueryChange("")
@@ -172,6 +177,7 @@ fun LibraryScreen(
                         }
                     }
                     HeaderIcon(Icons.Default.RadioButtonChecked, "Reproduciendo") { onOpenPlayer() }
+                    HeaderIcon(Icons.Default.Settings, "Ajustes") { onOpenSettings() }
                 }
 
                 if (searching) {
@@ -400,8 +406,8 @@ fun LibraryScreen(
 
 @Composable
 private fun HeaderIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
-        Icon(icon, description, tint = Color.White, modifier = Modifier.size(24.dp))
+    IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
+        Icon(icon, description, tint = Color.White, modifier = Modifier.size(23.dp))
     }
 }
 
@@ -438,12 +444,12 @@ private fun SongsTab(
             }
         }
     } else {
-        val art = if (themeSize == 0) 46.dp else 52.dp
+        val rowHeight = if (themeSize == 0) 56.dp else 64.dp
         LazyColumn(contentPadding = PaddingValues(top = 2.dp, bottom = 104.dp)) {
             itemsIndexed(songs, key = { _, s -> s.id }) { index, song ->
                 SongRow(
                     song = song,
-                    artSize = art,
+                    rowHeight = rowHeight,
                     onClick = { onPlay(songs, index) },
                     onLongClick = { onLongPress(song) },
                 )
@@ -456,7 +462,7 @@ private fun SongsTab(
 @Composable
 private fun SongRow(
     song: Song,
-    artSize: Dp,
+    rowHeight: Dp,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -471,12 +477,17 @@ private fun SongRow(
             .clip(RoundedCornerShape(16.dp))
             .background(ApplePalette.Card)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 8.dp, vertical = 7.dp),
+            .height(rowHeight),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SongArtwork(song, Modifier.size(artSize), RoundedCornerShape(10.dp))
+        // Edge-to-edge artwork: fills the row height with no border or inset.
+        SongArtwork(
+            song = song,
+            modifier = Modifier.fillMaxHeight().width(rowHeight),
+            shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+        )
         Spacer(Modifier.width(13.dp))
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
             Text(
                 song.title,
                 color = Color.White,
@@ -510,31 +521,31 @@ private fun SongGridCard(song: Song, onClick: () -> Unit, onLongClick: () -> Uni
         Modifier
             .clip(RoundedCornerShape(16.dp))
             .background(ApplePalette.Card)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(8.dp),
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         SongArtwork(
             song,
             Modifier.fillMaxWidth().aspectRatio(1f),
-            RoundedCornerShape(12.dp),
+            RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            song.title,
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
-            lineHeight = 16.sp,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            song.artist,
-            color = ApplePalette.TextSecondary,
-            fontSize = 10.5.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Text(
+                song.title,
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                lineHeight = 16.sp,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                song.artist,
+                color = ApplePalette.TextSecondary,
+                fontSize = 10.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -618,11 +629,15 @@ private fun PlaylistRow(
             .clip(RoundedCornerShape(16.dp))
             .background(ApplePalette.Card)
             .combinedClickable(onClick = { onOpen(playlist) }, onLongClick = { onLongPress(playlist) })
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .height(64.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(54.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF2A2A2E)),
+            Modifier
+                .fillMaxHeight()
+                .width(64.dp)
+                .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                .background(Color(0xFF2A2A2E)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Default.QueueMusic, null, tint = Color(0xFF6F6F76), modifier = Modifier.size(22.dp))
@@ -646,7 +661,7 @@ private fun PlaylistRow(
             overflow = TextOverflow.Ellipsis,
         )
         Text("${playlist.songCount}", color = Color(0xFF8E8E95), fontSize = 12.sp)
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(14.dp))
     }
 }
 
@@ -696,12 +711,16 @@ private fun AlbumsTab(songs: List<Song>, onPlay: (List<Song>, Int) -> Unit) {
                     .clip(RoundedCornerShape(16.dp))
                     .background(ApplePalette.Card)
                     .clickable { onPlay(albumSongs, 0) }
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .height(64.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SongArtwork(albumSongs.first(), Modifier.size(54.dp), RoundedCornerShape(10.dp))
+                SongArtwork(
+                    albumSongs.first(),
+                    Modifier.fillMaxHeight().width(64.dp),
+                    RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                )
                 Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
                         key.first,
                         color = Color.White,
@@ -736,12 +755,16 @@ private fun FoldersTab(songs: List<Song>, onPlay: (List<Song>, Int) -> Unit) {
                     .clip(RoundedCornerShape(16.dp))
                     .background(ApplePalette.Card)
                     .clickable { onPlay(folderSongs, 0) }
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .height(64.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SongArtwork(folderSongs.first(), Modifier.size(54.dp), RoundedCornerShape(10.dp))
+                SongArtwork(
+                    folderSongs.first(),
+                    Modifier.fillMaxHeight().width(64.dp),
+                    RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                )
                 Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
                         folder,
                         color = Color.White,

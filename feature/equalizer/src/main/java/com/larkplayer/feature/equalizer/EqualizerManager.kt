@@ -11,20 +11,31 @@ class EqualizerManager @Inject constructor() {
 
     fun attach(audioSessionId: Int) {
         release()
-        equalizer = Equalizer(0, audioSessionId).apply { enabled = true }
+        runCatching {
+            equalizer = Equalizer(0, audioSessionId).apply { enabled = true }
+        }.onFailure {
+            equalizer = null
+        }
     }
 
-    fun bands(): Short = equalizer?.numberOfBands ?: 0
-    fun bandLevelRange(): ShortArray = equalizer?.bandLevelRange ?: shortArrayOf(0, 0)
-    fun setBandLevel(band: Short, level: Short) { equalizer?.setBandLevel(band, level) }
-    fun getBandLevel(band: Short): Short = equalizer?.getBandLevel(band) ?: 0
-    fun centerFreq(band: Short): Int = equalizer?.getCenterFreq(band) ?: 0
-    fun presets(): List<String> = (0 until (equalizer?.numberOfPresets ?: 0)).map {
-        equalizer?.getPresetName(it.toShort()) ?: ""
+    fun bands(): Short = runCatching { equalizer?.numberOfBands ?: 0 }.getOrDefault(0)
+    fun bandLevelRange(): ShortArray =
+        runCatching { equalizer?.bandLevelRange ?: shortArrayOf(0, 0) }.getOrDefault(shortArrayOf(0, 0))
+    fun setBandLevel(band: Short, level: Short) {
+        runCatching { equalizer?.setBandLevel(band, level) }
     }
+    fun getBandLevel(band: Short): Short =
+        runCatching { equalizer?.getBandLevel(band) ?: 0 }.getOrDefault(0)
+    fun centerFreq(band: Short): Int =
+        runCatching { equalizer?.getCenterFreq(band) ?: 0 }.getOrDefault(0)
+    fun presets(): List<String> = runCatching {
+        (0 until (equalizer?.numberOfPresets ?: 0)).map {
+            equalizer?.getPresetName(it.toShort()) ?: ""
+        }
+    }.getOrDefault(emptyList())
 
     fun release() {
-        equalizer?.release()
+        runCatching { equalizer?.release() }
         equalizer = null
     }
 }

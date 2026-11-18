@@ -81,6 +81,18 @@ Ver [`09-APPLE-GLASS.md`](09-APPLE-GLASS.md) para el detalle completo.
 - **Funciones nuevas:** playlists UI, ringtone, letras .lrc locales, cola reproducible, temporizador de sueño, ecualizador real.
 - **Navegación:** rutas `queue`, `sleep`, `equalizer`; bottom bar glass.
 
+## 2026-11-18 — Fase 7.1: corrección de cierres y acceso a ajustes
+
+- **Crashes corregidos:**
+  - `PlayerRepository` accedía a `MediaController` desde `Dispatchers.Default` (crossfade y contador de escucha) — Media3 lanza `IllegalStateException` al tocar un controlador fuera de su hilo. El scope del repositorio ahora es `Dispatchers.Main` y todas las lecturas van protegidas.
+  - `PlaybackService.onDestroy()` liberaba el `ExoPlayer` singleton; al reiniciarse el servicio la sesión quedaba con un reproductor muerto. Ya no se libera: solo se libera la `MediaSession`.
+  - Reconexión automática del `MediaController` (`MediaController.Listener.onDisconnected`) y reproducción pendiente hasta que la conexión esté lista.
+  - `EqualizerManager`: `Equalizer(...)` y sus llamadas van en `runCatching` (dispositivos sin audiofx).
+  - Operaciones de playlists/registro de reproducción envueltas para no tumbar la app.
+  - `LarkApp` escribe el último crash en `Android/data/<paquete>/files/logs/crash.txt`.
+- **Ajustes visibles:** icono de engranaje en la cabecera de la biblioteca (`LibraryScreen.onOpenSettings`), además del menú de 3 puntos del reproductor y el drawer.
+- **Carátulas sin borde:** las filas de canciones, playlists, álbumes y carpetas usan la imagen a sangre (alto completo de la fila, esquinas redondeadas solo en el lado izquierdo) y las tarjetas de cuadrícula ocupan todo el ancho sin margen interno.
+
 ## 2026-11-18 — Fase 7: rediseño fiel a Lark Player (sin barra inferior)
 
 Ver [`10-LARK-UI.md`](10-LARK-UI.md) para el detalle completo.
