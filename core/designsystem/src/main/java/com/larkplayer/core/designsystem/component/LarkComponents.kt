@@ -2,6 +2,7 @@ package com.larkplayer.core.designsystem.component
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.larkplayer.core.designsystem.theme.ApplePalette
 
-/** Rounded dark card used by every Lark settings group. */
+/** Translucent glass card used by every Lark settings group. */
 @Composable
 fun LarkCard(
     modifier: Modifier = Modifier,
@@ -46,12 +47,21 @@ fun LarkCard(
     Column(
         modifier = modifier
             .clip(shape)
-            .background(ApplePalette.Card),
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.11f),
+                        Color.White.copy(alpha = 0.045f),
+                        Color.White.copy(alpha = 0.02f),
+                    )
+                )
+            )
+            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), shape),
         content = content,
     )
 }
 
-/** Circular dark button (back arrow, header actions). */
+/** Circular glass button (back arrow, header actions). */
 @Composable
 fun CircleIconButton(
     onClick: () -> Unit,
@@ -61,16 +71,15 @@ fun CircleIconButton(
     tint: Color = Color.White,
     background: Color = Color(0xFF1D1D20),
 ) {
-    Box(
-        modifier = modifier
-            .size(38.dp)
-            .clip(CircleShape)
-            .background(background)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(20.dp))
-    }
+    GlassIconButton(
+        icon = icon,
+        contentDescription = contentDescription,
+        onClick = onClick,
+        modifier = modifier,
+        size = 42.dp,
+        iconSize = 21.dp,
+        tint = tint,
+    )
 }
 
 /**
@@ -169,7 +178,11 @@ fun LarkPill(
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(if (selected) accent else Color(0xFF1B1B1E))
+            .background(if (selected) accent else Color.White.copy(alpha = 0.07f))
+            .border(
+                BorderStroke(1.dp, Color.White.copy(alpha = if (selected) 0f else 0.09f)),
+                RoundedCornerShape(50),
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = if (showText) 16.dp else 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -179,7 +192,7 @@ fun LarkPill(
             Icon(
                 icon,
                 contentDescription = null,
-                tint = if (selected) Color.Black else Color(0xFFB8B8BE),
+                tint = if (selected) Color.White else Color(0xFFB8B8BE),
                 modifier = Modifier.size(16.dp),
             )
             if (showText) Spacer(Modifier.width(7.dp))
@@ -187,7 +200,7 @@ fun LarkPill(
         if (showText) {
             Text(
                 text,
-                color = if (selected) Color.Black else Color(0xFFC5C5CB),
+                color = if (selected) Color.White else Color(0xFFC5C5CB),
                 fontSize = 12.5.sp,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             )

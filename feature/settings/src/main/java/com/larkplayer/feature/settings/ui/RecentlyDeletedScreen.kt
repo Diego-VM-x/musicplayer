@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,7 +29,7 @@ fun RecentlyDeletedScreen(onBack: () -> Unit) {
                 Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 44.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(Icons.Default.DeleteOutline, null, tint = Color(0xFF5D5D64), modifier = Modifier.size(52.dp))
+                Icon(Icons.Rounded.DeleteOutline, null, tint = Color(0xFF5D5D64), modifier = Modifier.size(52.dp))
                 Spacer(Modifier.height(16.dp))
                 Text("0 archivos", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -158,7 +158,7 @@ private fun LanguageRow(label: String, selected: Boolean, accent: Color, onClick
             modifier = Modifier.weight(1f),
         )
         if (selected) {
-            Icon(Icons.Default.Check, "Seleccionado", tint = accent, modifier = Modifier.height(19.dp))
+            Icon(Icons.Rounded.Check, "Seleccionado", tint = accent, modifier = Modifier.height(19.dp))
         }
     }
 }

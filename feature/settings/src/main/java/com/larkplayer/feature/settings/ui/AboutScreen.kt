@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,7 +40,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 ),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Default.MusicNote, null, tint = Color.White, modifier = Modifier.size(42.dp))
+                Icon(Icons.Rounded.MusicNote, null, tint = Color.White, modifier = Modifier.size(42.dp))
             }
             Spacer(Modifier.height(14.dp))
             Text("Lark Player", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
@@ -50,19 +50,19 @@ fun AboutScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         LarkCard(Modifier.fillMaxWidth()) {
             SettingsRow(
-                icon = Icons.Default.MusicNote,
+                icon = Icons.Rounded.MusicNote,
                 title = "Reproductor local",
                 subtitle = "Media3 ExoPlayer · MP3, M4A, FLAC, OGG, WAV",
                 showChevron = false,
             )
             SettingsRow(
-                icon = Icons.Default.MusicNote,
+                icon = Icons.Rounded.MusicNote,
                 title = "Sin anuncios ni rastreadores",
                 subtitle = "No incluye AD_ID, analytics ni librerías .so",
                 showChevron = false,
             )
             SettingsRow(
-                icon = Icons.Default.MusicNote,
+                icon = Icons.Rounded.MusicNote,
                 title = "Copia de seguridad local",
                 subtitle = "Exporta e importa un ZIP sin servicios de Google",
                 showChevron = false,

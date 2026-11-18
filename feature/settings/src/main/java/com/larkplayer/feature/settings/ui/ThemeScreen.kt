@@ -20,21 +20,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BrightnessAuto
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.RadioButtonChecked
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.ViewAgenda
-import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.BrightnessAuto
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.RadioButtonChecked
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.ViewAgenda
+import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -66,9 +66,9 @@ import com.larkplayer.feature.settings.SettingsViewModel
 private data class ThemeSizeOption(val index: Int, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
 private val SIZE_OPTIONS = listOf(
-    ThemeSizeOption(0, "Pequeño", Icons.Default.ViewList),
-    ThemeSizeOption(1, "Medio", Icons.Default.ViewAgenda),
-    ThemeSizeOption(2, "Grande", Icons.Default.GridView),
+    ThemeSizeOption(0, "Pequeño", Icons.Rounded.ViewList),
+    ThemeSizeOption(1, "Medio", Icons.Rounded.ViewAgenda),
+    ThemeSizeOption(2, "Grande", Icons.Rounded.GridView),
 )
 
 private val ACCENTS = listOf(
@@ -138,9 +138,9 @@ fun ThemeScreen(
 
         LarkSegmented(
             options = listOf(
-                Triple("Oscuro", Icons.Default.DarkMode, config.themeMode == 1),
-                Triple("Claro", Icons.Default.LightMode, config.themeMode == 0),
-                Triple("Sistema", Icons.Default.BrightnessAuto, config.themeMode == 2),
+                Triple("Oscuro", Icons.Rounded.DarkMode, config.themeMode == 1),
+                Triple("Claro", Icons.Rounded.LightMode, config.themeMode == 0),
+                Triple("Sistema", Icons.Rounded.BrightnessAuto, config.themeMode == 2),
             ),
             onSelect = { index ->
                 viewModel.setThemeMode(when (index) { 0 -> 1; 1 -> 0; else -> 2 })
@@ -169,12 +169,12 @@ fun ThemeScreen(
                     .clickable { customDialog = true },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Default.Palette, "Color personalizado", tint = Color.White, modifier = Modifier.size(21.dp))
+                Icon(Icons.Rounded.Palette, "Color personalizado", tint = Color.White, modifier = Modifier.size(21.dp))
                 Box(
                     Modifier.align(Alignment.BottomEnd).padding(5.dp).size(13.dp).clip(CircleShape).background(accent),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Default.Add, null, tint = Color.Black, modifier = Modifier.size(9.dp))
+                    Icon(Icons.Rounded.Add, null, tint = Color.Black, modifier = Modifier.size(9.dp))
                 }
             }
             ACCENTS.forEach { color ->
@@ -263,7 +263,7 @@ private fun AccentCircle(
         contentAlignment = Alignment.Center,
     ) {
         if (selected) {
-            Icon(Icons.Default.Check, "Seleccionado", tint = Color.Black, modifier = Modifier.size(20.dp))
+            Icon(Icons.Rounded.Check, "Seleccionado", tint = Color.Black, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -313,11 +313,11 @@ private fun ThemePreviewCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Lark Player", color = text, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Default.Search, null, tint = text, modifier = Modifier.size(13.dp))
+            Icon(Icons.Rounded.Search, null, tint = text, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(8.dp))
-            Icon(Icons.Default.SwapVert, null, tint = text, modifier = Modifier.size(13.dp))
+            Icon(Icons.Rounded.SwapVert, null, tint = text, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(8.dp))
-            Icon(Icons.Default.RadioButtonChecked, null, tint = text, modifier = Modifier.size(13.dp))
+            Icon(Icons.Rounded.RadioButtonChecked, null, tint = text, modifier = Modifier.size(13.dp))
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -350,7 +350,7 @@ private fun ThemePreviewCard(
                                             .background(Brush.linearGradient(listOf(song.color, song.color.copy(0.55f)))),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Icon(Icons.Default.MusicNote, null, tint = Color.White.copy(0.55f), modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Rounded.MusicNote, null, tint = Color.White.copy(0.55f), modifier = Modifier.size(18.dp))
                                     }
                                     Text(song.title, color = text, fontSize = 7.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, lineHeight = 9.sp)
                                     Text(song.artist, color = sub, fontSize = 6.sp, maxLines = 1)
@@ -411,7 +411,7 @@ private fun PreviewRow(
                 .background(Brush.linearGradient(listOf(song.color, song.color.copy(0.5f)))),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Default.MusicNote, null, tint = Color.White.copy(0.55f), modifier = Modifier.size((art / 2.5).dp))
+            Icon(Icons.Rounded.MusicNote, null, tint = Color.White.copy(0.55f), modifier = Modifier.size((art / 2.5).dp))
         }
         Spacer(Modifier.width(7.dp))
         Column(Modifier.weight(1f)) {

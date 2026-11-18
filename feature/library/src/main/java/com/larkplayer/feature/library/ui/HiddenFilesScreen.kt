@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,7 +51,7 @@ fun HiddenFilesScreen(
                 Modifier.fillMaxWidth().padding(40.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(Icons.Default.VisibilityOff, null, tint = Color(0xFF5D5D64), modifier = Modifier.size(52.dp))
+                Icon(Icons.Rounded.VisibilityOff, null, tint = Color(0xFF5D5D64), modifier = Modifier.size(52.dp))
                 Spacer(Modifier.height(16.dp))
                 Text("No hay archivos ocultos", color = Color.White, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))

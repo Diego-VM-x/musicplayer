@@ -18,10 +18,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Unarchive
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -92,14 +92,14 @@ fun BackupScreen(
 
         LarkCard(Modifier.fillMaxWidth()) {
             BackupAction(
-                icon = Icons.Default.CloudUpload,
+                icon = Icons.Rounded.CloudUpload,
                 title = "Exportar copia de seguridad",
                 subtitle = "Crea un ZIP con tus datos de Lark Player",
                 accent = accent,
                 onClick = { exportLauncher.launch("lark-backup.zip") },
             )
             BackupAction(
-                icon = Icons.Default.Unarchive,
+                icon = Icons.Rounded.Unarchive,
                 title = "Importar copia de seguridad",
                 subtitle = "Restaura playlists y ajustes desde un ZIP",
                 accent = accent,
@@ -114,7 +114,7 @@ fun BackupScreen(
                     Modifier.fillMaxWidth().padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Default.Archive, null, tint = accent, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Rounded.Archive, null, tint = accent, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.size(12.dp))
                     Text(status, color = Color.White, fontSize = 12.5.sp, lineHeight = 17.sp)
                 }
@@ -126,7 +126,7 @@ fun BackupScreen(
             Modifier.fillMaxWidth().padding(horizontal = 6.dp),
             verticalAlignment = Alignment.Top,
         ) {
-            Icon(Icons.Default.Info, null, tint = Color(0xFF6F6F77), modifier = Modifier.size(15.dp))
+            Icon(Icons.Rounded.Info, null, tint = Color(0xFF6F6F77), modifier = Modifier.size(15.dp))
             Spacer(Modifier.size(8.dp))
             Text(
                 "El ZIP se crea en el almacenamiento del dispositivo usando el selector de archivos de Android. " +

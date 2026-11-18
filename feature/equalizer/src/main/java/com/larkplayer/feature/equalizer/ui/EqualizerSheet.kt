@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -73,7 +73,7 @@ fun EqualizerScreen(
                     Modifier.fillMaxWidth().padding(vertical = 38.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(Icons.Default.MusicNote, null, tint = Color(0xFF5D5D64), modifier = Modifier.height(44.dp))
+                    Icon(Icons.Rounded.MusicNote, null, tint = Color(0xFF5D5D64), modifier = Modifier.height(44.dp))
                     Spacer(Modifier.height(14.dp))
                     Text("Ecualizador no disponible", color = Color.White, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(6.dp))

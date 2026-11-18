@@ -4,7 +4,23 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
-## 2026-11-18 — Fase 0: Análisis
+## 2026-11-18 — Fase 8: playlists completas + liquid glass
+
+- **Detalle de playlist** (`feature:library/ui/PlaylistDetailScreen.kt`, `PlaylistDetailViewModel.kt`, ruta `playlist/{playlistId}`):
+  - Carátula grande, nombre editable con lápiz, contador de canciones y botones flotantes «Reproducir» / «Aleatorio».
+  - Menús flotantes de ordenación (Más recientes / Más reproducido / A a Z / Organizar manualmente con flechas) y menú «...» (Agregar canciones, Administrar, Eliminar lista de reproducción).
+  - Editor a pantalla completa: nombre (0/200) e imagen personalizada desde SAF (`coverUri` persistido con `takePersistableUriPermission`).
+  - Selección múltiple con «N seleccionado(s)» y barra flotante: Agregar a, A continuación, Compartir, Ocultar y Quitar.
+  - «Agregar canciones» desde todas las canciones de la biblioteca, excluyendo las ya incluidas.
+- **Biblioteca** (`LibraryScreen.kt`):
+  - Todas las listas (canciones, playlists, álbumes, artistas, carpetas) **sin fondo ni contorno**: solo la carátula y el texto sobre el degradado.
+  - Selección múltiple con la misma barra flotante; «Borrar» usa `MediaStore.createDeleteRequest` (API 30+) o `ContentResolver.delete` en versiones anteriores, y luego vuelve a escanear.
+  - Cabecera con iconos redondeados agrupados en una píldora de cristal; menú de orden flotante; diálogo «Nueva playlist» como tarjeta de cristal.
+  - Tocar una playlist abre su detalle (antes reproducía directamente); la eliminación queda en el menú contextual.
+- **Sistema de diseño** (`core:designsystem/component/LiquidGlass.kt`): primitivas reutilizables `GlassIconButton`, `GlassIconCluster`, `GlassPillButton`, `GlassMenu`, `LarkSheet`, `LarkDialog`, `SoftCheck`, `GlassSelectionBar`, `LarkTextField`, `GlassTag`. `LarkCard`, `LarkPill`, `CircleIconButton`, `PlayerScreen` y `MiniPlayer` adoptan el mismo acabado.
+- **Datos** (`core:database`): `PlaylistEntity.coverUri`, DAO para actualizar portada/nombre, `maxPosition`, `setPosition`, borrado múltiple y `PlayCount`; base de datos v2 con migración `1 → 2` que añade `ALTER TABLE playlists ADD COLUMN coverUri TEXT` (conserva las playlists existentes) y repositorio con `addSongs`, `removeSongs`, `reorder`, `playCounts`.
+
+## 2026-11-18 — Fase 7.1: corrección de cierres y acceso a ajustes
 
 - **Análisis ingeniería inversa del APK original** → `../ANALISIS.md`
   - Extracción de 2974 entradas, decompilación con jadx (25 466 .java), manifiesto decodificado.

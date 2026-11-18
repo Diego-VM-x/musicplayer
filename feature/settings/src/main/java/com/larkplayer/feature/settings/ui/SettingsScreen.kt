@@ -10,18 +10,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Checkroom
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.MailOutline
-import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.WatchLater
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Checkroom
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.MailOutline
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.WatchLater
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -101,13 +101,13 @@ fun SettingsScreen(
 
         LarkCard(Modifier.fillMaxWidth()) {
             SettingsRow(
-                icon = Icons.Default.WatchLater,
+                icon = Icons.Rounded.WatchLater,
                 title = "Tiempo de reproducción",
                 value = formatPlayTime(totalPlayMs),
                 onClick = onPlayTime,
             )
             SettingsRow(
-                icon = Icons.Default.CloudUpload,
+                icon = Icons.Rounded.CloudUpload,
                 title = "Respaldar y guardar",
                 subtitle = "Copia local (ZIP)",
                 onClick = onBackup,
@@ -118,19 +118,19 @@ fun SettingsScreen(
 
         LarkCard(Modifier.fillMaxWidth()) {
             SettingsRow(
-                icon = Icons.Default.Checkroom,
+                icon = Icons.Rounded.Checkroom,
                 title = "Tema",
                 value = "Clásico / $sizeName",
                 onClick = onTheme,
             )
             SettingsRow(
-                icon = Icons.Default.Alarm,
+                icon = Icons.Rounded.Alarm,
                 title = "Temporizador para dormir",
                 value = if (sleepMinutes > 0) "$sleepMinutes min" else "Apagar",
                 onClick = onSleepTimer,
             )
             SettingsRow(
-                icon = Icons.Default.Block,
+                icon = Icons.Rounded.Block,
                 title = "Sin anuncios",
                 value = "Activo",
                 showChevron = false,
@@ -141,29 +141,29 @@ fun SettingsScreen(
 
         LarkCard(Modifier.fillMaxWidth()) {
             SettingsRow(
-                icon = Icons.Default.VisibilityOff,
+                icon = Icons.Rounded.VisibilityOff,
                 title = "Archivos ocultos",
                 value = "$hiddenCount archivos",
                 onClick = onHiddenFiles,
             )
             SettingsRow(
-                icon = Icons.Default.DeleteOutline,
+                icon = Icons.Rounded.DeleteOutline,
                 title = "Eliminado recientemente",
                 value = "0 archivos",
                 onClick = onRecentlyDeleted,
             )
             SettingsRow(
-                icon = Icons.Default.Headphones,
+                icon = Icons.Rounded.Headphones,
                 title = "Ajustes de reproducción",
                 onClick = onPlaybackSettings,
             )
             SettingsRow(
-                icon = Icons.Default.NotificationsActive,
+                icon = Icons.Rounded.NotificationsActive,
                 title = "Configuración de notificaciones",
                 onClick = onNotifications,
             )
             SettingsRow(
-                icon = Icons.Default.Language,
+                icon = Icons.Rounded.Language,
                 title = "Idioma",
                 value = LANGUAGE_NAMES[language] ?: "Español",
                 onClick = onLanguage,
@@ -174,12 +174,12 @@ fun SettingsScreen(
 
         LarkCard(Modifier.fillMaxWidth()) {
             SettingsRow(
-                icon = Icons.Default.MailOutline,
+                icon = Icons.Rounded.MailOutline,
                 title = "Opinión",
                 onClick = onFeedback,
             )
             SettingsRow(
-                icon = Icons.Default.Info,
+                icon = Icons.Rounded.Info,
                 title = "Sobre",
                 value = "2027.5",
                 onClick = onAbout,

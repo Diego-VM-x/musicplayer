@@ -20,7 +20,7 @@ import com.larkplayer.core.database.entity.SongEntity
         HistoryEntity::class,
         QueueEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class LarkDatabase : RoomDatabase() {

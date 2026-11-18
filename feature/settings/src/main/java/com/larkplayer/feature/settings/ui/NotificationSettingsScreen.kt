@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,7 +33,7 @@ fun NotificationSettingsScreen(
     SettingsPage(title = "Configuración de notificaciones", onBack = onBack) {
         LarkCard(Modifier.fillMaxWidth()) {
             SettingsRow(
-                icon = Icons.Default.NotificationsActive,
+                icon = Icons.Rounded.NotificationsActive,
                 title = "Notificación de reproducción",
                 subtitle = "Muestra la carátula, el título y los controles",
                 trailing = {
@@ -45,7 +45,7 @@ fun NotificationSettingsScreen(
                 },
             )
             SettingsRow(
-                icon = Icons.Default.Lock,
+                icon = Icons.Rounded.Lock,
                 title = "Pantalla de bloqueo",
                 subtitle = "Los controles del sistema dependen de tu bloqueo seguro",
                 showChevron = false,

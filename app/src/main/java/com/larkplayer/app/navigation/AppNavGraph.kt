@@ -8,12 +8,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.Equalizer
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Equalizer
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalDrawerSheet
@@ -32,14 +32,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.backup.ui.BackupScreen
 import com.larkplayer.feature.equalizer.ui.EqualizerScreen
 import com.larkplayer.feature.library.ui.HiddenFilesScreen
 import com.larkplayer.feature.library.ui.LibraryScreen
+import com.larkplayer.feature.library.ui.PlaylistDetailScreen
 import com.larkplayer.feature.lyrics.ui.LyricsScreen
 import com.larkplayer.feature.player.ui.MiniPlayer
 import com.larkplayer.feature.player.ui.PlayerScreen
@@ -59,6 +62,8 @@ import kotlinx.coroutines.launch
 private object Routes {
     const val LIBRARY = "library"
     const val PLAYER = "player"
+    const val PLAYLIST = "playlist/{playlistId}"
+    fun playlist(id: Long) = "playlist/$id"
     const val SETTINGS = "settings"
     const val LYRICS = "lyrics"
     const val BACKUP = "backup"
@@ -92,6 +97,15 @@ fun AppNavGraph() {
                 onSleepTimer = { navController.navigate(Routes.SLEEP) },
                 onEqualizer = { navController.navigate(Routes.EQUALIZER) },
                 onSettings = { navController.navigate(Routes.SETTINGS) },
+            )
+        }
+        composable(
+            route = Routes.PLAYLIST,
+            arguments = listOf(navArgument("playlistId") { type = NavType.LongType }),
+        ) {
+            PlaylistDetailScreen(
+                onBack = { navController.popBackStack() },
+                onOpenPlayer = { navController.navigate(Routes.PLAYER) },
             )
         }
         composable(Routes.LYRICS) {
@@ -142,27 +156,27 @@ private fun LibraryHome(navController: NavHostController) {
                     Text("Lark Player", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
                     Text("Biblioteca local", color = ApplePalette.TextSecondary, fontSize = 12.sp)
                 }
-                DrawerItem("Ajustes", Icons.Default.Settings) {
+                DrawerItem("Ajustes", Icons.Rounded.Settings) {
                     scope.launch { drawerState.close() }
                     navController.navigate(Routes.SETTINGS)
                 }
-                DrawerItem("Tema", Icons.Default.Palette) {
+                DrawerItem("Tema", Icons.Rounded.Palette) {
                     scope.launch { drawerState.close() }
                     navController.navigate(Routes.THEME)
                 }
-                DrawerItem("Ajustes de reproducción", Icons.Default.Headphones) {
+                DrawerItem("Ajustes de reproducción", Icons.Rounded.Headphones) {
                     scope.launch { drawerState.close() }
                     navController.navigate(Routes.PLAYBACK_SETTINGS)
                 }
-                DrawerItem("Ecualizador", Icons.Default.Equalizer) {
+                DrawerItem("Ecualizador", Icons.Rounded.Equalizer) {
                     scope.launch { drawerState.close() }
                     navController.navigate(Routes.EQUALIZER)
                 }
-                DrawerItem("Temporizador para dormir", Icons.Default.Timer) {
+                DrawerItem("Temporizador para dormir", Icons.Rounded.Timer) {
                     scope.launch { drawerState.close() }
                     navController.navigate(Routes.SLEEP)
                 }
-                DrawerItem("Respaldar y guardar", Icons.Default.CloudUpload) {
+                DrawerItem("Respaldar y guardar", Icons.Rounded.CloudUpload) {
                     scope.launch { drawerState.close() }
                     navController.navigate(Routes.BACKUP)
                 }
@@ -173,6 +187,7 @@ private fun LibraryHome(navController: NavHostController) {
             LibraryScreen(
                 onOpenPlayer = { navController.navigate(Routes.PLAYER) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenPlaylist = { id -> navController.navigate(Routes.playlist(id)) },
             )
             MiniPlayer(
                 onOpen = { navController.navigate(Routes.PLAYER) },

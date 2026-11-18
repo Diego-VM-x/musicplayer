@@ -17,10 +17,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -69,16 +69,16 @@ fun MiniPlayer(
     Row(
         modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF15121A))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(26.dp))
             .background(background)
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(26.dp))
             .clickable(onClick = onOpen)
             .padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF2A2A2E)),
+            Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFF2A2A2E)),
             contentAlignment = Alignment.Center,
         ) {
             AsyncImage(
@@ -132,7 +132,7 @@ fun MiniPlayer(
                 )
             }
             Icon(
-                if (state.repeatMode == 2) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                if (state.repeatMode == 2) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                 "Repetir",
                 tint = Color.White,
                 modifier = Modifier.size(17.dp),
@@ -151,7 +151,7 @@ fun MiniPlayer(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                 if (state.isPlaying) "Pausar" else "Reproducir",
                 tint = accent,
                 modifier = Modifier.size(25.dp),
@@ -177,13 +177,13 @@ fun MiniPlayerPreview(accent: Color, modifier: Modifier = Modifier) {
             Text("Spread My Wings", color = accent, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Text("Zendaya", color = Color(0xFFBEB6C9), fontSize = 6.sp, maxLines = 1)
         }
-        Icon(Icons.Default.Repeat, null, tint = Color.White, modifier = Modifier.size(11.dp))
+        Icon(Icons.Rounded.Repeat, null, tint = Color.White, modifier = Modifier.size(11.dp))
         Spacer(Modifier.width(8.dp))
         Box(
             Modifier.size(24.dp).clip(CircleShape).border(1.dp, Color.White.copy(0.5f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Default.PlayArrow, null, tint = accent, modifier = Modifier.size(14.dp))
+            Icon(Icons.Rounded.PlayArrow, null, tint = accent, modifier = Modifier.size(14.dp))
         }
     }
 }

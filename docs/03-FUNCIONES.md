@@ -27,6 +27,13 @@
 | Escanear carpetas personalizadas | `feature:library` | `scanner/MediaScanner.kt` | ⏳ |
 | Asignar ringtone | `feature:library` | `scanner/MediaScanner.kt` (SAF write) | ⏳ |
 | UI biblioteca | `feature:library` | `ui/LibraryScreen.kt` | ⏳ |
+| Detalle de playlist (carátula, reproducir/aleatorio, orden) | `feature:library` | `ui/PlaylistDetailScreen.kt`, `ui/PlaylistDetailViewModel.kt` | ✅ |
+| Editar playlist (nombre + portada SAF) | `feature:library` | `ui/PlaylistDetailScreen.kt` (`PlaylistEditor`), `PlaylistRepository.kt` | ✅ |
+| Agregar canciones a playlist / quitar / reordenar | `feature:library` | `PlaylistRepository.kt` (`addSongs`, `removeSongs`, `reorder`) | ✅ |
+| Conteo de reproducciones ("Más reproducido") | `core:database` | `dao/Daos.kt` (`PlayCount`), `PlaylistRepository.playCounts()` | ✅ |
+| Selección múltiple y barra flotante de acciones | `feature:library` | `ui/LibraryScreen.kt`, `ui/PlaylistDetailScreen.kt` | ✅ |
+| Borrado real de archivos (MediaStore) | `feature:library` | `ui/LibraryScreen.kt` (`deleteSelected`) | ✅ |
+| Primitivas liquid glass compartidas | `core:designsystem` | `component/LiquidGlass.kt` | ✅ |
 
 ## Letras
 

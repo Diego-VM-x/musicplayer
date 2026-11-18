@@ -23,6 +23,8 @@ data class PlaylistEntity(
     val name: String,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    /** Custom cover picked by the user (SAF content uri), null = first song's art. */
+    val coverUri: String? = null,
 )
 
 /** Projection used by the Playlists tab (cover art + song count). */

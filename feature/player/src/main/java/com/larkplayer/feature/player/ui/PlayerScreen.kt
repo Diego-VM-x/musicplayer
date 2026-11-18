@@ -13,22 +13,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Equalizer
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Equalizer
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -43,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -52,13 +54,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.larkplayer.core.designsystem.component.GlassIconButton
+import com.larkplayer.core.designsystem.component.GlassMenuItem
+import com.larkplayer.core.designsystem.component.GlassMenu
 import com.larkplayer.core.designsystem.component.LarkGradientBackground
 import com.larkplayer.core.designsystem.theme.ApplePalette
-import com.larkplayer.feature.player.AlbumColorRepository
 
 /**
- * Lark's now-playing screen: huge rounded artwork, coloured title, thin progress
- * line, three big transport controls and the EQ / Letras / queue row.
+ * Lark's now-playing screen: glass controls, rounded artwork, coloured title,
+ * thin progress line and the EQ / Letras / queue row.
  */
 @Composable
 fun PlayerScreen(
@@ -87,20 +91,64 @@ fun PlayerScreen(
             Modifier
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
-                .padding(top = 10.dp),
+                .padding(top = 12.dp, bottom = 10.dp),
         ) {
-            // Artwork
+            // ---- Top bar ----
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                GlassIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Atrás", onBack, size = 42.dp)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "Reproduciendo",
+                    color = Color(0xFFC5C5CB),
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Spacer(Modifier.weight(1f))
+                Box {
+                    GlassIconButton(
+                        Icons.Rounded.MoreVert,
+                        "Más opciones",
+                        { menuOpen = true },
+                        size = 42.dp,
+                    )
+                    GlassMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        GlassMenuItem(
+                            "Ecualizador",
+                            icon = Icons.Rounded.Equalizer,
+                            onClick = { menuOpen = false; onEqualizer() },
+                        )
+                        GlassMenuItem(
+                            "Temporizador para dormir",
+                            icon = Icons.Rounded.Timer,
+                            onClick = { menuOpen = false; onSleepTimer() },
+                        )
+                        GlassMenuItem(
+                            "Ajustes",
+                            icon = Icons.Rounded.Settings,
+                            onClick = { menuOpen = false; onSettings() },
+                        )
+                        GlassMenuItem(
+                            "Ir a la biblioteca",
+                            onClick = { menuOpen = false; onBack() },
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(22.dp))
+
+            // ---- Artwork ----
             Box(
                 Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .shadow(24.dp, RoundedCornerShape(18.dp))
-                    .clip(RoundedCornerShape(18.dp))
+                    .shadow(24.dp, RoundedCornerShape(26.dp))
+                    .clip(RoundedCornerShape(26.dp))
                     .background(Color(0xFF242428)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.Default.QueueMusic,
+                    Icons.Rounded.MusicNote,
                     null,
                     tint = Color(0xFF5C5C64),
                     modifier = Modifier.size(64.dp),
@@ -134,44 +182,18 @@ fun PlayerScreen(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = viewModel::toggleFavorite) {
-                    Icon(
-                        if (state.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        if (state.isFavorite) "Quitar de favoritos" else "Favorito",
-                        tint = if (state.isFavorite) accent else Color.White,
-                        modifier = Modifier.size(23.dp),
-                    )
-                }
-                Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Default.MoreVert, "Más opciones", tint = Color.White, modifier = Modifier.size(23.dp))
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Ecualizador") },
-                            leadingIcon = { Icon(Icons.Default.Equalizer, null) },
-                            onClick = { menuOpen = false; onEqualizer() },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Temporizador para dormir") },
-                            leadingIcon = { Icon(Icons.Default.Timer, null) },
-                            onClick = { menuOpen = false; onSleepTimer() },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Ajustes") },
-                            onClick = { menuOpen = false; onSettings() },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Ir a la biblioteca") },
-                            onClick = { menuOpen = false; onBack() },
-                        )
-                    }
-                }
+                GlassIconButton(
+                    if (state.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    if (state.isFavorite) "Quitar de favoritos" else "Favorito",
+                    viewModel::toggleFavorite,
+                    size = 42.dp,
+                    iconSize = 22.dp,
+                    tint = if (state.isFavorite) accent else Color.White,
+                )
             }
 
             Spacer(Modifier.weight(1f))
 
-            LaunchedEffect(state.position) { /* keeps slider synced above */ }
             Slider(
                 value = sliderValue.coerceIn(0f, state.duration.toFloat().coerceAtLeast(1f)),
                 onValueChange = {
@@ -202,48 +224,60 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = viewModel::skipPrevious, modifier = Modifier.size(56.dp)) {
+                GlassIconButton(
+                    Icons.Rounded.SkipPrevious,
+                    "Anterior",
+                    viewModel::skipPrevious,
+                    size = 58.dp,
+                    iconSize = 38.dp,
+                    tint = accent,
+                )
+                Box(
+                    Modifier
+                        .size(78.dp)
+                        .shadow(18.dp, CircleShape, clip = false)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.08f))
+                            )
+                        )
+                        .clickable(onClick = viewModel::togglePlayPause),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Icon(
-                        Icons.Default.SkipPrevious,
-                        "Anterior",
-                        tint = accent,
-                        modifier = Modifier.size(38.dp),
-                    )
-                }
-                IconButton(onClick = viewModel::togglePlayPause, modifier = Modifier.size(76.dp)) {
-                    Icon(
-                        if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                         if (state.isPlaying) "Pausar" else "Reproducir",
                         tint = accent,
-                        modifier = Modifier.size(58.dp),
+                        modifier = Modifier.size(48.dp),
                     )
                 }
-                IconButton(onClick = viewModel::skipNext, modifier = Modifier.size(56.dp)) {
-                    Icon(
-                        Icons.Default.SkipNext,
-                        "Siguiente",
-                        tint = accent,
-                        modifier = Modifier.size(38.dp),
-                    )
-                }
+                GlassIconButton(
+                    Icons.Rounded.SkipNext,
+                    "Siguiente",
+                    viewModel::skipNext,
+                    size = 58.dp,
+                    iconSize = 38.dp,
+                    tint = accent,
+                )
             }
 
             Spacer(Modifier.weight(1f))
 
             Row(
-                Modifier.fillMaxWidth().padding(bottom = 18.dp, top = 12.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp, top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 PlayerBottomAction(
-                    icon = Icons.Default.Equalizer,
-                    label = null,
+                    icon = Icons.Rounded.Equalizer,
                     modifier = Modifier.weight(1f),
                     onClick = onEqualizer,
                 )
                 PlayerBottomLabel("Letras", Modifier.weight(1.3f), onClick = onLyrics)
                 PlayerBottomAction(
-                    icon = Icons.Default.QueueMusic,
-                    label = null,
+                    icon = Icons.Rounded.QueueMusic,
                     modifier = Modifier.weight(1f),
                     onClick = onQueue,
                 )
@@ -255,7 +289,6 @@ fun PlayerScreen(
 @Composable
 private fun PlayerBottomAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -263,11 +296,7 @@ private fun PlayerBottomAction(
         modifier = modifier.clickable(onClick = onClick).padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, label, tint = Color(0xFFCFCFD5), modifier = Modifier.size(23.dp))
-        if (label != null) {
-            Spacer(Modifier.height(3.dp))
-            Text(label, color = Color(0xFFCFCFD5), fontSize = 11.sp)
-        }
+        Icon(icon, null, tint = ApplePalette.TextSecondary, modifier = Modifier.size(23.dp))
     }
 }
 

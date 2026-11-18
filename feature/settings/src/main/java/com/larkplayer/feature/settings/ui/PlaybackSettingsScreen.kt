@@ -5,9 +5,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.ShowChart
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -35,7 +35,7 @@ fun PlaybackSettingsScreen(
 
     SettingsPage(title = "Ajustes de reproducción", onBack = onBack) {
         PlayToggleRow(
-            icon = Icons.Default.Headphones,
+            icon = Icons.Rounded.Headphones,
             title = "Reproduce junto con otras aplicaciones",
             checked = playback.playWithOthers,
             onCheckedChange = viewModel::setPlayWithOthers,
@@ -45,7 +45,7 @@ fun PlaybackSettingsScreen(
         Spacer(Modifier.height(26.dp))
 
         PlayToggleRow(
-            icon = Icons.Default.GraphicEq,
+            icon = Icons.Rounded.GraphicEq,
             title = "Reproducción sin pausas",
             subtitle = "Elimina cualquier espacio o pausa que pueda producirse entre pistas",
             checked = playback.gapless,
@@ -56,7 +56,7 @@ fun PlaybackSettingsScreen(
         Spacer(Modifier.height(26.dp))
 
         PlayToggleRow(
-            icon = Icons.Default.ShowChart,
+            icon = Icons.Rounded.ShowChart,
             title = "Crossfade",
             subtitle = "Establezca el desvanecimiento y la superposición entre pistas",
             checked = playback.crossfade,

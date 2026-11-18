@@ -2,6 +2,8 @@ package com.larkplayer.core.database.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.larkplayer.core.database.LarkDatabase
 import com.larkplayer.core.database.dao.HistoryDao
 import com.larkplayer.core.database.dao.PlaylistDao
@@ -17,10 +19,18 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
+    /** v2 adds the optional playlist cover; playlists from v1 are preserved. */
+    private val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE playlists ADD COLUMN coverUri TEXT")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LarkDatabase =
         Room.databaseBuilder(context, LarkDatabase::class.java, "lark.db")
+            .addMigrations(MIGRATION_1_2)
             .fallbackToDestructiveMigration()
             .build()
 

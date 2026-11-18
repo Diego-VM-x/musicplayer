@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MailOutline
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.rounded.MailOutline
+import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -69,13 +69,13 @@ fun FeedbackScreen(onBack: () -> Unit) {
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Send, null, tint = Color.Black, modifier = Modifier.height(17.dp))
+            Icon(Icons.Rounded.Send, null, tint = Color.Black, modifier = Modifier.height(17.dp))
             Spacer(Modifier.width(8.dp))
             Text("Enviar opinión", color = Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
         }
         Spacer(Modifier.height(24.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.MailOutline, null, tint = Color(0xFF8E8E95), modifier = Modifier.height(17.dp))
+            Icon(Icons.Rounded.MailOutline, null, tint = Color(0xFF8E8E95), modifier = Modifier.height(17.dp))
             Spacer(Modifier.width(8.dp))
             Text("dev@larkclean.local", color = ApplePalette.TextSecondary, fontSize = 12.sp)
         }

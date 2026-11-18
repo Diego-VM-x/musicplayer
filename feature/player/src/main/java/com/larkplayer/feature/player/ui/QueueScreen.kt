@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -90,7 +90,7 @@ fun QueueScreen(
                         Modifier.size(46.dp).clip(RoundedCornerShape(9.dp)).background(Color(0xFF2A2A2E)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.Default.MusicNote, null, tint = Color(0xFF6F6F76), modifier = Modifier.size(20.dp))
+                        Icon(Icons.Rounded.MusicNote, null, tint = Color(0xFF6F6F76), modifier = Modifier.size(20.dp))
                         AsyncImage(
                             model = item.mediaMetadata.artworkUri,
                             contentDescription = null,

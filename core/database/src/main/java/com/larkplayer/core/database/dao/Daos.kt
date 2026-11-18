@@ -49,8 +49,15 @@ interface PlaylistDao {
     @Insert
     suspend fun insert(playlist: PlaylistEntity): Long
 
+    @Query("SELECT * FROM playlists WHERE id = :id")
+    fun observePlaylist(id: Long): Flow<PlaylistEntity?>
+
     @Query("UPDATE playlists SET name = :name, updatedAt = :now WHERE id = :id")
     suspend fun rename(id: Long, name: String, now: Long = System.currentTimeMillis())
+
+    /** Updates name and custom cover together (used by the playlist editor). */
+    @Query("UPDATE playlists SET name = :name, coverUri = :coverUri, updatedAt = :now WHERE id = :id")
+    suspend fun update(id: Long, name: String, coverUri: String?, now: Long = System.currentTimeMillis())
 
     @Query("DELETE FROM playlists WHERE id = :id")
     suspend fun delete(id: Long)
@@ -61,8 +68,17 @@ interface PlaylistDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addSongs(refs: List<PlaylistSong>)
 
+    @Query("SELECT COALESCE(MAX(position), -1) FROM playlist_songs WHERE playlistId = :playlistId")
+    suspend fun maxPosition(playlistId: Long): Int
+
+    @Query("UPDATE playlist_songs SET position = :position WHERE playlistId = :playlistId AND songId = :songId")
+    suspend fun setPosition(playlistId: Long, songId: Long, position: Int)
+
     @Query("DELETE FROM playlist_songs WHERE playlistId = :playlistId AND songId = :songId")
     suspend fun removeSong(playlistId: Long, songId: Long)
+
+    @Query("DELETE FROM playlist_songs WHERE playlistId = :playlistId AND songId IN (:songIds)")
+    suspend fun removeSongs(playlistId: Long, songIds: List<Long>)
 
     @Transaction
     suspend fun replaceSongs(playlistId: Long, refs: List<PlaylistSong>) {
@@ -74,8 +90,14 @@ interface PlaylistDao {
     suspend fun clearSongs(playlistId: Long)
 }
 
+/** Number of plays per song, used by the "Más reproducido" sort mode. */
+data class PlayCount(val songId: Long, val count: Int)
+
 @Dao
 interface HistoryDao {
+    @Query("SELECT songId, COUNT(*) AS count FROM history GROUP BY songId")
+    fun observePlayCounts(): Flow<List<PlayCount>>
+
     @Query("SELECT * FROM history ORDER BY playedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int = 100): Flow<List<HistoryEntity>>
 

@@ -1,21 +1,22 @@
-# Fase 7 — Rediseño Lark Player (fiel a las capturas)
+# Fases 7–8 — Rediseño Lark Player (fiel a las capturas)
 
-Esta fase abandona el estilo «liquid glass» de la fase anterior y reconstruye la interfaz
-para que coincida con las capturas de Lark Player (2027.1.8): tarjetas oscuras, tipografía
+La fase 7 reconstruyó la interfaz para coincidir con Lark Player (2027.1.8): tipografía
 extra-negrita, píldoras azules, carátulas grandes redondeadas y **sin barra de navegación
-inferior**.
+inferior**. La fase 8 añade las funciones de playlist/selección y un acabado **liquid glass**
+elegante: iconos suaves redondeados, menús y hojas flotantes y botones de reproducción de
+cristal.
 
 ## 1. Sistema visual
 
 | Elemento | Valor | Archivo |
 |---|---|---|
 | Fondo | `#0A0A0B` | `core/designsystem/.../theme/Theme.kt` |
-| Tarjeta | `#171719` (radio 22 dp) | `ApplePalette.Card` + `LarkCard` |
+| Tarjeta | cristal translúcido blanco 4–11 % + borde 10 % (radio 22 dp) | `LarkCard` + `GlassSurface` |
 | Superficie | `#1B1B1D` | `ApplePalette.Surface` |
 | Acento por defecto | `#0A84FF` (azul Lark) | `ThemeConfig.accentColor` |
 | Acento por canción | pastel derivado de la carátula | `AlbumColorRepository` |
 | Texto secundario | `#9A9AA2` | `ApplePalette.TextSecondary` |
-| Píldora seleccionada | acento, texto negro | `LarkPill`, `LarkSegmented` |
+| Píldora seleccionada | acento, texto blanco | `LarkPill`, `LarkSegmented` |
 
 Componentes compartidos en `core/designsystem/.../component/LarkComponents.kt`:
 
@@ -28,6 +29,13 @@ Componentes compartidos en `core/designsystem/.../component/LarkComponents.kt`:
 - `LarkGradientBackground` — degradado vertical teñido con el acento de la carátula.
 - `LarkProgressLine`, `LarkDivider`, `LarkSectionLabel`.
 
+Primitivas liquid glass en `core/designsystem/.../component/LiquidGlass.kt` (fase 8):
+`GlassIconButton`, `GlassIconCluster`/`GlassClusterIcon`, `GlassPillButton`, `GlassMenu`/
+`GlassMenuItem`, `LarkSheet`, `LarkDialog`, `SoftCheck`, `GlassSelectionBar`,
+`LarkTextField`, `GlassTag` y `GlassDivider`. Todas usan degradados translúcidos y un borde
+luminoso de 1 dp en lugar de fondos opacos; no aplican blur por elemento para no penalizar
+el desplazamiento.
+
 ## 2. Sin barra de navegación inferior
 
 `AppNavGraph.kt` ya **no contiene** `NavigationBar` ni `GlassNavigationBar`. La navegación es:
@@ -37,24 +45,34 @@ Componentes compartidos en `core/designsystem/.../component/LarkComponents.kt`:
 - **Ajustes** desde el icono de engranaje de la cabecera, el menú de 3 puntos del reproductor o deslizando el `ModalNavigationDrawer`.
 - Todas las subpantallas de ajustes cuelgan del `NavHost`.
 
-Rutas: `library`, `player`, `settings`, `lyrics`, `queue`, `sleep`, `equalizer`, `backup`,
-`play_time`, `hidden_files`, `recently_deleted`, `playback_settings`, `notifications`,
-`language`, `theme`, `about`, `feedback`.
+Rutas: `library`, `player`, `playlist/{playlistId}`, `settings`, `lyrics`, `queue`, `sleep`,
+`equalizer`, `backup`, `play_time`, `hidden_files`, `recently_deleted`,
+`playback_settings`, `notifications`, `language`, `theme`, `about`, `feedback`.
 
 ## 3. Pantallas
 
 ### Biblioteca — `feature/library/ui/LibraryScreen.kt`
 
-- Cabecera «Lark Player» + iconos de buscar, ordenar y «reproduciendo».
-- Buscador opcional bajo la cabecera.
+- Cabecera «Lark Player» + píldora de cristal con iconos redondeados: buscar, ordenar (menú flotante), «reproduciendo» y ajustes.
+- Buscador opcional bajo la cabecera, con fondo translúcido y bordes invisibles.
 - Pestañas en píldoras desplazables: Videos, Canciones, Playlists, Carpetas, Artistas, Álbumes.
-- Canciones: filas oscuras redondeadas con insignia `LETRAS` cuando existe un `.lrc` junto al archivo.
-  La carátula ocupa todo el alto de la fila, sin borde ni margen (esquinas redondeadas solo a la izquierda).
-- El **tamaño de tema** cambia la lista: 0 = compacta (46 dp), 1 = media (52 dp), 2 = cuadrícula de 2 columnas.
-- Playlists: primera tarjeta «Nueva playlist»; después carátula de portada, nombre y número de canciones.
+- **Todas las filas van sin fondo ni contorno**: carátula redondeada + texto sobre el degradado de acento.
+- Canciones: insignia `LETRAS` cuando existe un `.lrc` junto al archivo. El **tamaño de tema** cambia la lista: 0 = compacta (56 dp), 1 = media (64 dp), 2 = cuadrícula de 2 columnas.
+- Playlists: entrada «Nueva playlist»; después carátula de portada, nombre y número de canciones. Tocar abre el detalle; pulsación larga ofrece eliminar.
 - Artistas: arte circular; Álbumes y Carpetas: filas con subtítulo.
-- Pulsación larga sobre una canción: reproducir a continuación, añadir a playlist, tono, ocultar.
-- Pull-to-scan manual y mensaje del último escaneo.
+- Pulsación larga sobre una canción: entra en **selección múltiple** («N seleccionado(s)») con barra flotante de acciones: Agregar a, A continuación, Compartir, Ocultar y Borrar (borrado real vía MediaStore).
+- El diálogo «Nueva playlist» es una tarjeta de cristal con campo de texto y contador 0/200.
+- Mensaje del último escaneo y botón «Volver a escanear» cuando no hay canciones.
+
+### Detalle de playlist — `feature/library/ui/PlaylistDetailScreen.kt`
+
+- Fondo degradado teñido con el color de la portada; botón «atrás» circular de cristal y píldora flotante con ordenar y «...».
+- Carátula de 210 dp, nombre con lápiz para editar y contador «N Canciones».
+- Botones de cristal «Reproducir» y «Aleatorio»; la selección de orden manual muestra flechas para mover canciones.
+- Menú de orden: Más recientes, Más reproducido, A a Z y Organizar manualmente.
+- Menú «...»: Agregar canciones, Administrar (selección) y Eliminar lista de reproducción.
+- Editor a pantalla completa: imagen desde el selector de archivos del sistema y nombre con contador.
+- La selección múltiple permite agregar a otra playlist, poner a continuación, compartir, ocultar y quitar de la playlist.
 
 ### Mini-player — `feature/player/ui/MiniPlayer.kt`
 

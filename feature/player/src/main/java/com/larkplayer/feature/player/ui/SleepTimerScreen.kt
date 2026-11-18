@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.TimerOff
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.TimerOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -68,7 +68,7 @@ fun SleepTimerScreen(
                 Modifier.fillMaxWidth().padding(vertical = 28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(Icons.Default.Alarm, null, tint = accent, modifier = Modifier.size(24.dp))
+                Icon(Icons.Rounded.Alarm, null, tint = accent, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.height(10.dp))
                 Text(
                     "LA MÚSICA SE DETIENE EN",
@@ -124,7 +124,7 @@ fun SleepTimerScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.TimerOff, null, tint = Color(0xFFC7C7CD), modifier = Modifier.size(18.dp))
+            Icon(Icons.Rounded.TimerOff, null, tint = Color(0xFFC7C7CD), modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
             Text("Cancelar temporizador", color = Color(0xFFC7C7CD), fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
         }
