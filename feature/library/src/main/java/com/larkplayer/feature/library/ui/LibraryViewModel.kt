@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -96,10 +97,24 @@ class LibraryViewModel @Inject constructor(
     fun onTabChange(index: Int) { tab.value = index }
     fun cycleSort() { sortMode.value = (sortMode.value + 1) % 3 }
     fun setSort(mode: Int) { sortMode.value = mode }
-    fun scan() = viewModelScope.launch {
+    /**
+     * Uses the Room cache on startup: a full MediaStore scan only runs when the
+     * database is empty, ten minutes have elapsed, or the caller forces it.
+     */
+    fun scan(force: Boolean = false) = viewModelScope.launch {
+        if (!force) {
+            val cached = runCatching { repository.songs.first() }.getOrDefault(emptyList())
+            val lastScan = runCatching { dataStore.lastScanAt.first() }.getOrDefault(0L)
+            if (cached.isNotEmpty() && System.currentTimeMillis() - lastScan < 10 * 60_000L) {
+                return@launch
+            }
+        }
         isScanning.value = true
         val result = repository.scan()
         isScanning.value = false
+        if (result.getOrNull() != null) {
+            runCatching { dataStore.setLastScanAt(System.currentTimeMillis()) }
+        }
         scanMessage.value = result.getOrNull()
             ?.let { "Encontradas $it canciones" }
             ?: "Error al escanear — revisa el permiso de almacenamiento"

@@ -1,5 +1,9 @@
 package com.larkplayer.app.navigation
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -88,7 +92,14 @@ private object Routes {
 fun AppNavGraph() {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = Routes.LIBRARY) {
+    NavHost(
+        navController = navController,
+        startDestination = Routes.LIBRARY,
+        enterTransition = { slideInHorizontally { it / 5 } + fadeIn() },
+        exitTransition = { slideOutHorizontally { -it / 6 } + fadeOut() },
+        popEnterTransition = { slideInHorizontally { -it / 5 } + fadeIn() },
+        popExitTransition = { slideOutHorizontally { it / 5 } + fadeOut() },
+    ) {
         composable(Routes.LIBRARY) {
             LibraryHome(navController)
         }

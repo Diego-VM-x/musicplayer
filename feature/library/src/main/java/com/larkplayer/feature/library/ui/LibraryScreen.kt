@@ -1,5 +1,12 @@
 package com.larkplayer.feature.library.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -138,6 +145,7 @@ fun LibraryScreen(
     var createDialog by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var pendingAddPlaylistId by remember { mutableStateOf<Long?>(null) }
+    var pendingSelectionIds by remember { mutableStateOf(emptySet<Long>()) }
     var newPlaylistSongs by remember { mutableStateOf(emptySet<Long>()) }
     var pickerForIds by remember { mutableStateOf<Set<Long>?>(null) }
     var playlistToDelete by remember { mutableStateOf<PlaylistWithCover?>(null) }
@@ -154,7 +162,7 @@ fun LibraryScreen(
             Toast.makeText(context, "Borrado cancelado", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(context, "Canciones borradas", Toast.LENGTH_SHORT).show()
-            viewModel.scan()
+            viewModel.scan(force = true)
         }
         clearSelection()
     }
@@ -302,8 +310,15 @@ fun LibraryScreen(
                             }
                         },
                 ) {
-                    when (state.tab) {
-                        0 -> EmptyTab(
+                    AnimatedContent(
+                        targetState = state.tab,
+                        transitionSpec = {
+                            (fadeIn(tween(180)) + slideInHorizontally { it / 16 }) togetherWith
+                                (fadeOut(tween(120)) + slideOutHorizontally { -it / 16 })
+                        },
+                    ) { tab ->
+                        when (tab) {
+                            0 -> EmptyTab(
                             icon = Icons.Rounded.Album,
                             title = "No hay videos",
                             subtitle = "Los videos locales aparecerán aquí.",
@@ -325,7 +340,7 @@ fun LibraryScreen(
                                 viewModel.play(list, index)
                                 onOpenPlayer()
                             },
-                            onRescan = { viewModel.scan() },
+                            onRescan = { viewModel.scan(force = true) },
                         )
                         2 -> PlaylistsTab(
                             playlists = state.playlists,
@@ -354,6 +369,7 @@ fun LibraryScreen(
                                 onOpenPlayer()
                             },
                         )
+                        }
                     }
                 }
             }
@@ -488,7 +504,11 @@ fun LibraryScreen(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { pickerForIds = null; createDialog = true }
+                        .clickable {
+                            pendingSelectionIds = ids
+                            pickerForIds = null
+                            createDialog = true
+                        }
                         .padding(vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -558,8 +578,17 @@ fun LibraryScreen(
                             scope.launch {
                                 val id = viewModel.createPlaylist(name)
                                 if (id != null) {
-                                    pendingAddPlaylistId = id
-                                    newPlaylistSongs = emptySet()
+                                    if (pendingSelectionIds.isNotEmpty()) {
+                                        pendingSelectionIds.forEach { songId ->
+                                            viewModel.addToPlaylist(id, songId)
+                                        }
+                                        pendingSelectionIds = emptySet()
+                                        clearSelection()
+                                        onOpenPlaylist(id)
+                                    } else {
+                                        pendingAddPlaylistId = id
+                                        newPlaylistSongs = emptySet()
+                                    }
                                 }
                             }
                             newName = ""

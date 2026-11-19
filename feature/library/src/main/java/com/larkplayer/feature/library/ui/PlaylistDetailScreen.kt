@@ -318,9 +318,11 @@ fun PlaylistDetailScreen(
                 GlassPillButton(
                     text = if (addSelected.isEmpty()) "Selecciona canciones" else "Agregar (${addSelected.size})",
                     onClick = {
-                        viewModel.addSongsToThisPlaylist(addSelected)
-                        addSelected = emptySet()
-                        addSheet = false
+                        if (addSelected.isNotEmpty()) {
+                            viewModel.addSongsToThisPlaylist(addSelected)
+                            addSelected = emptySet()
+                            addSheet = false
+                        }
                     },
                     filled = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -341,7 +343,16 @@ fun PlaylistDetailScreen(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
-                state.playlists.filter { it.playlist.id != state.playlist?.id }.forEach { playlist ->
+                val targets = state.playlists.filter { it.playlist.id != state.playlist?.id }
+                if (targets.isEmpty()) {
+                    Text(
+                        "Crea otra playlist para añadir estas canciones.",
+                        color = ApplePalette.TextSecondary,
+                        fontSize = 11.5.sp,
+                        modifier = Modifier.padding(vertical = 12.dp),
+                    )
+                }
+                targets.forEach { playlist ->
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -505,12 +516,14 @@ private fun PlaylistHero(
                 modifier = Modifier.weight(1f, fill = false),
             )
             Spacer(Modifier.width(8.dp))
-            Icon(
-                Icons.Rounded.Edit,
-                "Editar nombre",
-                tint = Color(0xFFAFAFB6),
-                modifier = Modifier.size(18.dp).clickable(onClick = onEdit),
-            )
+            IconButton(onClick = onEdit, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    Icons.Rounded.Edit,
+                    "Editar nombre y portada",
+                    tint = Color(0xFFAFAFB6),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
         Spacer(Modifier.height(6.dp))
         Text(

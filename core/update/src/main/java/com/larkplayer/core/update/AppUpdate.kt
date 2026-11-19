@@ -67,10 +67,16 @@ object AppUpdate {
     fun isSecureUrl(url: String): Boolean =
         url.trim().startsWith("https://", ignoreCase = true)
 
-    fun isNewer(info: AppUpdateInfo, currentCode: Int): Boolean =
-        info.versionCode > currentCode &&
+    fun isNewer(info: AppUpdateInfo, currentCode: Int, currentName: String = ""): Boolean {
+        val newer = if (info.versionCode > 0) {
+            info.versionCode > currentCode
+        } else {
+            info.versionName.isNotBlank() && info.versionName != currentName
+        }
+        return newer &&
             isSecureUrl(info.apkUrl) &&
             (info.minSdk <= 0 || info.minSdk <= Build.VERSION.SDK_INT)
+    }
 
     /** Queries GitHub's public `releases/latest` endpoint. No third-party library. */
     suspend fun fetchLatest(repo: String): UpdateFetchResult = withContext(Dispatchers.IO) {
@@ -107,9 +113,11 @@ object AppUpdate {
             if (!name.endsWith(".apk", ignoreCase = true)) return@mapNotNull null
             val code = ASSET_VERSION_REGEX.find(name)?.groupValues?.getOrNull(1)?.toIntOrNull()
                 ?: VERSION_CODE_REGEX.find(body)?.groupValues?.getOrNull(1)?.toIntOrNull()
-                ?: return@mapNotNull null
+                ?: Regex("""\d+""").find(tag)?.value?.toIntOrNull()
+                ?: Regex("""\d+""").find(name)?.value?.toIntOrNull()
+                ?: 0
             val url = asset.optString("browser_download_url")
-            if (code <= 0 || !isSecureUrl(url)) return@mapNotNull null
+            if (!isSecureUrl(url)) return@mapNotNull null
             val digest = asset.optString("digest").removePrefix("sha256:").lowercase()
                 .takeIf { SHA256_REGEX.matches(it) }
             AppUpdateInfo(
@@ -124,7 +132,7 @@ object AppUpdate {
             )
         }
         val info = candidates.maxByOrNull { it.versionCode }
-            ?: return UpdateFetchResult.Error("El release no incluye un APK con versión en el nombre.")
+            ?: return UpdateFetchResult.Error("El release no incluye ningún archivo APK adjunto.")
         return UpdateFetchResult.Found(info)
     }
 

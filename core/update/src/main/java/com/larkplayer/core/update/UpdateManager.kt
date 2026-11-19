@@ -81,7 +81,7 @@ object UpdateManager {
         val p = preferences
         _prefsState.value = UpdatePrefs(
             repo = p.getString(KEY_REPO, DEFAULT_REPO)?.takeIf { it.isNotBlank() } ?: DEFAULT_REPO,
-            autoDownload = p.getBoolean(KEY_AUTO, false),
+            autoDownload = p.getBoolean(KEY_AUTO, true),
             wifiOnly = p.getBoolean(KEY_WIFI, true),
         )
     }
@@ -127,7 +127,7 @@ object UpdateManager {
     }
 
     private fun onUpdateFound(info: AppUpdateInfo) {
-        if (!AppUpdate.isNewer(info, currentCode)) {
+        if (!AppUpdate.isNewer(info, currentCode, currentName)) {
             _state.value = UpdateState.Idle
             return
         }
@@ -137,7 +137,7 @@ object UpdateManager {
             preferences.edit().putString(KEY_NOTIFIED_VERSION, info.versionName).apply()
             notifyAvailable(context!!, info)
         }
-        if (_prefsState.value.autoDownload && info.sha256.isNotBlank()) {
+        if (_prefsState.value.autoDownload) {
             downloadNow(info, allowMetered = false)
         }
     }

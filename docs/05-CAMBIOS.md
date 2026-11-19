@@ -4,6 +4,16 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-19 — Fase 14: arranque rápido, animaciones y actualizador robusto
+
+- **Actualizador**: repositorio fijado, descarga automática activada por defecto (ya no exige SHA-256), parser de releases tolerante con cualquier APK adjunto y versionCode obtenido del nombre, del body, del tag o del propio nombre del asset; `isNewer` compara también `versionName`.
+- **Arranque rápido**: `SettingsDataStore.lastScanAt` guarda el último escaneo; la biblioteca reutiliza la caché de Room durante 10 minutos y solo vuelve a escanear si está vacía, si han pasado 10 minutos o si se fuerza («Volver a escanear» / tras borrar canciones).
+- **Playlist desde selección**: al crear una playlist desde la barra «Agregar a», las canciones seleccionadas se añaden automáticamente y se abre su detalle.
+- **Fluidez y animaciones**: transiciones deslizantes + fundido entre rutas (`NavHost`) y entre pestañas de la biblioteca (`AnimatedContent`).
+- **Ajustes de reproducción**: gapless y crossfade son excluyentes; ambos están conectados al motor, incluido el desvanecimiento configurable 1–12 s.
+- **Playlist**: botón de edición con área táctil amplia, «Agregar (N)» deshabilitado hasta elegir canciones y mensaje cuando no hay otras playlists destino.
+- Versión 3 (`1.0.2-clean`) para publicar como `musicplayer-3.apk`.
+
 ## 2026-11-18 — Fase 13: letras por ruta, degradado, segundo plano y cierre
 
 - **Letras**: el `MediaItem` lleva la ruta original en `MediaMetadata.extras` (`lark_song_path`), así que la pantalla busca el `.lrc` por ruta exacta primero y luego por título/artista. `MediaFileUtils.findLyricsText` explora la carpeta de la canción, `Music/Lyrics`, `Lyrics`, `Download/Lyrics`, `Documents/Lyrics` y MediaStore con `LIKE`, en varios patrones de nombre.

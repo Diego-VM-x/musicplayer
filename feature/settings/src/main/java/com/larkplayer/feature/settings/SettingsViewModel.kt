@@ -77,10 +77,18 @@ class SettingsViewModel @Inject constructor(
     fun setThemeMode(mode: Int) = viewModelScope.launch { dataStore.setThemeMode(mode) }
     fun setThemeSize(size: Int) = viewModelScope.launch { dataStore.setThemeSize(size) }
     fun setAccentColor(argb: Long) = viewModelScope.launch { dataStore.setAccentColor(argb) }
-    fun setGapless(enabled: Boolean) = viewModelScope.launch { dataStore.setGapless(enabled) }
+    // Gapless and crossfade are mutually exclusive playback transitions.
+    fun setGapless(enabled: Boolean) = viewModelScope.launch {
+        dataStore.setGapless(enabled)
+        if (enabled) dataStore.setCrossfadeEnabled(false)
+    }
+
     fun setPlayWithOthers(enabled: Boolean) = viewModelScope.launch { dataStore.setPlayWithOthers(enabled) }
     fun setBackgroundPlayback(enabled: Boolean) = viewModelScope.launch { dataStore.setBackgroundPlayback(enabled) }
-    fun setCrossfade(enabled: Boolean) = viewModelScope.launch { dataStore.setCrossfadeEnabled(enabled) }
+    fun setCrossfade(enabled: Boolean) = viewModelScope.launch {
+        dataStore.setCrossfadeEnabled(enabled)
+        if (enabled) dataStore.setGapless(false)
+    }
     fun setCrossfadeSeconds(seconds: Int) = viewModelScope.launch { dataStore.setCrossfadeSeconds(seconds) }
     fun setLanguage(tag: String) = viewModelScope.launch { dataStore.setLanguage(tag) }
     fun setNotificationPlayback(enabled: Boolean) = viewModelScope.launch { dataStore.setNotificationPlayback(enabled) }

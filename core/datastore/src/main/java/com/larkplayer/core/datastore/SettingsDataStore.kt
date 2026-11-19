@@ -41,6 +41,7 @@ class SettingsDataStore @Inject constructor(
         val FAVORITES = stringPreferencesKey("favorites") // comma separated song ids
         val HIDDEN = stringPreferencesKey("hidden") // comma separated song ids
         val TOTAL_PLAY_MS = longPreferencesKey("total_play_ms")
+        val LAST_SCAN_AT = longPreferencesKey("last_scan_at")
         val NOTIF_PLAYBACK = booleanPreferencesKey("notification_playback")
         val NOTIF_LOCKSCREEN = booleanPreferencesKey("notification_lockscreen")
     }
@@ -67,6 +68,7 @@ class SettingsDataStore @Inject constructor(
     val favorites: Flow<Set<Long>> = context.settingsDataStore.data.map { p -> p[Keys.FAVORITES].toIdSet() }
     val hiddenSongIds: Flow<Set<Long>> = context.settingsDataStore.data.map { p -> p[Keys.HIDDEN].toIdSet() }
     val totalPlayMs: Flow<Long> = context.settingsDataStore.data.map { p -> p[Keys.TOTAL_PLAY_MS] ?: 0L }
+    val lastScanAt: Flow<Long> = context.settingsDataStore.data.map { p -> p[Keys.LAST_SCAN_AT] ?: 0L }
     val notificationPlayback: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.NOTIF_PLAYBACK] ?: true }
     val notificationLockScreen: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.NOTIF_LOCKSCREEN] ?: true }
 
@@ -107,6 +109,8 @@ class SettingsDataStore @Inject constructor(
             p[Keys.HIDDEN] = next.joinToString(",")
         }
     }
+
+    suspend fun setLastScanAt(ms: Long) = edit { it[Keys.LAST_SCAN_AT] = ms }
 
     suspend fun addPlayTime(ms: Long) {
         if (ms <= 0) return
