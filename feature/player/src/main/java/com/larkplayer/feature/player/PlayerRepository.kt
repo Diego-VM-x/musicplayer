@@ -2,6 +2,7 @@ package com.larkplayer.feature.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.Bundle
 import android.os.SystemClock
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -354,11 +355,13 @@ class PlayerRepository @Inject constructor(
                 .setArtworkUri(android.net.Uri.parse(
                     "content://media/external/audio/albumart/$albumId"
                 ))
+                .setExtras(Bundle().apply { putString(EXTRA_SONG_PATH, path) })
                 .build()
         )
         .build()
 
     companion object {
+        const val EXTRA_SONG_PATH = "lark_song_path"
         const val MODE_NORMAL = 0
         const val MODE_REPEAT_ALL = 1
         const val MODE_REPEAT_ONE = 2

@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -67,7 +66,8 @@ fun MiniPlayer(
         )
     )
 
-    // Blurred artwork behind the pill: keeps the title/artist readable over any cover.
+    // Soft radial gradient tinted with the artwork's main colour — a smooth,
+    // blurred-looking wash that keeps the title/artist readable.
     Box(
         modifier
             .fillMaxWidth()
@@ -76,13 +76,19 @@ fun MiniPlayer(
             .clip(RoundedCornerShape(26.dp))
             .clickable(onClick = onOpen),
     ) {
-        AsyncImage(
-            model = state.albumArt,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().blur(48.dp),
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            accent.copy(alpha = 0.85f),
+                            accent.copy(alpha = 0.48f),
+                            Color(0xFF15121A),
+                        ),
+                    )
+                )
         )
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
         Row(
             Modifier
                 .fillMaxSize()

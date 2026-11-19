@@ -5,8 +5,10 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.content.ContentUris
+import android.os.Environment
 import com.larkplayer.core.model.Song
 import timber.log.Timber
+import java.io.File
 
 /** Helpers for MediaStore queries — replaces the original app's `media_util` package. */
 object MediaFileUtils {
@@ -101,26 +103,68 @@ object MediaFileUtils {
      * check alone used to fail there.
      */
     fun findLyricsText(context: Context, song: Song): String? = runCatching {
-        val base = java.io.File(song.path).nameWithoutExtension
-        val names = listOf(
-            "$base.lrc", "$base.LRC",
-            "${song.title}.lrc", "${song.title}.LRC",
-            "${song.artist} - ${song.title}.lrc", "${song.artist} - ${song.title}.LRC",
-        ).distinct()
-        val selection = names.joinToString(" OR ") { "${OpenableColumns.DISPLAY_NAME} = ?" }
-        val collection = MediaStore.Files.getContentUri("external")
-        context.contentResolver.query(
-            collection,
-            arrayOf(MediaStore.MediaColumns._ID),
-            selection,
-            names.toTypedArray(),
-            null,
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val uri = ContentUris.withAppendedId(collection, cursor.getLong(0))
-                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            } else null
+        val audioFile = java.io.File(song.path)
+        val base = audioFile.nameWithoutExtension
+        val stems = listOf(
+            base,
+            song.title,
+            "${song.artist} - ${song.title}",
+            "${song.title} - ${song.artist}",
+        ).map { it.trim() }.filter { it.isNotBlank() }.distinct()
+
+        val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+        val dirs = listOfNotNull(
+            audioFile.parentFile,
+            File(musicDir, "Lyrics"),
+            File(Environment.getExternalStorageDirectory(), "Lyrics"),
+            File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "Lyrics",
+            ),
+            File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+                "Lyrics",
+            ),
+            musicDir,
+        )
+
+        // Direct files still work on many devices (Android 10 and older, or files
+        // owned by this app).
+        for (dir in dirs) {
+            stems.forEach { stem ->
+                listOf("$stem.lrc", "$stem.LRC").forEach { name ->
+                    val file = File(dir, name)
+                    if (file.exists()) return file.readText()
+                }
+            }
+            runCatching { dir.listFiles() }.getOrNull()
+                ?.firstOrNull { file ->
+                    file.name.endsWith(".lrc", ignoreCase = true) &&
+                        stems.any { file.nameWithoutExtension.equals(it, ignoreCase = true) }
+                }?.let { return it.readText() }
         }
+
+        // Scoped storage: find the .lrc through MediaStore and read it by URI.
+        val collection = MediaStore.Files.getContentUri("external")
+        stems.forEach { stem ->
+            val cursor = context.contentResolver.query(
+                collection,
+                arrayOf(MediaStore.MediaColumns._ID),
+                "${OpenableColumns.DISPLAY_NAME} LIKE ?",
+                arrayOf("%$stem.lrc"),
+                null,
+            )
+            cursor?.use { c ->
+                if (c.moveToFirst()) {
+                    val uri = ContentUris.withAppendedId(collection, c.getLong(0))
+                    context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+                        val text = reader.readText()
+                        if (text.isNotBlank()) return text
+                    }
+                }
+            }
+        }
+        null
     }.getOrNull() ?: findLocalLyrics(song.path)
 
     fun hasLocalLyrics(context: Context, song: Song): Boolean =

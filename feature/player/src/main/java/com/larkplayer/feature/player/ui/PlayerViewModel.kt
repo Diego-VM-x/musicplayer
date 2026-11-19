@@ -27,6 +27,7 @@ data class PlayerUiState(
     val artist: String = "",
     val album: String = "",
     val albumArt: String? = null,
+    val songPath: String = "",
     val isPlaying: Boolean = false,
     val position: Long = 0L,
     val duration: Long = 0L,
@@ -92,6 +93,7 @@ class PlayerViewModel @Inject constructor(
                     artist = meta?.artist?.toString() ?: "",
                     album = meta?.albumTitle?.toString() ?: "",
                     albumArt = meta?.artworkUri?.toString(),
+                    songPath = meta?.extras?.getString(PlayerRepository.EXTRA_SONG_PATH).orEmpty(),
                 )
                 viewModelScope.launch {
                     albumColors.load(meta?.artworkUri?.toString())

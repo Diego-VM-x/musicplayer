@@ -14,9 +14,15 @@ class LyricsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     /** Loads the sibling .lrc for the playing song (MediaStore + direct file). */
-    suspend fun loadForTitle(title: String, artist: String = ""): Lyrics = withContext(Dispatchers.IO) {
+    suspend fun loadForTitle(
+        title: String,
+        artist: String = "",
+        path: String = "",
+    ): Lyrics = withContext(Dispatchers.IO) {
         val library = MediaFileUtils.queryAudio(context)
-        val song = library.firstOrNull {
+        val byPath = path.takeIf { it.isNotBlank() }
+            ?.let { p -> library.firstOrNull { it.path.equals(p, ignoreCase = true) } }
+        val song = byPath ?: library.firstOrNull {
             it.title.equals(title, ignoreCase = true) &&
                 (artist.isBlank() || it.artist.equals(artist, ignoreCase = true))
         } ?: library.firstOrNull { it.title.equals(title, ignoreCase = true) }

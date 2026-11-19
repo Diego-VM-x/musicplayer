@@ -4,6 +4,14 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-18 — Fase 13: letras por ruta, degradado, segundo plano y cierre
+
+- **Letras**: el `MediaItem` lleva la ruta original en `MediaMetadata.extras` (`lark_song_path`), así que la pantalla busca el `.lrc` por ruta exacta primero y luego por título/artista. `MediaFileUtils.findLyricsText` explora la carpeta de la canción, `Music/Lyrics`, `Lyrics`, `Download/Lyrics`, `Documents/Lyrics` y MediaStore con `LIKE`, en varios patrones de nombre.
+- **Mini-player**: se eliminó la imagen desenfocada; ahora muestra un degradado radial suave derivado del color principal de la carátula, con el título en el acento.
+- **Segundo plano**: `PlaybackService` mantiene un `PARTIAL_WAKE_LOCK` mientras suena y conserva el servicio en primer plano, así la reproducción continúa con la pantalla apagada o la app cerrada.
+- **Botón X de cierre total**: la notificación multimedia incluye la acción «Cerrar reproducción» (`SessionCommand`) que detiene el reproductor, libera el wake lock, quita la notificación y termina el proceso.
+- **Versión 2** (`1.0.1-clean`) preparada para publicarse como `musicplayer-2.apk` en `Diego-VM-x/musicplayer`.
+
 ## 2026-11-18 — Fase 12: ajustes finales de UI, reproducción y letras
 
 - **Actualizador configurado por defecto** con `Diego-VM-x/musicplayer`; ya no hace falta escribir el repo. El nombre del asset acepta cualquier prefijo terminado en `-<versionCode>.apk`.

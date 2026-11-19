@@ -39,7 +39,7 @@ fun LyricsScreen(
 
     LaunchedEffect(playerState.title) {
         if (playerState.title.isNotBlank()) {
-            lyricsViewModel.load(playerState.title, playerState.artist)
+            lyricsViewModel.load(playerState.title, playerState.artist, playerState.songPath)
         }
     }
 
