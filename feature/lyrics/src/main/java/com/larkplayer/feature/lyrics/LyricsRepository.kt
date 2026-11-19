@@ -13,13 +13,16 @@ import javax.inject.Singleton
 class LyricsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    /** Loads a sibling .lrc file for the currently playing title. */
-    suspend fun loadForTitle(title: String): Lyrics = withContext(Dispatchers.IO) {
-        val song = MediaFileUtils.queryAudio(context).firstOrNull {
-            it.title.equals(title, ignoreCase = true)
-        } ?: return@withContext Lyrics(0)
+    /** Loads the sibling .lrc for the playing song (MediaStore + direct file). */
+    suspend fun loadForTitle(title: String, artist: String = ""): Lyrics = withContext(Dispatchers.IO) {
+        val library = MediaFileUtils.queryAudio(context)
+        val song = library.firstOrNull {
+            it.title.equals(title, ignoreCase = true) &&
+                (artist.isBlank() || it.artist.equals(artist, ignoreCase = true))
+        } ?: library.firstOrNull { it.title.equals(title, ignoreCase = true) }
+            ?: return@withContext Lyrics(0)
 
-        val raw = MediaFileUtils.findLocalLyrics(song.path)
+        val raw = MediaFileUtils.findLyricsText(context, song)
         if (raw.isNullOrBlank()) Lyrics(song.id) else LrcParser.parse(song.id, raw)
     }
 }

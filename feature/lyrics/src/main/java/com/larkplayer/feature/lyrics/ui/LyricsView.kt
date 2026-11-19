@@ -38,7 +38,9 @@ fun LyricsScreen(
     val lyrics by lyricsViewModel.lyrics.collectAsStateWithLifecycle()
 
     LaunchedEffect(playerState.title) {
-        if (playerState.title.isNotBlank()) lyricsViewModel.load(playerState.title)
+        if (playerState.title.isNotBlank()) {
+            lyricsViewModel.load(playerState.title, playerState.artist)
+        }
     }
 
     val active = LrcParser.activeIndex(lyrics, playerState.position)

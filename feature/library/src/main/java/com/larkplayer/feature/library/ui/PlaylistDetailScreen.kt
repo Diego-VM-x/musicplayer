@@ -556,9 +556,10 @@ private fun DetailSongRow(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
 ) {
+    val context = LocalContext.current
     var hasLyrics by remember(song.path) { mutableStateOf(false) }
     LaunchedEffect(song.path) {
-        hasLyrics = withContext(Dispatchers.IO) { MediaFileUtils.hasLocalLyrics(song.path) }
+        hasLyrics = withContext(Dispatchers.IO) { MediaFileUtils.hasLocalLyrics(context, song) }
     }
 
     Row(

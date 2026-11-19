@@ -80,9 +80,9 @@ fun MiniPlayer(
             model = state.albumArt,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().blur(22.dp),
+            modifier = Modifier.fillMaxSize().blur(48.dp),
         )
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)))
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
         Row(
             Modifier
                 .fillMaxSize()

@@ -1,15 +1,20 @@
 package com.larkplayer.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
@@ -40,6 +45,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestMediaPermissions()
+        requestBatteryOptimizationExemption()
 
         // Draw behind the status bar but keep the UI below it: the gradient shows
         // through the transparent bar without shifting the whole interface up.
@@ -63,11 +69,37 @@ class MainActivity : ComponentActivity() {
                             )
                         ),
                 ) {
-                    Box(Modifier.fillMaxSize().statusBarsPadding()) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .navigationBarsPadding(),
+                    ) {
                         AppNavGraph()
                     }
                 }
             }
+        }
+    }
+
+    /** One-time system request so playback survives closing the app / Doze. */
+    private fun requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val flags = getSharedPreferences("lark_runtime", MODE_PRIVATE)
+        if (flags.getBoolean("battery_prompt_done", false)) return
+        val power = getSystemService(PowerManager::class.java)
+        if (power?.isIgnoringBatteryOptimizations(packageName) == true) {
+            flags.edit().putBoolean("battery_prompt_done", true).apply()
+            return
+        }
+        flags.edit().putBoolean("battery_prompt_done", true).apply()
+        runCatching {
+            startActivity(
+                Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:$packageName"),
+                ),
+            )
         }
     }
 

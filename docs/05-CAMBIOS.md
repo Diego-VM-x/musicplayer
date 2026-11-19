@@ -4,6 +4,15 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-18 — Fase 12: ajustes finales de UI, reproducción y letras
+
+- **Actualizador configurado por defecto** con `Diego-VM-x/musicplayer`; ya no hace falta escribir el repo. El nombre del asset acepta cualquier prefijo terminado en `-<versionCode>.apk`.
+- **Barra de navegación del sistema**: el contenido ahora aplica también `navigationBarsPadding()`, por lo que la interfaz deja de quedar debajo de los botones/gesto del teléfono.
+- **Opciones de reproducción de selección única** (`PlayerRepository.setPlaybackMode`): Normal, Repetir, Repetir una y Aleatorio son mutuamente excluyentes; la cola resalta solo el modo activo.
+- **Blur ultrasuave del mini-player**: radio 48 dp y velo oscuro 55 % para que el texto destaque sobre cualquier carátula.
+- **Reproducción en tercer plano**: se solicita una única vez la excepción de optimización de batería al abrir la app, y el servicio en primer plano sigue vivo aunque se cierre la interfaz.
+- **Detección de letras corregida**: se buscan archivos `.lrc` por `MediaStore.Files` (nombre del archivo, `título.lrc` y `artista - título.lrc`) además del fichero hermano, porque en Android 13+ el acceso directo por ruta está restringido. La pantalla de letras pasa también el artista para identificar la canción.
+
 ## 2026-11-18 — Fase 11: actualizador in-app (GitHub Releases)
 
 - **Nuevo módulo `core:update`** con el flujo de la guía `ACTUALIZADOR-IMPLEMENTACION.md`, adaptado sin Firebase: `AppUpdate.kt` (GitHub + DownloadManager + verificación + instalación), `UpdateManager.kt` (estado y preferencias), `UpdateState.kt`, `UpdateScheduler.kt` (Workers), `ApkDownloadReceiver.kt` y `UpdateInstallActivity.kt`.

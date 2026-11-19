@@ -43,6 +43,10 @@ import com.larkplayer.core.designsystem.component.CircleIconButton
 import com.larkplayer.core.designsystem.component.GlassIconButton
 import com.larkplayer.core.designsystem.component.LarkGradientBackground
 import com.larkplayer.core.designsystem.theme.ApplePalette
+import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_NORMAL
+import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_REPEAT_ALL
+import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_REPEAT_ONE
+import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_SHUFFLE
 
 /** Cola de reproducción con controles de repetición y aleatorio siempre visibles. */
 @Composable
@@ -137,7 +141,8 @@ fun QueueScreen(
                 }
             }
 
-            // Repeat / repeat-one / shuffle, always reachable while browsing the queue.
+            // Single-choice playback option: exactly one of these modes is active.
+            val mode = viewModel.currentPlaybackMode()
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -148,35 +153,35 @@ fun QueueScreen(
                 QueueToggle(
                     icon = Icons.Rounded.Repeat,
                     label = "Repetir",
-                    active = state.repeatMode == Player.REPEAT_MODE_ALL,
+                    active = mode == MODE_REPEAT_ALL,
                     accent = accentColor,
                     onClick = {
-                        viewModel.setRepeatMode(
-                            if (state.repeatMode == Player.REPEAT_MODE_ALL) {
-                                Player.REPEAT_MODE_OFF
-                            } else Player.REPEAT_MODE_ALL
+                        viewModel.setPlaybackMode(
+                            if (mode == MODE_REPEAT_ALL) MODE_NORMAL else MODE_REPEAT_ALL
                         )
                     },
                 )
                 QueueToggle(
                     icon = Icons.Rounded.RepeatOne,
                     label = "Repetir una",
-                    active = state.repeatMode == Player.REPEAT_MODE_ONE,
+                    active = mode == MODE_REPEAT_ONE,
                     accent = accentColor,
                     onClick = {
-                        viewModel.setRepeatMode(
-                            if (state.repeatMode == Player.REPEAT_MODE_ONE) {
-                                Player.REPEAT_MODE_OFF
-                            } else Player.REPEAT_MODE_ONE
+                        viewModel.setPlaybackMode(
+                            if (mode == MODE_REPEAT_ONE) MODE_NORMAL else MODE_REPEAT_ONE
                         )
                     },
                 )
                 QueueToggle(
                     icon = Icons.Rounded.Shuffle,
                     label = "Aleatorio",
-                    active = state.shuffle,
+                    active = mode == MODE_SHUFFLE,
                     accent = accentColor,
-                    onClick = viewModel::toggleShuffle,
+                    onClick = {
+                        viewModel.setPlaybackMode(
+                            if (mode == MODE_SHUFFLE) MODE_NORMAL else MODE_SHUFFLE
+                        )
+                    },
                 )
             }
         }

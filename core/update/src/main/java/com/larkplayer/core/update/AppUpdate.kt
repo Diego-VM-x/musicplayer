@@ -50,7 +50,7 @@ object AppUpdate {
     private const val TIMEOUT_MS = 25_000
     private const val MAX_APK_BYTES = 200L * 1024L * 1024L
     private const val ASSET_PREFIX = "larkplayer"
-    private val ASSET_VERSION_REGEX = Regex("""^larkplayer-(\d+)\.apk$""", RegexOption.IGNORE_CASE)
+    private val ASSET_VERSION_REGEX = Regex("""^[A-Za-z0-9_-]+-(\d+)\.apk$""", RegexOption.IGNORE_CASE)
     private val SHA256_REGEX = Regex("""^[0-9a-f]{64}$""")
     private val VERSION_CODE_REGEX = Regex("""(?i)versionCode[:\s]+(\d+)""")
     private val TECHNICAL_LINE_REGEX = Regex(
@@ -124,7 +124,7 @@ object AppUpdate {
             )
         }
         val info = candidates.maxByOrNull { it.versionCode }
-            ?: return UpdateFetchResult.Error("El release no incluye un APK con el nombre larkplayer-<versión>.apk.")
+            ?: return UpdateFetchResult.Error("El release no incluye un APK con versión en el nombre.")
         return UpdateFetchResult.Found(info)
     }
 

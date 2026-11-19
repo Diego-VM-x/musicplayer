@@ -26,6 +26,7 @@ import java.io.File
  */
 object UpdateManager {
     private const val PREFS_NAME = "lark_update"
+    private const val DEFAULT_REPO = "Diego-VM-x/musicplayer"
     private const val MIN_CHECK_INTERVAL_MS = 5 * 60_000L
     private const val CH_AVAILABLE = "lark_update_available"
     private const val CH_READY = "lark_update_ready"
@@ -79,7 +80,7 @@ object UpdateManager {
     private fun refreshPrefs() {
         val p = preferences
         _prefsState.value = UpdatePrefs(
-            repo = p.getString(KEY_REPO, "").orEmpty(),
+            repo = p.getString(KEY_REPO, DEFAULT_REPO)?.takeIf { it.isNotBlank() } ?: DEFAULT_REPO,
             autoDownload = p.getBoolean(KEY_AUTO, false),
             wifiOnly = p.getBoolean(KEY_WIFI, true),
         )
@@ -87,7 +88,7 @@ object UpdateManager {
 
     fun setRepo(value: String) {
         checkInitialized()
-        val repo = value.trim().trim('/')
+        val repo = value.trim().trim('/').ifBlank { DEFAULT_REPO }
         preferences.edit().putString(KEY_REPO, repo).apply()
         refreshPrefs()
         if (repo.isNotBlank()) checkNow(manual = true)

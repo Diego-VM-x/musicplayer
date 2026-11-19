@@ -186,6 +186,42 @@ class PlayerRepository @Inject constructor(
         scope.launch { runCatching { settings.setRepeatMode(mode) } }
     }
 
+    /** Mutually exclusive playback option: only one mode can be active. */
+    fun setPlaybackMode(mode: Int) {
+        when (mode) {
+            MODE_REPEAT_ALL -> {
+                withController { it.shuffleModeEnabled = false; it.repeatMode = Player.REPEAT_MODE_ALL }
+                scope.launch {
+                    runCatching { settings.setShuffle(false); settings.setRepeatMode(Player.REPEAT_MODE_ALL) }
+                }
+            }
+            MODE_REPEAT_ONE -> {
+                withController { it.shuffleModeEnabled = false; it.repeatMode = Player.REPEAT_MODE_ONE }
+                scope.launch {
+                    runCatching { settings.setShuffle(false); settings.setRepeatMode(Player.REPEAT_MODE_ONE) }
+                }
+            }
+            MODE_SHUFFLE -> {
+                withController { it.repeatMode = Player.REPEAT_MODE_OFF; it.shuffleModeEnabled = true }
+                scope.launch {
+                    runCatching { settings.setRepeatMode(Player.REPEAT_MODE_OFF); settings.setShuffle(true) }
+                }
+            }
+            else -> {
+                withController { it.shuffleModeEnabled = false; it.repeatMode = Player.REPEAT_MODE_OFF }
+                scope.launch {
+                    runCatching { settings.setShuffle(false); settings.setRepeatMode(Player.REPEAT_MODE_OFF) }
+                }
+            }
+        }
+        desiredShuffle = mode == MODE_SHUFFLE
+        desiredRepeat = when (mode) {
+            MODE_REPEAT_ALL -> Player.REPEAT_MODE_ALL
+            MODE_REPEAT_ONE -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
+    }
+
     // ---- Queue ----
 
     fun currentQueue(): List<MediaItem> {
@@ -321,4 +357,11 @@ class PlayerRepository @Inject constructor(
                 .build()
         )
         .build()
+
+    companion object {
+        const val MODE_NORMAL = 0
+        const val MODE_REPEAT_ALL = 1
+        const val MODE_REPEAT_ONE = 2
+        const val MODE_SHUFFLE = 3
+    }
 }

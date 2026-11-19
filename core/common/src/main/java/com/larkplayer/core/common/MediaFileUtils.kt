@@ -3,6 +3,8 @@ package com.larkplayer.core.common
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
+import android.provider.OpenableColumns
+import android.content.ContentUris
 import com.larkplayer.core.model.Song
 import timber.log.Timber
 
@@ -92,6 +94,37 @@ object MediaFileUtils {
         )
         candidates.firstOrNull { it.exists() }?.readText()
     }.getOrNull()
+
+    /**
+     * Finds an .lrc file through MediaStore. Direct File access to the audio
+     * folder is blocked by scoped storage on Android 13+, so the sibling-file
+     * check alone used to fail there.
+     */
+    fun findLyricsText(context: Context, song: Song): String? = runCatching {
+        val base = java.io.File(song.path).nameWithoutExtension
+        val names = listOf(
+            "$base.lrc", "$base.LRC",
+            "${song.title}.lrc", "${song.title}.LRC",
+            "${song.artist} - ${song.title}.lrc", "${song.artist} - ${song.title}.LRC",
+        ).distinct()
+        val selection = names.joinToString(" OR ") { "${OpenableColumns.DISPLAY_NAME} = ?" }
+        val collection = MediaStore.Files.getContentUri("external")
+        context.contentResolver.query(
+            collection,
+            arrayOf(MediaStore.MediaColumns._ID),
+            selection,
+            names.toTypedArray(),
+            null,
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val uri = ContentUris.withAppendedId(collection, cursor.getLong(0))
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            } else null
+        }
+    }.getOrNull() ?: findLocalLyrics(song.path)
+
+    fun hasLocalLyrics(context: Context, song: Song): Boolean =
+        findLyricsText(context, song)?.isNotBlank() == true
 
     /** MediaStore content URI for a song id. */
     fun songUri(song: Song): Uri = Uri.parse(song.contentUri)

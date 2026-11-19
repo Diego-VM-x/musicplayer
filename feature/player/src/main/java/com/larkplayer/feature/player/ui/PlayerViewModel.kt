@@ -8,6 +8,10 @@ import androidx.media3.session.MediaController
 import com.larkplayer.core.datastore.SettingsDataStore
 import com.larkplayer.feature.player.AlbumColorRepository
 import com.larkplayer.feature.player.PlayerRepository
+import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_NORMAL
+import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_REPEAT_ALL
+import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_REPEAT_ONE
+import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_SHUFFLE
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -136,6 +140,15 @@ class PlayerViewModel @Inject constructor(
     fun seek(ms: Long) = repository.seekTo(ms)
     fun toggleShuffle() = repository.setShuffle(!_uiState.value.shuffle)
     fun setRepeatMode(mode: Int) = repository.setRepeat(mode)
+
+    fun currentPlaybackMode(): Int = when {
+        _uiState.value.shuffle -> MODE_SHUFFLE
+        _uiState.value.repeatMode == Player.REPEAT_MODE_ALL -> MODE_REPEAT_ALL
+        _uiState.value.repeatMode == Player.REPEAT_MODE_ONE -> MODE_REPEAT_ONE
+        else -> MODE_NORMAL
+    }
+
+    fun setPlaybackMode(mode: Int) = repository.setPlaybackMode(mode)
     fun cycleRepeat() {
         val next = when (_uiState.value.repeatMode) {
             Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL

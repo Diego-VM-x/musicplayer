@@ -71,7 +71,7 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "publica un release con larkplayer-<versionCode>.apk",
+                    "Configurado por defecto: Diego-VM-x/musicplayer",
                     color = ApplePalette.TextSecondary,
                     fontSize = 11.sp,
                 )

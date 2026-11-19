@@ -17,7 +17,7 @@ sealed interface UpdateState {
 
 /** Preferences shown in Ajustes → Actualizaciones. */
 data class UpdatePrefs(
-    val repo: String = "",
+    val repo: String = "Diego-VM-x/musicplayer",
     val autoDownload: Boolean = false,
     val wifiOnly: Boolean = true,
 )

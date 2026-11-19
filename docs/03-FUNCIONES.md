@@ -49,7 +49,9 @@
 |---|---|---|---|
 | Parser LRC | `feature:lyrics` | `LrcParser.kt` | ⏳ |
 | Búsqueda de letras local/internet | `feature:lyrics` | `LyricsRepository.kt` | ⏳ |
-| Letras sincronizadas / scrolling | `feature:lyrics` | `ui/LyricsView.kt` | ⏳ |
+| Letras sincronizadas / scrolling | `feature:lyrics` | `ui/LyricsView.kt` | ✅ |
+| Detección de `.lrc` vía MediaStore (Android 13+) | `core:common`, `feature:lyrics` | `MediaFileUtils.findLyricsText`, `LyricsRepository` | ✅ |
+| Modos de reproducción excluyentes | `feature:player` | `PlayerRepository.setPlaybackMode`, `ui/QueueScreen.kt` | ✅ |
 
 ## Audio
 
