@@ -19,6 +19,7 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
   Los intercambios se aplican en vivo y se persisten con `moveSong`.
 - **`QueueScreen.kt`**: el mismo efecto de elevación y seguimiento animado al arrastrar canciones de la cola.
 - `versionCode` 16 / `1.0.15-clean`; `assembleDebug` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.15` con `musicplayer-16.apk` (23.101.436 bytes, SHA-256 `A81F45A8A36101AF8E96E951A7A7E84216F01A1731DB4C6C530E525CEB412492`). Verificada como última release, sin draft/pre-release y con el asset `uploaded`.
 
 ## 2026-11-21 — Fase 28: fidelidad al reproductor original y acciones funcionales (v15)
 
