@@ -50,34 +50,32 @@ import androidx.compose.ui.window.DialogProperties
 import com.larkplayer.core.designsystem.theme.ApplePalette
 
 /*
- * Liquid-glass design primitives.
+ * Modern Velvet & Silk design primitives.
  *
- * The look is achieved with translucent gradients, a luminous hairline border
- * and soft shadows — no RenderEffect blur per element, so scrolling stays cheap.
+ * Clean, tactile, and non-flat aesthetic with rich charcoal surfaces,
+ * subtle satin light borders, soft ambient depth, and responsive fluid motion.
  */
 
 private val GlassFill: Brush
-    get() = Brush.linearGradient(
+    get() = Brush.verticalGradient(
         listOf(
-            Color.White.copy(alpha = 0.13f),
-            Color.White.copy(alpha = 0.055f),
-            Color.White.copy(alpha = 0.02f),
+            Color(0xFF26272C),
+            Color(0xFF1C1D21),
         )
     )
 
 private val GlassStroke: Brush
-    get() = Brush.linearGradient(
+    get() = Brush.verticalGradient(
         listOf(
-            Color.White.copy(alpha = 0.30f),
-            Color.White.copy(alpha = 0.06f),
             Color.White.copy(alpha = 0.16f),
+            Color.White.copy(alpha = 0.04f),
         )
     )
 
-/** Opaque-enough sheet colour so text stays readable over any artwork. */
-val GlassSheetColor = Color(0xF2161619)
+/** Solid, refined charcoal sheet background. */
+val GlassSheetColor = Color(0xFF1A1B1F)
 
-/** Floating circular glass button (back, sort, more…). */
+/** Floating circular tactile button with ambient depth. */
 @Composable
 fun GlassIconButton(
     icon: ImageVector,
@@ -92,17 +90,17 @@ fun GlassIconButton(
     Box(
         modifier = modifier
             .size(size)
-            .shadow(12.dp, CircleShape, clip = false)
+            .shadow(8.dp, CircleShape, clip = false)
             .clip(CircleShape)
             .background(
-                Brush.linearGradient(
+                Brush.verticalGradient(
                     listOf(
-                        Color.White.copy(alpha = containerAlpha * 1.5f),
-                        Color.White.copy(alpha = containerAlpha * 0.45f),
+                        Color(0xFF2E2F35),
+                        Color(0xFF202126),
                     )
                 )
             )
-            .border(BorderStroke(1.dp, GlassStroke), CircleShape)
+            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -206,8 +204,8 @@ fun GlassPill(
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(GlassFill)
-            .border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(50))
+            .background(Color(0xFF25262B))
+            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), RoundedCornerShape(50))
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
@@ -316,10 +314,10 @@ fun LarkDialog(
             modifier = modifier
                 .fillMaxWidth()
                 .padding(horizontal = 26.dp)
-                .shadow(28.dp, RoundedCornerShape(28.dp), clip = false)
-                .clip(RoundedCornerShape(28.dp))
-                .background(Color(0xF217171A))
-                .border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(28.dp))
+                .shadow(24.dp, RoundedCornerShape(26.dp), clip = false)
+                .clip(RoundedCornerShape(26.dp))
+                .background(Color(0xFF1E1F24))
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(26.dp))
                 .padding(24.dp),
             content = content,
         )

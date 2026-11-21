@@ -11,6 +11,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -410,13 +411,14 @@ fun PlayerScreen(
                     Modifier
                         .size(76.dp)
                         .scale(playButtonScale)
-                        .shadow(20.dp, CircleShape, clip = false)
+                        .shadow(16.dp, CircleShape, clip = false)
                         .clip(CircleShape)
                         .background(
-                            Brush.linearGradient(
-                                listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.10f))
+                            Brush.verticalGradient(
+                                listOf(Color(0xFF32343B), Color(0xFF222328))
                             )
                         )
+                        .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape)
                         .clickable(onClick = viewModel::togglePlayPause),
                     contentAlignment = Alignment.Center,
                 ) {

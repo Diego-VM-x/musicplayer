@@ -4,6 +4,16 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 26: eliminación de liquid glass y nuevo diseño elegante satinado con animaciones fluidas (v13)
+
+- **Eliminación del Liquid Glass**:
+  - Reemplazo de los fondos hiper-traslúcidos y brillos de vidrio por superficies satinadas elegantes carbón mate (`0xFF26272C` a `0xFF1C1D21` y `0xFF1A1B1F`), eliminando la sensación "plástica" o transparente.
+  - Se mantuvieron sutiles contornos de luz satinada y profundidad visual para garantizar un aspecto elegante, moderno y refinado sin caer en un diseño plano o aburrido.
+- **Botón de reproducción táctil y fluido**:
+  - Nuevo gradiente satinado con borde fino de relieve y micro-animación fluida de escala al presionar / pausar.
+  - Transiciones fluidas en portadas, títulos y deslizamiento táctil horizontal con amortiguación suave.
+- **Incremento a VersionCode 13 (`1.0.12-clean`)**: build exitoso con APK listo para distribución (`musicplayer-13.apk`, SHA-256 `7F196A9527738A0DAFD27604CD3A839776EEDEA53F4ECF49DD5F906C3AACBC46`).
+
 ## 2026-11-21 — Fase 25: publicación v12
 
 - Commits `3e736a0` (animaciones/swipe y fixes de aleatorio) y `8db3b5c` (márgenes, espaciados y retroalimentación On/Off), hechos por otra IA, confirmados en `origin/master`.
