@@ -68,6 +68,7 @@ fun SettingsScreen(
     onFeedback: () -> Unit,
     onAbout: () -> Unit,
     onUpdates: () -> Unit,
+    onMemories: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val config by viewModel.themeConfig.collectAsStateWithLifecycle(ThemeConfig())
@@ -107,6 +108,12 @@ fun SettingsScreen(
                 title = "Actualizaciones",
                 subtitle = "Buscar e instalar versiones nuevas",
                 onClick = onUpdates,
+            )
+            SettingsRow(
+                icon = Icons.Rounded.WatchLater,
+                title = "Recuerdos musicales",
+                subtitle = "Tus canciones más reproducidas",
+                onClick = onMemories,
             )
             SettingsRow(
                 icon = Icons.Rounded.WatchLater,

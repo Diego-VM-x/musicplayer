@@ -29,6 +29,8 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:label="LarkClean"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.LarkClean">
 
@@ -77,6 +79,18 @@
             android:name="com.larkplayer.core.update.UpdateInstallActivity"
             android:exported="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <receiver
+            android:name="com.larkplayer.feature.widget.LarkWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.larkplayer.action.UPDATE_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/lark_widget_info" />
+        </receiver>
 
         <receiver
             android:name="com.larkplayer.core.update.ApkDownloadReceiver"

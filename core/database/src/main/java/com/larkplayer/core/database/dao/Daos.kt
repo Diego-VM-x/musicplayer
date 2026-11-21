@@ -1,6 +1,7 @@
 package com.larkplayer.core.database.dao
 
 import androidx.room.Dao
+import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -93,10 +94,25 @@ interface PlaylistDao {
 /** Number of plays per song, used by the "Más reproducido" sort mode. */
 data class PlayCount(val songId: Long, val count: Int)
 
+/** Most played songs for the "Recuerdos musicales" recap. */
+data class TopSong(
+    @Embedded val song: SongEntity,
+    val playCount: Int,
+)
+
 @Dao
 interface HistoryDao {
     @Query("SELECT songId, COUNT(*) AS count FROM history GROUP BY songId")
     fun observePlayCounts(): Flow<List<PlayCount>>
+
+    @Query(
+        """
+        SELECT s.*, COUNT(h.songId) AS playCount FROM history h
+        INNER JOIN songs s ON s.id = h.songId
+        GROUP BY h.songId ORDER BY playCount DESC LIMIT 5
+        """
+    )
+    fun observeTopSongs(): Flow<List<TopSong>>
 
     @Query("SELECT * FROM history ORDER BY playedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int = 100): Flow<List<HistoryEntity>>

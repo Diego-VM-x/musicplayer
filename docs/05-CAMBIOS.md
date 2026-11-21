@@ -4,6 +4,22 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 18: logo, widget, recuerdos y aleatorio ordenado
+
+- **Logo propio**: icono adaptativo vectorial (nota musical sobre degradado índigo/azul) con recursos `mipmap` para todas las densidades; eliminado el icono por defecto de Android.
+- **Widget de pantalla de inicio**: `LarkWidgetProvider` con título/artista y controles anterior/play-pausa/siguiente. `PlayerRepository` publica el estado en `SharedPreferences` y emite `UPDATE_WIDGET` al cambiar de pista o de estado.
+- **Recuerdos musicales** (`feature:library/ui/MemoriesScreen.kt`): nuevas consultas Room de canciones más reproducidas (`TopSong`) y accesible desde Ajustes; muestra tiempo total y top 5 reproducible.
+- **Aleatorio ordenado**: al activar shuffle, la canción actual pasa a la primera posición y el resto se baraja de forma estable; el mismo orden se muestra en la cola y se envía a Media3 mediante un `SessionCommand` que aplica un `ShuffleOrder` personalizado, así reproducción y visualización coinciden (también desde la notificación). Al desactivarlo se restaura el orden original.
+- **Blur del mini-player**: imagen de carátula desenfocada (32 dp) bajo un degradado radial teñido con el acento extraído; altura fija para evitar el desbordamiento anterior.
+- **Actualizador**: añadido fallback a `/contents/` para detectar APKs subidos a la raíz del repositorio (o `update.json`) cuando aún no hay releases publicados.
+- Generación de imagen externa falló por credenciales no válidas; el logo se creó como vector + PNG locales.
+
+## 2026-11-21 — Fase 17: sesión pausada persistente
+
+- El wake lock parcial ya no se libera al pausar: se mantiene mientras el ajuste «Reproducir en segundo plano» esté activo, porque al pausar y cerrar la app el sistema podía congelar el proceso y perder la sesión (al reproducir no ocurría).
+- `onStartCommand` devuelve `START_STICKY` cuando se permite segundo plano y `onTaskRemoved` evita detener el servicio al deslizar la app desde Recientes.
+- Se liberan el wake lock y la sesión solo desde el botón X de la notificación o al destruir el servicio.
+
 ## 2026-11-21 — Fase 16: repetición de cola, acento acotado y aleatorio visible
 
 - **Fin de lista**: `REPEAT_MODE_ALL` es el modo por defecto (`SettingsDataStore` y `PlayerViewModel`), así la cola vuelve a empezar al terminar en vez de detenerse.

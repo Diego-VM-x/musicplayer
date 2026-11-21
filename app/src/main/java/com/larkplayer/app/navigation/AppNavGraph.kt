@@ -50,6 +50,7 @@ import com.larkplayer.feature.backup.ui.BackupScreen
 import com.larkplayer.feature.equalizer.ui.EqualizerScreen
 import com.larkplayer.feature.library.ui.HiddenFilesScreen
 import com.larkplayer.feature.library.ui.LibraryScreen
+import com.larkplayer.feature.library.ui.MemoriesScreen
 import com.larkplayer.feature.library.ui.PlaylistDetailScreen
 import com.larkplayer.feature.lyrics.ui.LyricsScreen
 import android.app.Activity
@@ -95,6 +96,7 @@ private object Routes {
     const val ABOUT = "about"
     const val FEEDBACK = "feedback"
     const val UPDATES = "updates"
+    const val MEMORIES = "memories"
 }
 
 private val MINI_PLAYER_HIDDEN_ROUTES = setOf(
@@ -111,6 +113,7 @@ private val MINI_PLAYER_HIDDEN_ROUTES = setOf(
     Routes.ABOUT,
     Routes.FEEDBACK,
     Routes.UPDATES,
+    Routes.MEMORIES,
 )
 
 @Composable
@@ -186,6 +189,7 @@ fun AppNavGraph() {
                 onFeedback = { navController.navigate(Routes.FEEDBACK) },
                 onAbout = { navController.navigate(Routes.ABOUT) },
                 onUpdates = { navController.navigate(Routes.UPDATES) },
+                onMemories = { navController.navigate(Routes.MEMORIES) },
             )
         }
         composable(Routes.PLAY_TIME) { PlayTimeScreen(onBack = { navController.popBackStack() }) }
@@ -199,6 +203,12 @@ fun AppNavGraph() {
         composable(Routes.ABOUT) { AboutScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.FEEDBACK) { FeedbackScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.UPDATES) { UpdateSettingsScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.MEMORIES) {
+            MemoriesScreen(
+                onBack = { navController.popBackStack() },
+                onOpenPlayer = { navController.navigate(Routes.PLAYER) },
+            )
+        }
     }
 
         // Floating mini-player on every screen except full player, settings and

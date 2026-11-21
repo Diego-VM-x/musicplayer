@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -66,8 +67,8 @@ fun MiniPlayer(
         )
     )
 
-    // Soft radial gradient tinted with the artwork's main colour — a smooth,
-    // blurred-looking wash that keeps the title/artist readable.
+    // Heavy blur of the artwork, tinted with its extracted accent colour.
+    // Height stays fixed so the image can never grow over the whole screen.
     Box(
         modifier
             .fillMaxWidth()
@@ -76,15 +77,21 @@ fun MiniPlayer(
             .clip(RoundedCornerShape(26.dp))
             .clickable(onClick = onOpen),
     ) {
+        AsyncImage(
+            model = state.albumArt,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().blur(32.dp),
+        )
         Box(
             Modifier
                 .fillMaxSize()
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            accent.copy(alpha = 0.85f),
-                            accent.copy(alpha = 0.48f),
-                            Color(0xFF15121A),
+                            accent.copy(alpha = 0.72f),
+                            accent.copy(alpha = 0.38f),
+                            Color(0xFF15121A).copy(alpha = 0.92f),
                         ),
                     )
                 )

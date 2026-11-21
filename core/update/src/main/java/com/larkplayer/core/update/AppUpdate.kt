@@ -105,7 +105,73 @@ object AppUpdate {
         }.getOrElse {
             return@withContext UpdateFetchResult.Error(it.message ?: "No se pudo contactar con GitHub.")
         }
-        parseReleases(raw)
+        val fromReleases = parseReleases(raw)
+        if (fromReleases is UpdateFetchResult.Found) return@withContext fromReleases
+        // Repositories that publish APKs directly in the root (no releases yet)
+        // are supported as a fallback, with an optional update.json manifest.
+        fetchFromContents()
+    }
+
+    /** Fallback: detect APKs committed to the repository root. */
+    private suspend fun fetchFromContents(): UpdateFetchResult = withContext(Dispatchers.IO) {
+        val url = "https://api.github.com/repos/$GITHUB_REPO/contents/"
+        val raw = runCatching {
+            val connection = URL(url).openConnection() as HttpsURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = TIMEOUT_MS
+            connection.readTimeout = TIMEOUT_MS
+            connection.setRequestProperty("User-Agent", USER_AGENT)
+            connection.inputStream.bufferedReader().use { it.readText() }
+        }.getOrElse { return@withContext UpdateFetchResult.NotFound }
+
+        val entries = runCatching { org.json.JSONArray(raw) }
+            .getOrElse { return@withContext UpdateFetchResult.Error("Respuesta inválida de GitHub.") }
+        val items = (0 until entries.length()).mapNotNull { entries.optJSONObject(it) }
+
+        val apkCandidates = items.mapNotNull { entry ->
+            val name = entry.optString("name")
+            if (!name.endsWith(".apk", ignoreCase = true)) return@mapNotNull null
+            val code = Regex("""(\d+)""").findAll(name)
+                .mapNotNull { it.groupValues[1].toIntOrNull() }
+                .lastOrNull() ?: return@mapNotNull null
+            val download = entry.optString("download_url")
+            if (!isSecureUrl(download)) return@mapNotNull null
+            AppUpdateInfo(
+                versionCode = code,
+                versionName = name.removeSuffix(".apk"),
+                apkUrl = download,
+                sizeBytes = entry.optLong("size", 0L),
+                notes = "APK publicado en el repositorio.",
+            )
+        }
+
+        val manifestEntry = items.firstOrNull {
+            it.optString("name").equals("update.json", ignoreCase = true)
+        }
+        val manifestInfo = manifestEntry?.let { entry ->
+            val manifestUrl = entry.optString("download_url")
+            if (!isSecureUrl(manifestUrl)) null else runCatching {
+                val connection = URL(manifestUrl).openConnection() as HttpsURLConnection
+                connection.setRequestProperty("User-Agent", USER_AGENT)
+                val json = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                val code = json.optInt("versionCode", 0)
+                val apkUrl = json.optString("apkUrl")
+                if (code <= 0 || !isSecureUrl(apkUrl)) null else AppUpdateInfo(
+                    versionCode = code,
+                    versionName = json.optString("versionName").ifBlank { code.toString() },
+                    apkUrl = apkUrl,
+                    sha256 = json.optString("sha256").lowercase(),
+                    sizeBytes = json.optLong("sizeBytes", 0L),
+                    notes = sanitizeNotes(json.optString("notes")),
+                    minSdk = json.optInt("minSdk", 0),
+                )
+            }.getOrNull()
+        }
+
+        val best = listOfNotNull(manifestInfo, apkCandidates.maxByOrNull { it.versionCode })
+            .maxByOrNull { it.versionCode }
+            ?: return@withContext UpdateFetchResult.NotFound
+        UpdateFetchResult.Found(best)
     }
 
     private fun parseReleases(raw: String): UpdateFetchResult {

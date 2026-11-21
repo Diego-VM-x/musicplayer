@@ -8,6 +8,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ShuffleOrder
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -49,9 +50,10 @@ class PlaybackService : MediaSessionService() {
     private var wakeLock: PowerManager.WakeLock? = null
 
     private val playerListener = object : Player.Listener {
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
-            if (isPlaying) acquireWakeLock() else releaseWakeLock()
-        }
+        // The wake lock is owned by the "background playback" setting, not by
+        // the play/pause state: pausing and closing the app must not let the
+        // system freeze the process and lose the paused session.
+        override fun onIsPlayingChanged(isPlaying: Boolean) = Unit
     }
 
     override fun onCreate() {
@@ -75,13 +77,19 @@ class PlaybackService : MediaSessionService() {
                     customCommand: SessionCommand,
                     args: Bundle,
                 ): ListenableFuture<SessionResult> {
-                    if (customCommand.customAction == COMMAND_STOP_ALL) stopPlaybackCompletely()
+                    when (customCommand.customAction) {
+                        COMMAND_STOP_ALL -> stopPlaybackCompletely()
+                        COMMAND_SET_SHUFFLE_ORDER -> {
+                            val ids = args.getStringArray(EXTRA_SHUFFLE_ORDER)?.toList().orEmpty()
+                            applyShuffleOrder(ids)
+                        }
+                    }
                     return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                 }
             })
             .build()
         player.addListener(playerListener)
-        if (player.isPlaying) acquireWakeLock()
+        updateWakeLock()
 
         // "Reproduce junto con otras aplicaciones" — when enabled we don't take
         // exclusive audio focus, so other apps keep playing.
@@ -100,12 +108,34 @@ class PlaybackService : MediaSessionService() {
             settings.notificationPlayback.collect { enabled -> showNotification = enabled }
         }
         scope.launch {
-            settings.backgroundPlayback.collect { enabled -> backgroundPlayback = enabled }
+            settings.backgroundPlayback.collect { enabled ->
+                backgroundPlayback = enabled
+                updateWakeLock()
+            }
         }
         Timber.d("PlaybackService created")
     }
 
-    private fun acquireWakeLock() {
+    /** Applies the order shown in the UI to Media3's internal shuffle engine. */
+    private fun applyShuffleOrder(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val indexById = (0 until player.mediaItemCount).associate { index ->
+            player.getMediaItemAt(index).mediaId to index
+        }
+        val indices = ids.mapNotNull { indexById[it] }.toIntArray()
+        if (indices.isEmpty()) return
+        runCatching {
+            player.setShuffleOrder(VisibleShuffleOrder(indices))
+            player.shuffleModeEnabled = true
+        }
+    }
+
+    /** Held while background playback is on, even when the track is paused. */
+    private fun updateWakeLock() {
+        if (!backgroundPlayback) {
+            releaseWakeLock()
+            return
+        }
         if (wakeLock?.isHeld == true) return
         val power = getSystemService(PowerManager::class.java) ?: return
         wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "larkplayer:playback")
@@ -142,7 +172,13 @@ class PlaybackService : MediaSessionService() {
             ACTION_NEXT -> player.seekToNext()
             ACTION_PREV -> player.seekToPrevious()
         }
-        return super.onStartCommand(intent, flags, startId)
+        val result = super.onStartCommand(intent, flags, startId)
+        return if (backgroundPlayback && result == START_NOT_STICKY) START_STICKY else result
+    }
+
+    /** Swiping the app away from Recents must not kill a paused session. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (!backgroundPlayback) super.onTaskRemoved(rootIntent)
     }
 
     /** X button in the media notification: stop everything and kill the process. */
@@ -170,7 +206,29 @@ class PlaybackService : MediaSessionService() {
         Timber.d("PlaybackService destroyed")
     }
 
+    /** Shuffle order that follows the list displayed in the queue screen. */
+    private class VisibleShuffleOrder(private val order: IntArray) : ShuffleOrder {
+        override fun getLength(): Int = order.size
+        override fun getFirstIndex(): Int = order.firstOrNull() ?: -1
+        override fun getLastIndex(): Int = order.lastOrNull() ?: -1
+        override fun getNextIndex(index: Int): Int {
+            val position = order.indexOf(index)
+            return if (position >= 0 && position < order.lastIndex) order[position + 1] else -1
+        }
+        override fun getPreviousIndex(index: Int): Int {
+            val position = order.indexOf(index)
+            return if (position > 0) order[position - 1] else -1
+        }
+        override fun cloneAndInsert(insertionIndex: Int, insertionCount: Int): ShuffleOrder =
+            ShuffleOrder.DefaultShuffleOrder(order.size + insertionCount)
+        override fun cloneAndRemove(removalIndex: Int, removalCount: Int): ShuffleOrder =
+            ShuffleOrder.DefaultShuffleOrder(maxOf(0, order.size - removalCount))
+        override fun cloneAndClear(): ShuffleOrder = ShuffleOrder.DefaultShuffleOrder(0)
+    }
+
     companion object {
+        const val COMMAND_SET_SHUFFLE_ORDER = "com.larkplayer.command.SET_SHUFFLE_ORDER"
+        const val EXTRA_SHUFFLE_ORDER = "lark_shuffle_order"
         const val ACTION_PLAY = "com.larkplayer.action.PLAY"
         const val ACTION_PAUSE = "com.larkplayer.action.PAUSE"
         const val ACTION_NEXT = "com.larkplayer.action.NEXT"

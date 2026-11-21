@@ -2,6 +2,7 @@ package com.larkplayer.feature.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.media3.common.MediaItem
@@ -40,6 +41,8 @@ class PlayerRepository @Inject constructor(
     private val settings: SettingsDataStore,
 ) {
     private val appContext: Context = context.applicationContext
+    private val widgetPrefs = appContext.getSharedPreferences("lark_widget", Context.MODE_PRIVATE)
+    private var widgetListener: Player.Listener? = null
     private val sessionToken = SessionToken(
         context,
         ComponentName(context, PlaybackService::class.java),
@@ -63,6 +66,7 @@ class PlayerRepository @Inject constructor(
     @Volatile private var fadeInUntil = 0L
     private var lastMediaId: String? = null
     private var lastPosition = 0L
+    @Volatile private var visibleOrder: List<String> = emptyList()
     private var pendingPlayMs = 0L
 
     private var connecting = false
@@ -114,6 +118,8 @@ class PlayerRepository @Inject constructor(
         val future = MediaController.Builder(appContext, sessionToken)
             .setListener(object : MediaController.Listener {
                 override fun onDisconnected(controller: MediaController) {
+                    widgetListener?.let { runCatching { controller.removeListener(it) } }
+                    widgetListener = null
                     if (_controller.value === controller) _controller.value = null
                     connecting = false
                     scope.launch {
@@ -138,6 +144,11 @@ class PlayerRepository @Inject constructor(
                         )
                     }
                     _controller.value = controller
+                    if (desiredShuffle) {
+                        rebuildShuffleOrder()
+                        sendShuffleOrder(controller)
+                    }
+                    attachWidgetListener(controller)
                     pendingAction?.let { action ->
                         pendingAction = null
                         runCatching { action(controller) }
@@ -151,6 +162,45 @@ class PlayerRepository @Inject constructor(
                     }
                 }
         }, MoreExecutors.directExecutor())
+    }
+
+    /** Publishes now-playing metadata for the home-screen widget. */
+    private fun attachWidgetListener(controller: MediaController) {
+        val listener = object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                writeWidgetState(
+                    title = mediaItem?.mediaMetadata?.title?.toString().orEmpty(),
+                    artist = mediaItem?.mediaMetadata?.artist?.toString().orEmpty(),
+                    playing = controller.isPlaying,
+                )
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                writeWidgetState(
+                    title = controller.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty(),
+                    artist = controller.currentMediaItem?.mediaMetadata?.artist?.toString().orEmpty(),
+                    playing = isPlaying,
+                )
+            }
+        }
+        widgetListener = listener
+        runCatching { controller.addListener(listener) }
+        writeWidgetState(
+            title = controller.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty(),
+            artist = controller.currentMediaItem?.mediaMetadata?.artist?.toString().orEmpty(),
+            playing = controller.isPlaying,
+        )
+    }
+
+    private fun writeWidgetState(title: String, artist: String, playing: Boolean) {
+        widgetPrefs.edit()
+            .putString(KEY_WIDGET_TITLE, title)
+            .putString(KEY_WIDGET_ARTIST, artist)
+            .putBoolean(KEY_WIDGET_PLAYING, playing)
+            .apply()
+        runCatching {
+            appContext.sendBroadcast(Intent("com.larkplayer.action.UPDATE_WIDGET").setPackage(appContext.packageName))
+        }
     }
 
     /** Runs [block] on the main thread as soon as a connected controller exists. */
@@ -184,13 +234,68 @@ class PlayerRepository @Inject constructor(
 
     fun togglePlayPause() = withController { c -> if (c.isPlaying) c.pause() else c.play() }
 
-    fun skipNext() = withController { it.seekToNextMediaItem() }
-    fun skipPrevious() = withController { it.seekToPreviousMediaItem() }
+    fun skipNext() = withController { controller ->
+        if (desiredShuffle && visibleOrder.isNotEmpty()) {
+            val currentId = runCatching { controller.currentMediaItem?.mediaId }.getOrNull()
+            val position = visibleOrder.indexOf(currentId)
+            val nextId = visibleOrder.getOrNull(position + 1)
+            val index = currentQueue().indexOfFirst { it.mediaId == nextId }
+            if (index >= 0) controller.seekTo(index, 0L) else controller.seekToNextMediaItem()
+            controller.play()
+        } else {
+            controller.seekToNextMediaItem()
+        }
+    }
+
+    fun skipPrevious() = withController { controller ->
+        if (desiredShuffle && visibleOrder.isNotEmpty()) {
+            val currentId = runCatching { controller.currentMediaItem?.mediaId }.getOrNull()
+            val position = visibleOrder.indexOf(currentId)
+            val previousId = visibleOrder.getOrNull(position - 1)
+            val index = currentQueue().indexOfFirst { it.mediaId == previousId }
+            if (index >= 0) controller.seekTo(index, 0L) else controller.seekToPreviousMediaItem()
+            controller.play()
+        } else {
+            controller.seekToPreviousMediaItem()
+        }
+    }
+
     fun seekTo(ms: Long) = withController { it.seekTo(ms) }
+
     fun setShuffle(on: Boolean) {
         desiredShuffle = on
-        withController { it.shuffleModeEnabled = on }
+        if (on) rebuildShuffleOrder() else visibleOrder = emptyList()
+        withController { controller ->
+            controller.shuffleModeEnabled = on
+            sendShuffleOrder(controller)
+        }
         scope.launch { runCatching { settings.setShuffle(on) } }
+    }
+
+    /** Current track first, then the remaining songs in a stable shuffled order. */
+    private fun rebuildShuffleOrder() {
+        val items = currentQueue()
+        if (items.isEmpty()) {
+            visibleOrder = emptyList()
+            return
+        }
+        val currentId = runCatching { _controller.value?.currentMediaItem?.mediaId }.getOrNull()
+        val first = currentId?.takeIf { id -> items.any { it.mediaId == id } }
+        val rest = items.mapNotNull { it.mediaId }
+            .filter { it != first }
+            .shuffled(java.util.Random(items.size * 7919L + (first?.hashCode() ?: 0)))
+        visibleOrder = listOfNotNull(first) + rest
+    }
+
+    private fun sendShuffleOrder(controller: MediaController) {
+        val command = androidx.media3.session.SessionCommand(
+            PlaybackService.COMMAND_SET_SHUFFLE_ORDER,
+            Bundle.EMPTY,
+        )
+        val args = Bundle().apply {
+            putStringArray(PlaybackService.EXTRA_SHUFFLE_ORDER, visibleOrder.toTypedArray())
+        }
+        runCatching { controller.sendCustomCommand(command, args) }
     }
 
     fun setRepeat(mode: Int) {
@@ -208,38 +313,15 @@ class PlayerRepository @Inject constructor(
 
     /** Mutually exclusive playback option: only one mode can be active. */
     fun setPlaybackMode(mode: Int) {
-        when (mode) {
-            MODE_REPEAT_ALL -> {
-                withController { it.shuffleModeEnabled = false; it.repeatMode = Player.REPEAT_MODE_ALL }
-                scope.launch {
-                    runCatching { settings.setShuffle(false); settings.setRepeatMode(Player.REPEAT_MODE_ALL) }
-                }
-            }
-            MODE_REPEAT_ONE -> {
-                withController { it.shuffleModeEnabled = false; it.repeatMode = Player.REPEAT_MODE_ONE }
-                scope.launch {
-                    runCatching { settings.setShuffle(false); settings.setRepeatMode(Player.REPEAT_MODE_ONE) }
-                }
-            }
-            MODE_SHUFFLE -> {
-                withController { it.repeatMode = Player.REPEAT_MODE_OFF; it.shuffleModeEnabled = true }
-                scope.launch {
-                    runCatching { settings.setRepeatMode(Player.REPEAT_MODE_OFF); settings.setShuffle(true) }
-                }
-            }
-            else -> {
-                withController { it.shuffleModeEnabled = false; it.repeatMode = Player.REPEAT_MODE_OFF }
-                scope.launch {
-                    runCatching { settings.setShuffle(false); settings.setRepeatMode(Player.REPEAT_MODE_OFF) }
-                }
-            }
-        }
-        desiredShuffle = mode == MODE_SHUFFLE
-        desiredRepeat = when (mode) {
-            MODE_REPEAT_ALL -> Player.REPEAT_MODE_ALL
-            MODE_REPEAT_ONE -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
-        }
+        val shuffle = mode == MODE_SHUFFLE
+        setRepeat(
+            when (mode) {
+                MODE_REPEAT_ALL -> Player.REPEAT_MODE_ALL
+                MODE_REPEAT_ONE -> Player.REPEAT_MODE_ONE
+                else -> Player.REPEAT_MODE_OFF
+            },
+        )
+        setShuffle(shuffle)
     }
 
     // ---- Queue ----
@@ -265,10 +347,10 @@ class PlayerRepository @Inject constructor(
     fun displayQueue(shuffle: Boolean): List<MediaItem> {
         val items = currentQueue()
         if (!shuffle || items.size < 2) return items
-        val seed = items.fold(0L) { acc, item ->
-            acc * 31L + (item.mediaId?.toLongOrNull() ?: item.hashCode().toLong())
-        }
-        return items.shuffled(java.util.Random(seed))
+        if (visibleOrder.isEmpty()) rebuildShuffleOrder()
+        val byId = items.associateBy { it.mediaId }
+        val ordered = visibleOrder.mapNotNull { byId[it] }
+        return ordered + items.filter { it.mediaId !in visibleOrder }
     }
 
     fun originalIndex(mediaId: String?): Int {
@@ -401,6 +483,9 @@ class PlayerRepository @Inject constructor(
 
     companion object {
         const val EXTRA_SONG_PATH = "lark_song_path"
+        private const val KEY_WIDGET_TITLE = "widget_title"
+        private const val KEY_WIDGET_ARTIST = "widget_artist"
+        private const val KEY_WIDGET_PLAYING = "widget_playing"
         const val MODE_NORMAL = 0
         const val MODE_REPEAT_ALL = 1
         const val MODE_REPEAT_ONE = 2

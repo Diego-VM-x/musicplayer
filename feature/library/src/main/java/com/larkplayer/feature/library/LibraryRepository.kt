@@ -20,8 +20,9 @@ class LibraryRepository @Inject constructor(
 ) {
     val songs: Flow<List<Song>> = songDao.observeAll().map { list -> list.map { it.toDomain() } }
 
-    val recent: Flow<List<Song>> = historyDao.observeRecent(100).map { list ->
-        list.mapNotNull { id -> /* resolved by caller if needed */ null }
+    /** Most played songs, resolved to the domain model. */
+    val topSongs: Flow<List<Song>> = historyDao.observeTopSongs().map { list ->
+        list.map { it.song.toDomain() }
     }
 
     suspend fun scan(): Result<Int> = try {
