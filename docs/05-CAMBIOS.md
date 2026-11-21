@@ -4,6 +4,11 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 25: publicación v12
+
+- Commits `3e736a0` (animaciones/swipe y fixes de aleatorio) y `8db3b5c` (márgenes, espaciados y retroalimentación On/Off), hechos por otra IA, confirmados en `origin/master`.
+- Release pública `v1.0.11` con el asset `musicplayer-12.apk` (23.052.280 bytes, `versionCode` 12, SHA-256 `5f361cd011f8d92e821d714a2ae6860ac1f176a5b378c8de9cc6065bd8bcbe96`). Publicada vía API de GitHub sin navegador; `/releases/latest` devuelve v1.0.11 con el asset cargado.
+
 ## 2026-11-21 — Fase 23: publicación v10
 
 - Commit `fc8f044` (réplica de diseños/funciones) y `e22f068` (APK) enviados a `origin/master`.
