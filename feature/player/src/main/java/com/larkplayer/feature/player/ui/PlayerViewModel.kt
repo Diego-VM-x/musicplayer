@@ -153,6 +153,7 @@ class PlayerViewModel @Inject constructor(
     fun playAtIndex(index: Int) = repository.playAtIndex(index)
     fun removeFromQueue(index: Int) = repository.removeFromQueue(index)
     fun moveQueueItem(from: Int, to: Int) = repository.moveQueueItem(from, to)
+    fun moveQueueItemById(fromId: String?, toId: String?) = repository.moveQueueItemById(fromId, toId)
     fun setSleepTimer(minutes: Int) = repository.setSleepTimer(minutes)
     fun cancelSleepTimer() = repository.cancelSleepTimer()
 

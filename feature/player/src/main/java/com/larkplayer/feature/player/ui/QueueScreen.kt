@@ -196,14 +196,22 @@ fun QueueScreen(
                                             change.consume()
                                             dragY += dragAmount.y
                                             val steps = (dragY / rowPx).toInt()
-                                            if (steps != 0 && displayOrder.indices.contains(index)) {
-                                                val target = (index + steps).coerceIn(0, displayOrder.lastIndex)
-                                                if (target != index) {
-                                                    displayOrder = displayOrder.toMutableList().apply {
-                                                        add(target, removeAt(index))
+                                            if (steps != 0) {
+                                                // Always look up the current live index by ID to
+                                                // avoid using a stale captured `index` value after
+                                                // previous moves have shifted the list.
+                                                val liveFrom = displayOrder.indexOfFirst { it.mediaId == item.mediaId }
+                                                if (liveFrom >= 0) {
+                                                    val target = (liveFrom + steps).coerceIn(0, displayOrder.lastIndex)
+                                                    if (target != liveFrom) {
+                                                        val movingId = displayOrder[liveFrom].mediaId
+                                                        val targetId = displayOrder[target].mediaId
+                                                        displayOrder = displayOrder.toMutableList().apply {
+                                                            add(target, removeAt(liveFrom))
+                                                        }
+                                                        viewModel.moveQueueItemById(movingId, targetId)
+                                                        dragY = 0f
                                                     }
-                                                    viewModel.moveQueueItem(index, target)
-                                                    dragY = 0f
                                                 }
                                             }
                                         }

@@ -335,6 +335,13 @@ class PlayerRepository @Inject constructor(
 
     /** Sends the visible order to the service; the service owns Media3's shuffle state. */
     private fun sendShuffleOrder(controller: MediaController, enabled: Boolean) {
+        // Always set shuffleModeEnabled directly on the controller first so the
+        // UI state is immediately consistent regardless of whether the custom
+        // command reaches the service.
+        runCatching { controller.shuffleModeEnabled = enabled }
+
+        if (!enabled) return  // No need to send an order when disabling.
+
         val command = androidx.media3.session.SessionCommand(
             PlaybackService.COMMAND_SET_SHUFFLE_ORDER,
             Bundle.EMPTY,
@@ -342,12 +349,11 @@ class PlayerRepository @Inject constructor(
         val args = Bundle().apply {
             putStringArray(
                 PlaybackService.EXTRA_SHUFFLE_ORDER,
-                if (enabled) visibleOrder.toTypedArray() else emptyArray(),
+                visibleOrder.toTypedArray(),
             )
         }
-        val sent = runCatching { controller.sendCustomCommand(command, args) }.isSuccess
-        // Fallback if the service did not receive the command.
-        if (!sent || !enabled) runCatching { controller.shuffleModeEnabled = enabled }
+        // Best-effort: tell the service which order to use in its ShuffleOrder impl.
+        runCatching { controller.sendCustomCommand(command, args) }
     }
 
     fun setRepeat(mode: Int) {
@@ -428,6 +434,23 @@ class PlayerRepository @Inject constructor(
         val safeFrom = from.coerceIn(0, c.mediaItemCount - 1)
         val safeTo = to.coerceIn(0, c.mediaItemCount - 1)
         if (safeFrom != safeTo) c.moveMediaItem(safeFrom, safeTo)
+        if (desiredShuffle) {
+            rebuildShuffleOrder()
+            sendShuffleOrder(c, enabled = true)
+        }
+    }
+
+    /**
+     * Reorders by mediaId so the caller doesn't need to track live indices.
+     * This avoids stale-index bugs in the drag-and-drop UI.
+     */
+    fun moveQueueItemById(fromId: String?, toId: String?) = withController { c ->
+        if (fromId == null || toId == null || fromId == toId) return@withController
+        val items = (0 until c.mediaItemCount).map { c.getMediaItemAt(it) }
+        val fromIdx = items.indexOfFirst { it.mediaId == fromId }
+        val toIdx   = items.indexOfFirst { it.mediaId == toId }
+        if (fromIdx < 0 || toIdx < 0) return@withController
+        c.moveMediaItem(fromIdx, toIdx)
         if (desiredShuffle) {
             rebuildShuffleOrder()
             sendShuffleOrder(c, enabled = true)
