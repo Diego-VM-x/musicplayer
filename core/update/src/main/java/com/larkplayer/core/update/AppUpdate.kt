@@ -57,6 +57,9 @@ object AppUpdate {
         """(?i)^(version\s*code|sha-?256|min\s*sdk|mandatory|tama[ñn]o|size|asset|apk)\s*[:=].*$""",
     )
 
+    /** Distribution repository — fixed in code, not user-editable. */
+    const val GITHUB_REPO = "Diego-VM-x/musicplayer"
+
     const val EXTRA_APK_PATH = "lark_update_apk_path"
     const val EXTRA_APK_URL = "lark_update_apk_url"
     const val EXTRA_VERSION_NAME = "lark_update_version_name"
@@ -78,34 +81,52 @@ object AppUpdate {
             (info.minSdk <= 0 || info.minSdk <= Build.VERSION.SDK_INT)
     }
 
-    /** Queries GitHub's public `releases/latest` endpoint. No third-party library. */
-    suspend fun fetchLatest(repo: String): UpdateFetchResult = withContext(Dispatchers.IO) {
-        val trimmed = repo.trim().trim('/')
-        if (trimmed.isEmpty() || !trimmed.contains('/')) {
-            return@withContext UpdateFetchResult.Error("Configura el repositorio como usuario/proyecto.")
-        }
-        val url = "https://api.github.com/repos/$trimmed/releases/latest"
-        runCatching {
+    /**
+     * Lists all releases and picks the newest public one. The `/releases/latest`
+     * endpoint returns 404 while the repository has no published release, which
+     * used to look like an error; the list endpoint makes that case a clean
+     * "no update" result.
+     */
+    suspend fun fetchLatest(): UpdateFetchResult = withContext(Dispatchers.IO) {
+        val url = "https://api.github.com/repos/$GITHUB_REPO/releases?per_page=20"
+        val raw = runCatching {
             val connection = URL(url).openConnection() as HttpsURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
             connection.setRequestProperty("User-Agent", USER_AGENT)
             connection.setRequestProperty("Accept", "application/vnd.github+json")
+            val code = connection.responseCode
+            if (code == 404) return@withContext UpdateFetchResult.NotFound
+            if (code !in 200..299) {
+                return@withContext UpdateFetchResult.Error("GitHub respondió $code.")
+            }
             connection.inputStream.bufferedReader().use { it.readText() }
-        }.fold(
-            onSuccess = { parseRelease(it) },
-            onFailure = { UpdateFetchResult.Error(it.message ?: "No se pudo contactar con GitHub.") },
-        )
+        }.getOrElse {
+            return@withContext UpdateFetchResult.Error(it.message ?: "No se pudo contactar con GitHub.")
+        }
+        parseReleases(raw)
     }
 
-    private fun parseRelease(raw: String): UpdateFetchResult {
-        val release = runCatching { JSONObject(raw) }
+    private fun parseReleases(raw: String): UpdateFetchResult {
+        val array = runCatching { org.json.JSONArray(raw) }
             .getOrElse { return UpdateFetchResult.Error("Respuesta inválida de GitHub.") }
+        // GitHub returns releases newest-first; filter drafts/prereleases explicitly.
+        val candidates = (0 until array.length()).mapNotNull { index ->
+            val release = array.optJSONObject(index) ?: return@mapNotNull null
+            if (release.optBoolean("draft") || release.optBoolean("prerelease")) return@mapNotNull null
+            parseRelease(release)
+        }
+        val info = candidates.maxByOrNull { it.versionCode }
+            ?: return UpdateFetchResult.NotFound
+        return UpdateFetchResult.Found(info)
+    }
+
+    private fun parseRelease(release: JSONObject): AppUpdateInfo? {
         val tag = release.optString("tag_name").removePrefix("v").trim()
         val body = release.optString("body").trim()
-        val assets = release.optJSONArray("assets")
-            ?: return UpdateFetchResult.Error("El release no contiene archivos.")
+        val assets = release.optJSONArray("assets") ?: return null
+        val publishedAt = release.optString("published_at")
 
         val candidates = (0 until assets.length()).mapNotNull { index ->
             val asset = assets.optJSONObject(index) ?: return@mapNotNull null
@@ -126,14 +147,12 @@ object AppUpdate {
                 apkUrl = url,
                 sha256 = digest.orEmpty(),
                 sizeBytes = asset.optLong("size", 0L),
-                notes = sanitizeNotes(body),
+                notes = sanitizeNotes(body).ifBlank { "Publicado el ${publishedAt.take(10)}" },
                 minSdk = Regex("""(?i)minSdk[:\s]+(\d+)""")
                     .find(body)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0,
             )
         }
-        val info = candidates.maxByOrNull { it.versionCode }
-            ?: return UpdateFetchResult.Error("El release no incluye ningún archivo APK adjunto.")
-        return UpdateFetchResult.Found(info)
+        return candidates.maxByOrNull { it.versionCode }
     }
 
     fun sanitizeNotes(raw: String): String = raw.lines()

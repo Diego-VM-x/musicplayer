@@ -28,10 +28,12 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,8 +51,13 @@ import com.larkplayer.feature.library.ui.HiddenFilesScreen
 import com.larkplayer.feature.library.ui.LibraryScreen
 import com.larkplayer.feature.library.ui.PlaylistDetailScreen
 import com.larkplayer.feature.lyrics.ui.LyricsScreen
+import android.app.Activity
+import android.view.WindowManager
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larkplayer.feature.player.ui.MiniPlayer
 import com.larkplayer.feature.player.ui.PlayerScreen
+import com.larkplayer.feature.player.ui.PlayerViewModel
 import com.larkplayer.feature.player.ui.QueueScreen
 import com.larkplayer.feature.player.ui.SleepTimerScreen
 import com.larkplayer.feature.settings.ui.AboutScreen
@@ -91,6 +98,18 @@ private object Routes {
 @Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
+
+    // Keep the screen on while a track is playing, like the original app.
+    val playerViewModel: PlayerViewModel = hiltViewModel()
+    val playerState by playerViewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    DisposableEffect(playerState.isPlaying) {
+        val activity = context as? Activity
+        val flag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        if (playerState.isPlaying) activity?.window?.addFlags(flag)
+        else activity?.window?.clearFlags(flag)
+        onDispose { activity?.window?.clearFlags(flag) }
+    }
 
     NavHost(
         navController = navController,

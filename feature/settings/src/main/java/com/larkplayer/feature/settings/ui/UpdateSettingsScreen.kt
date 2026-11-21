@@ -16,9 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,7 +25,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larkplayer.core.designsystem.component.GlassPillButton
 import com.larkplayer.core.designsystem.component.LarkCard
-import com.larkplayer.core.designsystem.component.LarkTextField
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.core.update.UpdateManager
 import com.larkplayer.core.update.UpdateState
@@ -38,7 +34,6 @@ import com.larkplayer.core.update.UpdateState
 fun UpdateSettingsScreen(onBack: () -> Unit) {
     val state by UpdateManager.state.collectAsStateWithLifecycle()
     val prefs by UpdateManager.prefsState.collectAsStateWithLifecycle()
-    var repoInput by remember(prefs.repo) { mutableStateOf(prefs.repo) }
     val accent = MaterialTheme.colorScheme.primary
 
     SettingsPage(title = "Actualizaciones", onBack = onBack) {
@@ -57,37 +52,6 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
                 )
                 Spacer(Modifier.height(18.dp))
                 UpdateStatus(state, accent, prefs.wifiOnly)
-            }
-        }
-
-        Spacer(Modifier.height(14.dp))
-
-        LarkCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
-                Text(
-                    "Repositorio de actualizaciones",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    "Configurado por defecto: Diego-VM-x/musicplayer",
-                    color = ApplePalette.TextSecondary,
-                    fontSize = 11.sp,
-                )
-                Spacer(Modifier.height(10.dp))
-                LarkTextField(
-                    value = repoInput,
-                    onValueChange = { repoInput = it },
-                    placeholder = "usuario/proyecto",
-                )
-                Spacer(Modifier.height(12.dp))
-                GlassPillButton(
-                    "Guardar y buscar",
-                    onClick = { UpdateManager.setRepo(repoInput) },
-                    filled = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         }
 

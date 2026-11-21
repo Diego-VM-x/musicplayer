@@ -4,6 +4,14 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 15: actualizador fijo y optimizaciones REA
+
+- **Actualizador**: repositorio `Diego-VM-x/musicplayer` fijado en `AppUpdate.GITHUB_REPO`; eliminado por completo el campo editable de Ajustes → Actualizaciones. Consulta `/releases` (no `/releases/latest`) y elige el release público más reciente; un repo sin releases devuelve «sin novedades» en vez de error. Filtra drafts/prereleases y extrae versión del asset, del body, del tag o del nombre. Descarga automática activa por defecto, sin exigir SHA-256.
+- **Tercer plano**: `android:stopWithTask="false"` en `PlaybackService`, wake lock parcial, notificación en primer plano y solicitud única de excepción de batería. Comprobado con REA/jadx que el original usa además un proceso `:playback` aislado (no replicado por su coste de IPC).
+- **Arranque**: la comprobación de actualizaciones se difiere 1,5 s a un hilo de E/S para no competir con el primer frame; la biblioteca ya reutilizaba la caché de Room 10 min.
+- **Velocidad de reproducción**: nueva preferencia 0,5x–2x, restaurada al conectar y accesible desde una píldora en el reproductor (función que faltaba frente al original).
+- **Pantalla encendida**: se mantiene `FLAG_KEEP_SCREEN_ON` mientras suena, como en el original.
+
 ## 2026-11-19 — Fase 14: arranque rápido, animaciones y actualizador robusto
 
 - **Actualizador**: repositorio fijado, descarga automática activada por defecto (ya no exige SHA-256), parser de releases tolerante con cualquier APK adjunto y versionCode obtenido del nombre, del body, del tag o del propio nombre del asset; `isNewer` compara también `versionName`.

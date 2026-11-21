@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -57,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.larkplayer.core.designsystem.component.GlassIconButton
 import com.larkplayer.core.designsystem.component.GlassMenuItem
+import com.larkplayer.core.designsystem.component.GlassPill
 import com.larkplayer.core.designsystem.component.GlassMenu
 import com.larkplayer.core.designsystem.component.LarkGradientBackground
 import com.larkplayer.core.designsystem.theme.ApplePalette
@@ -82,6 +84,7 @@ fun PlayerScreen(
     var sliderValue by remember(state.id) { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
+    var speedMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.position, dragging) {
         if (!dragging) sliderValue = state.position.toFloat()
@@ -184,6 +187,29 @@ fun PlayerScreen(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                Box {
+                    GlassPill(modifier = Modifier.clickable { speedMenu = true }) {
+                        Text(
+                            "${String.format("%.2f", state.playbackSpeed).trimEnd('0').trimEnd('.')}x",
+                            color = accent,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    GlassMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
+                        listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { speed ->
+                            GlassMenuItem(
+                                label = "${speed}x",
+                                selected = kotlin.math.abs(state.playbackSpeed - speed) < 0.01f,
+                                onClick = {
+                                    viewModel.setPlaybackSpeed(speed)
+                                    speedMenu = false
+                                },
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.width(10.dp))
                 GlassIconButton(
                     if (state.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     if (state.isFavorite) "Quitar de favoritos" else "Favorito",

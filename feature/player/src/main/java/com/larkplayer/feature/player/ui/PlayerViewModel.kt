@@ -33,6 +33,7 @@ data class PlayerUiState(
     val duration: Long = 0L,
     val shuffle: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val playbackSpeed: Float = 1f,
     val isFavorite: Boolean = false,
 )
 
@@ -108,6 +109,9 @@ class PlayerViewModel @Inject constructor(
             override fun onRepeatModeChanged(repeatMode: Int) {
                 _uiState.value = _uiState.value.copy(repeatMode = repeatMode)
             }
+            override fun onPlaybackParametersChanged(parameters: androidx.media3.common.PlaybackParameters) {
+                _uiState.value = _uiState.value.copy(playbackSpeed = parameters.speed)
+            }
         }
         listener = l
         runCatching {
@@ -117,6 +121,7 @@ class PlayerViewModel @Inject constructor(
                 isPlaying = c.isPlaying,
                 shuffle = c.shuffleModeEnabled,
                 repeatMode = c.repeatMode,
+                playbackSpeed = c.playbackParameters.speed,
             )
         }.onFailure { observedController = null }
     }
@@ -151,6 +156,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun setPlaybackMode(mode: Int) = repository.setPlaybackMode(mode)
+    fun setPlaybackSpeed(speed: Float) = repository.setPlaybackSpeed(speed)
     fun cycleRepeat() {
         val next = when (_uiState.value.repeatMode) {
             Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL

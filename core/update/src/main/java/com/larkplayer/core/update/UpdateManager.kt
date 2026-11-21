@@ -26,7 +26,6 @@ import java.io.File
  */
 object UpdateManager {
     private const val PREFS_NAME = "lark_update"
-    private const val DEFAULT_REPO = "Diego-VM-x/musicplayer"
     private const val MIN_CHECK_INTERVAL_MS = 5 * 60_000L
     private const val CH_AVAILABLE = "lark_update_available"
     private const val CH_READY = "lark_update_ready"
@@ -80,19 +79,12 @@ object UpdateManager {
     private fun refreshPrefs() {
         val p = preferences
         _prefsState.value = UpdatePrefs(
-            repo = p.getString(KEY_REPO, DEFAULT_REPO)?.takeIf { it.isNotBlank() } ?: DEFAULT_REPO,
             autoDownload = p.getBoolean(KEY_AUTO, true),
             wifiOnly = p.getBoolean(KEY_WIFI, true),
         )
     }
 
-    fun setRepo(value: String) {
-        checkInitialized()
-        val repo = value.trim().trim('/').ifBlank { DEFAULT_REPO }
-        preferences.edit().putString(KEY_REPO, repo).apply()
-        refreshPrefs()
-        if (repo.isNotBlank()) checkNow(manual = true)
-    }
+    val repository: String get() = AppUpdate.GITHUB_REPO
 
     fun setAutoDownload(enabled: Boolean) {
         checkInitialized()
@@ -108,17 +100,12 @@ object UpdateManager {
 
     fun checkNow(manual: Boolean) {
         if (!initialized) return
-        val repo = _prefsState.value.repo
-        if (repo.isBlank()) {
-            if (manual) _state.value = UpdateState.Error(null, "Configura el repositorio como usuario/proyecto.")
-            return
-        }
         val now = System.currentTimeMillis()
         if (!manual && now - preferences.getLong(KEY_LAST_CHECK, 0L) < MIN_CHECK_INTERVAL_MS) return
         preferences.edit().putLong(KEY_LAST_CHECK, now).apply()
         _state.value = UpdateState.Checking
         scope.launch {
-            when (val result = AppUpdate.fetchLatest(repo)) {
+            when (val result = AppUpdate.fetchLatest()) {
                 is UpdateFetchResult.Found -> onUpdateFound(result.info)
                 UpdateFetchResult.NotFound -> _state.value = UpdateState.Idle
                 is UpdateFetchResult.Error -> _state.value = UpdateState.Error(null, result.message)
@@ -438,7 +425,6 @@ object UpdateManager {
         }
     }
 
-    private const val KEY_REPO = "repo"
     private const val KEY_AUTO = "auto_download"
     private const val KEY_WIFI = "wifi_only"
     private const val KEY_LAST_CHECK = "last_check_at"

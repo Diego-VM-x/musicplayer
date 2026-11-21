@@ -59,6 +59,7 @@ class PlayerRepository @Inject constructor(
     @Volatile private var gaplessEnabled = true
     @Volatile private var desiredShuffle = false
     @Volatile private var desiredRepeat = Player.REPEAT_MODE_OFF
+    @Volatile private var desiredSpeed = 1f
     @Volatile private var fadeInUntil = 0L
     private var lastMediaId: String? = null
     private var lastPosition = 0L
@@ -93,6 +94,14 @@ class PlayerRepository @Inject constructor(
                 withController { it.repeatMode = mode }
             }
         }
+        scope.launch {
+            settings.playbackSpeed.collect { speed ->
+                desiredSpeed = speed
+                withController {
+                    it.setPlaybackParameters(androidx.media3.common.PlaybackParameters(speed))
+                }
+            }
+        }
         scope.launch { crossfadeLoop() }
         scope.launch { listeningTimeLoop() }
     }
@@ -124,6 +133,9 @@ class PlayerRepository @Inject constructor(
                         controller.shuffleModeEnabled = desiredShuffle
                         controller.repeatMode = desiredRepeat
                         controller.volume = 1f
+                        controller.setPlaybackParameters(
+                            androidx.media3.common.PlaybackParameters(desiredSpeed),
+                        )
                     }
                     _controller.value = controller
                     pendingAction?.let { action ->
@@ -185,6 +197,13 @@ class PlayerRepository @Inject constructor(
         desiredRepeat = mode
         withController { it.repeatMode = mode }
         scope.launch { runCatching { settings.setRepeatMode(mode) } }
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        val safe = speed.coerceIn(0.5f, 2f)
+        desiredSpeed = safe
+        withController { it.setPlaybackParameters(androidx.media3.common.PlaybackParameters(safe)) }
+        scope.launch { runCatching { settings.setPlaybackSpeed(safe) } }
     }
 
     /** Mutually exclusive playback option: only one mode can be active. */

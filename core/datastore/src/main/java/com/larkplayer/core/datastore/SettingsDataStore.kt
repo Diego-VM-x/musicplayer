@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -30,6 +31,7 @@ class SettingsDataStore @Inject constructor(
         val ACCENT_COLOR = longPreferencesKey("accent_color")
         val SHUFFLE = booleanPreferencesKey("shuffle")
         val REPEAT_MODE = intPreferencesKey("repeat_mode")
+        val PLAYBACK_SPEED = floatPreferencesKey("playback_speed")
         val GAPLESS = booleanPreferencesKey("gapless")
         val PLAY_WITH_OTHERS = booleanPreferencesKey("play_with_others")
         val BACKGROUND_PLAYBACK = booleanPreferencesKey("background_playback")
@@ -58,6 +60,7 @@ class SettingsDataStore @Inject constructor(
 
     val shuffle: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.SHUFFLE] ?: false }
     val repeatMode: Flow<Int> = context.settingsDataStore.data.map { p -> p[Keys.REPEAT_MODE] ?: 0 }
+    val playbackSpeed: Flow<Float> = context.settingsDataStore.data.map { p -> p[Keys.PLAYBACK_SPEED] ?: 1f }
     val gapless: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.GAPLESS] ?: true }
     val playWithOthers: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.PLAY_WITH_OTHERS] ?: true }
     val backgroundPlayback: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.BACKGROUND_PLAYBACK] ?: true }
@@ -78,6 +81,8 @@ class SettingsDataStore @Inject constructor(
     suspend fun setAccentColor(argb: Long) = edit { it[Keys.ACCENT_COLOR] = argb }
     suspend fun setShuffle(enabled: Boolean) = edit { it[Keys.SHUFFLE] = enabled }
     suspend fun setRepeatMode(mode: Int) = edit { it[Keys.REPEAT_MODE] = mode }
+    suspend fun setPlaybackSpeed(speed: Float) =
+        edit { it[Keys.PLAYBACK_SPEED] = speed.coerceIn(0.5f, 2f) }
     suspend fun setGapless(enabled: Boolean) = edit { it[Keys.GAPLESS] = enabled }
     suspend fun setPlayWithOthers(enabled: Boolean) = edit { it[Keys.PLAY_WITH_OTHERS] = enabled }
     suspend fun setBackgroundPlayback(enabled: Boolean) = edit { it[Keys.BACKGROUND_PLAYBACK] = enabled }
