@@ -1,5 +1,9 @@
 package com.larkplayer.feature.player.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +31,9 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.RepeatOne
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
@@ -45,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -85,6 +93,7 @@ fun PlayerScreen(
     var dragging by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var speedMenu by remember { mutableStateOf(false) }
+    var visualizerSheetOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.position, dragging) {
         if (!dragging) sliderValue = state.position.toFloat()
@@ -115,25 +124,40 @@ fun PlayerScreen(
                         { menuOpen = true },
                         size = 42.dp,
                     )
-                    GlassMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        GlassMenuItem(
-                            "Ecualizador",
-                            icon = Icons.Rounded.Equalizer,
-                            onClick = { menuOpen = false; onEqualizer() },
-                        )
-                        GlassMenuItem(
-                            "Temporizador para dormir",
-                            icon = Icons.Rounded.Timer,
-                            onClick = { menuOpen = false; onSleepTimer() },
-                        )
-                        GlassMenuItem(
-                            "Ajustes",
-                            icon = Icons.Rounded.Settings,
-                            onClick = { menuOpen = false; onSettings() },
-                        )
-                        GlassMenuItem(
-                            "Ir a la biblioteca",
-                            onClick = { menuOpen = false; onBack() },
+                    if (menuOpen) {
+                        PlayerMoreSheet(
+                            title = state.title,
+                            artist = state.artist,
+                            albumArt = state.albumArt,
+                            onAddToPlaylist = {
+                                menuOpen = false
+                                onBack() // Go to library with selection
+                            },
+                            onShare = {
+                                menuOpen = false
+                            },
+                            onVisualizer = {
+                                menuOpen = false
+                                visualizerSheetOpen = true
+                            },
+                            onSpeed = {
+                                menuOpen = false
+                                speedMenu = true
+                            },
+                            onSetRingtone = {
+                                menuOpen = false
+                            },
+                            onSleepTimer = {
+                                menuOpen = false
+                                onSleepTimer()
+                            },
+                            onHide = {
+                                menuOpen = false
+                            },
+                            onDelete = {
+                                menuOpen = false
+                            },
+                            onDismissRequest = { menuOpen = false },
                         )
                     }
                 }
@@ -142,12 +166,18 @@ fun PlayerScreen(
             Spacer(Modifier.height(22.dp))
 
             // ---- Artwork ----
+            val artworkScale by animateFloatAsState(
+                targetValue = if (state.isPlaying) 1.0f else 0.94f,
+                animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
+                label = "artwork_scale",
+            )
             Box(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(max = 300.dp)
                     .aspectRatio(1f)
-                    .shadow(24.dp, RoundedCornerShape(26.dp))
+                    .scale(artworkScale)
+                    .shadow(if (state.isPlaying) 28.dp else 16.dp, RoundedCornerShape(26.dp))
                     .clip(RoundedCornerShape(26.dp))
                     .background(Color(0xFF242428)),
                 contentAlignment = Alignment.Center,
@@ -222,6 +252,19 @@ fun PlayerScreen(
 
             Spacer(Modifier.weight(1f))
 
+            if (state.visualizerEnabled) {
+                VisualizerWave(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                        .clickable { visualizerSheetOpen = true },
+                    accent = accent,
+                    isPlaying = state.isPlaying,
+                    style = state.visualizerStyle,
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+
             Slider(
                 value = sliderValue.coerceIn(0f, state.duration.toFloat().coerceAtLeast(1f)),
                 onValueChange = {
@@ -252,41 +295,85 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Playback mode cycle (Normal -> Repeat All -> Repeat One -> Shuffle)
+                val currentMode = viewModel.currentPlaybackMode()
+                val (modeIcon, modeDesc) = when (currentMode) {
+                    com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL -> Icons.Rounded.Repeat to "Repetir todo"
+                    com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE -> Icons.Rounded.RepeatOne to "Repetir una"
+                    com.larkplayer.feature.player.PlayerRepository.MODE_SHUFFLE -> Icons.Rounded.Shuffle to "Aleatorio"
+                    else -> Icons.Rounded.Repeat to "Normal"
+                }
+                val modeActive = currentMode != com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL
+                GlassIconButton(
+                    icon = modeIcon,
+                    contentDescription = modeDesc,
+                    onClick = {
+                        val nextMode = when (currentMode) {
+                            com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL -> com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL
+                            com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL -> com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE
+                            com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE -> com.larkplayer.feature.player.PlayerRepository.MODE_SHUFFLE
+                            else -> com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL
+                        }
+                        viewModel.setPlaybackMode(nextMode)
+                    },
+                    size = 46.dp,
+                    iconSize = 24.dp,
+                    tint = if (modeActive) accent else Color.White.copy(alpha = 0.65f),
+                )
+
                 GlassIconButton(
                     Icons.Rounded.SkipPrevious,
                     "Anterior",
                     viewModel::skipPrevious,
-                    size = 58.dp,
-                    iconSize = 38.dp,
+                    size = 56.dp,
+                    iconSize = 36.dp,
                     tint = accent,
+                )
+                val playButtonScale by animateFloatAsState(
+                    targetValue = if (state.isPlaying) 1.05f else 1.0f,
+                    animationSpec = spring(dampingRatio = 0.65f, stiffness = 400f),
+                    label = "play_button_scale",
                 )
                 Box(
                     Modifier
-                        .size(78.dp)
-                        .shadow(18.dp, CircleShape, clip = false)
+                        .size(76.dp)
+                        .scale(playButtonScale)
+                        .shadow(20.dp, CircleShape, clip = false)
                         .clip(CircleShape)
                         .background(
                             Brush.linearGradient(
-                                listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.08f))
+                                listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.10f))
                             )
                         )
                         .clickable(onClick = viewModel::togglePlayPause),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        if (state.isPlaying) "Pausar" else "Reproducir",
-                        tint = accent,
-                        modifier = Modifier.size(48.dp),
-                    )
+                    Crossfade(targetState = state.isPlaying, animationSpec = tween(180), label = "play_pause_crossfade") { playing ->
+                        Icon(
+                            if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            if (playing) "Pausar" else "Reproducir",
+                            tint = accent,
+                            modifier = Modifier.size(46.dp),
+                        )
+                    }
                 }
                 GlassIconButton(
                     Icons.Rounded.SkipNext,
                     "Siguiente",
                     viewModel::skipNext,
-                    size = 58.dp,
-                    iconSize = 38.dp,
+                    size = 56.dp,
+                    iconSize = 36.dp,
                     tint = accent,
+                )
+
+                // Placeholder / queue quick access to balance the row
+                GlassIconButton(
+                    Icons.Rounded.QueueMusic,
+                    "Cola de reproducción",
+                    onQueue,
+                    size = 46.dp,
+                    iconSize = 24.dp,
+                    tint = Color.White.copy(alpha = 0.65f),
                 )
             }
 
@@ -312,6 +399,17 @@ fun PlayerScreen(
                     onClick = onQueue,
                 )
             }
+        }
+
+        if (visualizerSheetOpen) {
+            MusicVisualizerSheet(
+                enabled = state.visualizerEnabled,
+                onEnabledChange = viewModel::setVisualizerEnabled,
+                currentStyle = state.visualizerStyle,
+                onStyleChange = viewModel::setVisualizerStyle,
+                accent = accent,
+                onDismissRequest = { visualizerSheetOpen = false },
+            )
         }
     }
 }

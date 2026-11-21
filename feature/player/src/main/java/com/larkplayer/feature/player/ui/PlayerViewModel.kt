@@ -35,6 +35,8 @@ data class PlayerUiState(
     val repeatMode: Int = Player.REPEAT_MODE_ALL,
     val playbackSpeed: Float = 1f,
     val isFavorite: Boolean = false,
+    val visualizerEnabled: Boolean = false,
+    val visualizerStyle: String = "armonia",
 )
 
 @HiltViewModel
@@ -65,6 +67,16 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             settings.favorites.collect { favorites ->
                 _uiState.value = _uiState.value.copy(isFavorite = _uiState.value.id in favorites)
+            }
+        }
+        viewModelScope.launch {
+            settings.visualizerEnabled.collect { enabled ->
+                _uiState.value = _uiState.value.copy(visualizerEnabled = enabled)
+            }
+        }
+        viewModelScope.launch {
+            settings.visualizerStyle.collect { style ->
+                _uiState.value = _uiState.value.copy(visualizerStyle = style)
             }
         }
         // Progress ticker
@@ -172,6 +184,14 @@ class PlayerViewModel @Inject constructor(
     fun toggleFavorite() {
         val id = _uiState.value.id
         if (id > 0) viewModelScope.launch { settings.toggleFavorite(id) }
+    }
+
+    fun setVisualizerEnabled(enabled: Boolean) {
+        viewModelScope.launch { settings.setVisualizerEnabled(enabled) }
+    }
+
+    fun setVisualizerStyle(style: String) {
+        viewModelScope.launch { settings.setVisualizerStyle(style) }
     }
 
     override fun onCleared() {

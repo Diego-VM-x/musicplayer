@@ -1,5 +1,8 @@
 package com.larkplayer.feature.player.ui
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +24,7 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -29,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -58,14 +63,8 @@ fun MiniPlayer(
     if (state.id <= 0) return
     val accent = Color(accentInt)
 
-    // Solid accent-coloured bar — no blur, no artwork backdrop.
-    val background = Brush.linearGradient(
-        listOf(
-            accent.copy(alpha = 0.55f),
-            accent.copy(alpha = 0.32f),
-            accent.copy(alpha = 0.5f),
-        )
-    )
+    // Lark Player Original: dark charcoal rounded surface (#212224)
+    val background = Color(0xFF222326)
 
     Box(
         modifier
@@ -79,7 +78,7 @@ fun MiniPlayer(
             Modifier
                 .fillMaxSize()
                 .background(background)
-                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(26.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(26.dp))
                 .padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -119,49 +118,47 @@ fun MiniPlayer(
             )
         }
 
-        // Repeat toggle with a progress ring.
+        // Lark Original: Shuffle toggle icon
         Box(
-            Modifier.size(38.dp).clip(CircleShape).clickable(onClick = viewModel::cycleRepeat),
+            Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .clickable(onClick = viewModel::toggleShuffle),
             contentAlignment = Alignment.Center,
         ) {
-            val progress = if (state.duration > 0) {
-                (state.position.toFloat() / state.duration).coerceIn(0f, 1f)
-            } else 0f
-            Canvas(Modifier.size(32.dp)) {
-                drawArc(
-                    color = accent.copy(alpha = 0.85f),
-                    startAngle = -90f,
-                    sweepAngle = 360f * progress,
-                    useCenter = false,
-                    style = Stroke(width = 2.2.dp.toPx()),
-                    size = Size(size.width, size.height),
-                )
-            }
             Icon(
-                if (state.repeatMode == 2) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
-                "Repetir",
-                tint = Color.White,
-                modifier = Modifier.size(17.dp),
+                Icons.Rounded.Shuffle,
+                "Aleatorio",
+                tint = if (state.shuffle) accent else Color.White.copy(alpha = 0.75f),
+                modifier = Modifier.size(20.dp),
             )
         }
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(6.dp))
 
         // Play / pause
+        val playBtnScale by animateFloatAsState(
+            targetValue = if (state.isPlaying) 1.04f else 1.0f,
+            animationSpec = tween(150),
+            label = "mini_play_scale",
+        )
         Box(
             Modifier
                 .size(42.dp)
+                .scale(playBtnScale)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.10f))
                 .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape)
                 .clickable(onClick = viewModel::togglePlayPause),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                if (state.isPlaying) "Pausar" else "Reproducir",
-                tint = accent,
-                modifier = Modifier.size(25.dp),
-            )
+            Crossfade(targetState = state.isPlaying, animationSpec = tween(150), label = "mini_play_pause") { playing ->
+                Icon(
+                    if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    if (playing) "Pausar" else "Reproducir",
+                    tint = accent,
+                    modifier = Modifier.size(25.dp),
+                )
+            }
         }
         }
     }

@@ -859,23 +859,17 @@ private fun PlaylistsTab(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xFF1B1B1E))
                     .clickable(onClick = onCreate)
-                    .padding(vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
             ) {
-                Box(
-                    Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.09f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Rounded.Add, null, tint = Color(0xFF9A9AA2), modifier = Modifier.size(20.dp))
-                }
-                Spacer(Modifier.width(14.dp))
-                Text("Nueva playlist", color = Color(0xFF9A9AA2), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Icon(Icons.Rounded.Add, null, tint = Color(0xFFC4C4CC), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text("Nueva playlist", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
         items(playlists, key = { it.playlist.id }) { playlist ->
@@ -894,20 +888,21 @@ private fun PlaylistRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 1.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color(0xFF1B1B1E))
             .combinedClickable(onClick = { onOpen(playlist) }, onLongClick = { onLongPress(playlist) })
-            .height(64.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .size(62.dp)
+                .clip(RoundedCornerShape(16.dp))
                 .background(Color(0xFF2A2A2E)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Rounded.QueueMusic, null, tint = Color(0xFF6F6F76), modifier = Modifier.size(22.dp))
+            Icon(Icons.Rounded.QueueMusic, null, tint = Color(0xFF6F6F76), modifier = Modifier.size(24.dp))
             val cover = playlist.playlist.coverUri
                 ?: if (playlist.coverAlbumId >= 0) MediaFileUtils.albumArtUri(playlist.coverAlbumId) else null
             AsyncImage(
@@ -917,18 +912,18 @@ private fun PlaylistRow(
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(16.dp))
         Text(
             playlist.playlist.name,
             color = Color.White,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text("${playlist.songCount}", color = Color(0xFF8E8E95), fontSize = 12.sp)
-        Spacer(Modifier.width(14.dp))
+        Text("${playlist.songCount}", color = Color(0xFF8E8E95), fontSize = 12.5.sp)
+        Spacer(Modifier.width(10.dp))
     }
 }
 

@@ -44,8 +44,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestMediaPermissions()
-        requestBatteryOptimizationExemption()
 
         // Draw behind the status bar but keep the UI below it: the gradient shows
         // through the transparent bar without shifting the whole interface up.
@@ -53,6 +51,13 @@ class MainActivity : ComponentActivity() {
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         WindowCompat.getInsetsController(window, window.decorView)
             .isAppearanceLightStatusBars = false
+
+        // Run permission check and battery optimization prompt after initial UI frame setup
+        // so the app window paints immediately without waiting.
+        window.decorView.post {
+            requestMediaPermissions()
+            requestBatteryOptimizationExemption()
+        }
 
         setContent {
             val config by settingsDataStore.themeConfig.collectAsStateWithLifecycle(ThemeConfig())

@@ -46,6 +46,8 @@ class SettingsDataStore @Inject constructor(
         val LAST_SCAN_AT = longPreferencesKey("last_scan_at")
         val NOTIF_PLAYBACK = booleanPreferencesKey("notification_playback")
         val NOTIF_LOCKSCREEN = booleanPreferencesKey("notification_lockscreen")
+        val VISUALIZER_ENABLED = booleanPreferencesKey("visualizer_enabled")
+        val VISUALIZER_STYLE = stringPreferencesKey("visualizer_style") // "armonia", "rebote", "ascenso"
     }
 
     val themeConfig: Flow<ThemeConfig> = context.settingsDataStore.data.map { p ->
@@ -75,8 +77,12 @@ class SettingsDataStore @Inject constructor(
     val lastScanAt: Flow<Long> = context.settingsDataStore.data.map { p -> p[Keys.LAST_SCAN_AT] ?: 0L }
     val notificationPlayback: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.NOTIF_PLAYBACK] ?: true }
     val notificationLockScreen: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.NOTIF_LOCKSCREEN] ?: true }
+    val visualizerEnabled: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.VISUALIZER_ENABLED] ?: false }
+    val visualizerStyle: Flow<String> = context.settingsDataStore.data.map { p -> p[Keys.VISUALIZER_STYLE] ?: "armonia" }
 
     suspend fun setDynamicColor(enabled: Boolean) = edit { it[Keys.DYNAMIC_COLOR] = enabled }
+    suspend fun setVisualizerEnabled(enabled: Boolean) = edit { it[Keys.VISUALIZER_ENABLED] = enabled }
+    suspend fun setVisualizerStyle(style: String) = edit { it[Keys.VISUALIZER_STYLE] = style }
     suspend fun setThemeMode(mode: Int) = edit { it[Keys.THEME_MODE] = mode }
     suspend fun setThemeSize(size: Int) = edit { it[Keys.THEME_SIZE] = size }
     suspend fun setAccentColor(argb: Long) = edit { it[Keys.ACCENT_COLOR] = argb }

@@ -90,30 +90,31 @@ fun QueueScreen(
 
     LarkGradientBackground(accent = accentColor, strength = 0.30f) {
         Column(Modifier.fillMaxSize()) {
+            // Header row with top bar, title "Fila" and quick clean/search icons
             Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CircleIconButton(onClick = onBack)
-                Spacer(Modifier.width(18.dp))
+                Spacer(Modifier.width(14.dp))
                 Text(
-                    "A continuación",
+                    "Fila",
                     color = Color.White,
-                    fontSize = 25.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-0.5).sp,
                 )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "${queue.size}",
+                    color = Color.White.copy(alpha = 0.45f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
             }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "${queue.size} canciones · ${state.title}",
-                color = ApplePalette.TextSecondary,
-                fontSize = 11.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 22.dp),
-            )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             val currentId = viewModel.queue().getOrNull(current)?.mediaId
             AnimatedContent(
@@ -276,21 +277,20 @@ private fun QueueToggle(
     accent: Color,
     onClick: () -> Unit,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        GlassIconButton(
-            icon = icon,
+    Box(
+        modifier = Modifier
+            .width(82.dp)
+            .height(48.dp)
+            .clip(RoundedCornerShape(50))
+            .background(if (active) Color.White else Color.White.copy(alpha = 0.08f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
             contentDescription = label,
-            onClick = onClick,
-            size = 52.dp,
-            iconSize = 26.dp,
-            tint = if (active) accent else Color.White,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            label,
-            color = if (active) accent else ApplePalette.TextSecondary,
-            fontSize = 10.5.sp,
-            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+            tint = if (active) Color.Black else Color.White.copy(alpha = 0.65f),
+            modifier = Modifier.size(24.dp),
         )
     }
 }

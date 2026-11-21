@@ -219,17 +219,42 @@ class PlaybackService : MediaSessionService() {
         override fun getLastIndex(): Int = order.lastOrNull() ?: -1
         override fun getNextIndex(index: Int): Int {
             val position = order.indexOf(index)
-            return if (position >= 0 && position < order.lastIndex) order[position + 1] else -1
+            if (position < 0) return -1
+            return if (position < order.lastIndex) order[position + 1] else order.firstOrNull() ?: -1
         }
         override fun getPreviousIndex(index: Int): Int {
             val position = order.indexOf(index)
-            return if (position > 0) order[position - 1] else -1
+            if (position < 0) return -1
+            return if (position > 0) order[position - 1] else order.lastOrNull() ?: -1
         }
-        override fun cloneAndInsert(insertionIndex: Int, insertionCount: Int): ShuffleOrder =
-            ShuffleOrder.DefaultShuffleOrder(order.size + insertionCount)
-        override fun cloneAndRemove(removalIndex: Int, removalCount: Int): ShuffleOrder =
-            ShuffleOrder.DefaultShuffleOrder(maxOf(0, order.size - removalCount))
-        override fun cloneAndClear(): ShuffleOrder = ShuffleOrder.DefaultShuffleOrder(0)
+        override fun cloneAndInsert(insertionIndex: Int, insertionCount: Int): ShuffleOrder {
+            val insertionIndices = IntArray(insertionCount) { insertionIndex + it }
+            val newOrder = IntArray(order.size + insertionCount)
+            var indexInOld = 0
+            var indexInNew = 0
+            while (indexInNew < newOrder.size) {
+                if (indexInNew < order.size) {
+                    val oldVal = order[indexInOld++]
+                    newOrder[indexInNew] = if (oldVal >= insertionIndex) oldVal + insertionCount else oldVal
+                } else {
+                    newOrder[indexInNew] = insertionIndices[indexInNew - order.size]
+                }
+                indexInNew++
+            }
+            return VisibleShuffleOrder(newOrder)
+        }
+        override fun cloneAndRemove(removalIndex: Int, removalCount: Int): ShuffleOrder {
+            val newOrder = ArrayList<Int>(order.size)
+            for (item in order) {
+                if (item < removalIndex) {
+                    newOrder.add(item)
+                } else if (item >= removalIndex + removalCount) {
+                    newOrder.add(item - removalCount)
+                }
+            }
+            return VisibleShuffleOrder(newOrder.toIntArray())
+        }
+        override fun cloneAndClear(): ShuffleOrder = VisibleShuffleOrder(IntArray(0))
     }
 
     companion object {

@@ -30,12 +30,13 @@ class LarkApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) Timber.plant(Timber.DebugTree())
-        installCrashLogger()
-        UpdateManager.initFromPackage(this)
-        // Defer the network check until after the first frames so it never
-        // competes with drawing the library.
+        
+        // Move file logging and update check initialization to background IO thread
+        // to free the main thread completely during app start.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            delay(1_500)
+            installCrashLogger()
+            UpdateManager.initFromPackage(this@LarkApp)
+            delay(3_000)
             UpdateManager.checkNow(manual = false)
         }
     }

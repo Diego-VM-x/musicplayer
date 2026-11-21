@@ -249,26 +249,52 @@ class PlayerRepository @Inject constructor(
         if (desiredShuffle && visibleOrder.isNotEmpty()) {
             val currentId = runCatching { controller.currentMediaItem?.mediaId }.getOrNull()
             val position = visibleOrder.indexOf(currentId)
-            val nextId = visibleOrder.getOrNull(position + 1)
-            val index = currentQueue().indexOfFirst { it.mediaId == nextId }
-            if (index >= 0) controller.seekTo(index, 0L) else controller.seekToNextMediaItem()
-            controller.play()
-        } else {
-            controller.seekToNextMediaItem()
+            val nextId = if (position in 0 until visibleOrder.lastIndex) {
+                visibleOrder[position + 1]
+            } else if (desiredRepeat == Player.REPEAT_MODE_ALL) {
+                visibleOrder.firstOrNull()
+            } else {
+                null
+            }
+            if (nextId != null) {
+                val index = currentQueue().indexOfFirst { it.mediaId == nextId }
+                if (index >= 0) {
+                    controller.seekTo(index, 0L)
+                    controller.play()
+                    return@withController
+                }
+            }
         }
+        controller.seekToNextMediaItem()
+        controller.play()
     }
 
     fun skipPrevious() = withController { controller ->
+        if (controller.currentPosition > 3_000L) {
+            controller.seekTo(0L)
+            return@withController
+        }
         if (desiredShuffle && visibleOrder.isNotEmpty()) {
             val currentId = runCatching { controller.currentMediaItem?.mediaId }.getOrNull()
             val position = visibleOrder.indexOf(currentId)
-            val previousId = visibleOrder.getOrNull(position - 1)
-            val index = currentQueue().indexOfFirst { it.mediaId == previousId }
-            if (index >= 0) controller.seekTo(index, 0L) else controller.seekToPreviousMediaItem()
-            controller.play()
-        } else {
-            controller.seekToPreviousMediaItem()
+            val previousId = if (position > 0) {
+                visibleOrder[position - 1]
+            } else if (desiredRepeat == Player.REPEAT_MODE_ALL) {
+                visibleOrder.lastOrNull()
+            } else {
+                null
+            }
+            if (previousId != null) {
+                val index = currentQueue().indexOfFirst { it.mediaId == previousId }
+                if (index >= 0) {
+                    controller.seekTo(index, 0L)
+                    controller.play()
+                    return@withController
+                }
+            }
         }
+        controller.seekToPreviousMediaItem()
+        controller.play()
     }
 
     fun seekTo(ms: Long) = withController { it.seekTo(ms) }

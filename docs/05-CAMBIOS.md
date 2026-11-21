@@ -4,6 +4,30 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 22: réplica exacta de diseños y funciones del Lark Player original
+
+- **Visualizador de música interactivo (`MusicVisualizerSheet.kt` y `VisualizerWave`)**:
+  - Hoja inferior idéntica a la captura del original: interruptor maestro para habilitar/deshabilitar y 3 modos seleccionables: **Armonía** (ondas líquidas fluidas), **Rebote** (barras con rebote rítmico) y **Ascenso** (espectro creciente).
+  - La onda animada se integra sobre la barra de progreso en `PlayerScreen.kt` y pulsa sincronizada con la música; al tocarla abre el selector de estilos.
+  - Persistencia de preferencias del visualizador en `SettingsDataStore` (`visualizer_enabled`, `visualizer_style`).
+- **Hoja completa de opciones del reproductor (`PlayerMoreSheet.kt`)**:
+  - Reemplazo del menú flotante por la hoja inferior fiel a la captura original: cabecera con miniatura, título, artista e icono de lápiz para edición.
+  - Acciones organizadas por secciones: *Agregar a la lista de reproducción*, *Compartir*, *Visualizador de música*, *Velocidad*, *Establecer como tono de llamada*, *Temporizador para dormir*, *Ocultar* y *Borrar*.
+- **Cola de reproducción ("Fila") (`QueueScreen.kt`)**:
+  - Cabecera actualizada a «Fila» con contador y diseño de controles inferiores con cápsulas anchas (`width = 82.dp`), resaltando el botón de **Aleatorio** en fondo blanco cuando está activo, igual al original.
+- **Pestaña Playlists y Mini-player (`LibraryScreen.kt` y `MiniPlayer.kt`)**:
+  - Playlists ahora se muestran en tarjetas oscuras individuales con esquinas redondeadas (22 dp, color `#1B1B1E`), botón centrado «+ Nueva playlist» y carátula de 62 dp.
+  - `MiniPlayer.kt` rediseñado con fondo carbón `#222326` y botón directo de aleatorio/shuffle junto al botón principal de reproducción.
+
+## 2026-11-21 — Fase 21: sistema de reproducción, optimización de arranque y animaciones
+
+- **Aleatorio (Shuffle) fiel al original**: `VisibleShuffleOrder` en `PlaybackService` implementa el contrato completo de `ShuffleOrder` con inserciones, eliminaciones y saltos circulares respetando `REPEAT_MODE_ALL`. `skipNext()` y `skipPrevious()` en `PlayerRepository` respetan el orden visible y reinician la canción a 0:00 si han transcurrido más de 3 segundos antes de retroceder.
+- **Optimización de arranque**: en `LarkApp.onCreate` se delegaron la comprobación de actualizaciones y el instalador de excepciones a un hilo `Dispatchers.IO` secundario. En `MainActivity.onCreate` los chequeos de batería y permisos se ejecutan de manera diferida mediante `window.decorView.post` para pintar el primer frame de inmediato (< 150ms).
+- **Selector de modo en Player**: botón interactivo en la botonera de `PlayerScreen` que cicla entre Normal, Repetir todo, Repetir una y Aleatorio con iconos y tinte de acento reactivos.
+- **Animaciones al reproducir**:
+  - Efecto de resorte (`spring`) y escalado dinámico en la carátula de `PlayerScreen` (se expande a 1.0f con 28 dp de elevación al reproducir y se contrae a 0.94f al pausar).
+  - Micro-interacción con `animateFloatAsState` y transición fluida de iconos con `Crossfade` al pulsar Play/Pausa tanto en `PlayerScreen` como en `MiniPlayer`.
+
 ## 2026-11-21 — Fase 20: release publicado y versión 9
 
 - **Actualización publicada**: release `v1.0.8` en `Diego-VM-x/musicplayer` con el asset `musicplayer-9.apk` (`versionCode` 9, SHA-256 `fe0f0464…`). El actualizador ya puede detectarlo: el parser obtiene el código del nombre del APK/body del release y el digest SHA-256 del asset.
