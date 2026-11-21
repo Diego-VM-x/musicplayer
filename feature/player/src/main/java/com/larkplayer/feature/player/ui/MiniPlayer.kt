@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -118,22 +119,30 @@ fun MiniPlayer(
             )
         }
 
-        // Lark Original: Shuffle toggle icon
+        // Lark Original: one mode button (normal / repeat / repeat one / shuffle)
+        val mode = viewModel.currentPlaybackMode()
+        val modeIcon = when (mode) {
+            com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL -> Icons.Rounded.Repeat
+            com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE -> Icons.Rounded.RepeatOne
+            com.larkplayer.feature.player.PlayerRepository.MODE_SHUFFLE -> Icons.Rounded.Shuffle
+            else -> Icons.Rounded.Repeat
+        }
+        val modeActive = mode != com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL
         Box(
             Modifier
-                .size(38.dp)
+                .size(36.dp)
                 .clip(CircleShape)
-                .clickable(onClick = viewModel::toggleShuffle),
+                .clickable { viewModel.setPlaybackMode(nextMiniMode(mode)) },
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                Icons.Rounded.Shuffle,
-                "Aleatorio",
-                tint = if (state.shuffle) accent else Color.White.copy(alpha = 0.75f),
+                modeIcon,
+                "Modo de reproducción",
+                tint = if (modeActive) accent else Color.White.copy(alpha = 0.75f),
                 modifier = Modifier.size(20.dp),
             )
         }
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(4.dp))
 
         // Play / pause
         val playBtnScale by animateFloatAsState(
@@ -160,8 +169,34 @@ fun MiniPlayer(
                 )
             }
         }
+
+        // Next, as in the original mini-player.
+        Box(
+            Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .clickable(onClick = viewModel::skipNext),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Rounded.SkipNext,
+                "Siguiente",
+                tint = Color.White.copy(alpha = 0.82f),
+                modifier = Modifier.size(25.dp),
+            )
+        }
         }
     }
+}
+
+private fun nextMiniMode(mode: Int): Int = when (mode) {
+    com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL ->
+        com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL
+    com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL ->
+        com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE
+    com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE ->
+        com.larkplayer.feature.player.PlayerRepository.MODE_SHUFFLE
+    else -> com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL
 }
 
 /** Compact preview used by the Tema screen. */

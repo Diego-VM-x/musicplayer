@@ -57,7 +57,6 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.QueuePlayNext
-import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
@@ -77,6 +76,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -200,16 +200,22 @@ fun LibraryScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                     } else {
-                        Text(
-                            "Lark Player",
-                            color = Color.White,
-                            fontSize = 25.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-0.5).sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                        Row(
                             modifier = Modifier.weight(1f),
-                        )
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            LarkLogoMark()
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                "Lark Player",
+                                color = Color.White,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.5).sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                         GlassIconCluster {
                             GlassClusterIcon(
                                 Icons.Rounded.Search,
@@ -234,7 +240,6 @@ fun LibraryScreen(
                                     }
                                 }
                             }
-                            GlassClusterIcon(Icons.Rounded.Radio, "Reproduciendo", onOpenPlayer)
                             GlassClusterIcon(Icons.Rounded.Settings, "Ajustes", onOpenSettings)
                         }
                     }
@@ -649,6 +654,29 @@ private fun deleteSelected(
             if (ok) "Canciones borradas" else "No se pudieron borrar todas las canciones",
             Toast.LENGTH_SHORT,
         ).show()
+    }
+}
+
+/** Compact app mark shown before the wordmark in the library header. */
+@Composable
+private fun LarkLogoMark() {
+    Box(
+        Modifier
+            .size(34.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF0A84FF), Color(0xFF5E5CE6)),
+                )
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Rounded.MusicNote,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(21.dp),
+        )
     }
 }
 

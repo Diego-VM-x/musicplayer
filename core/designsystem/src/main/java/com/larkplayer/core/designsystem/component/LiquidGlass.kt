@@ -75,7 +75,12 @@ private val GlassStroke: Brush
 /** Solid, refined charcoal sheet background. */
 val GlassSheetColor = Color(0xFF1A1B1F)
 
-/** Floating circular tactile button with ambient depth. */
+/**
+ * Floating circular tactile button with ambient depth.
+ *
+ * [flat] renders a bare icon with ripple, matching Lark's player controls;
+ * the circular surface is kept for floating actions such as play/pause.
+ */
 @Composable
 fun GlassIconButton(
     icon: ImageVector,
@@ -86,22 +91,27 @@ fun GlassIconButton(
     iconSize: Dp = 22.dp,
     tint: Color = Color.White,
     containerAlpha: Float = 0.10f,
+    flat: Boolean = false,
 ) {
+    val base = modifier.size(size)
     Box(
-        modifier = modifier
-            .size(size)
-            .shadow(8.dp, CircleShape, clip = false)
-            .clip(CircleShape)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFF2E2F35),
-                        Color(0xFF202126),
+        modifier = if (flat) {
+            base.clip(CircleShape).clickable(onClick = onClick)
+        } else {
+            base
+                .shadow(8.dp, CircleShape, clip = false)
+                .clip(CircleShape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF2E2F35),
+                            Color(0xFF202126),
+                        )
                     )
                 )
-            )
-            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), CircleShape)
-            .clickable(onClick = onClick),
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), CircleShape)
+                .clickable(onClick = onClick)
+        },
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription, tint = tint, modifier = Modifier.size(iconSize))
