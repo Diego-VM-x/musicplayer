@@ -81,8 +81,10 @@ fun MusicVisualizerSheet(
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = accent,
-                        uncheckedThumbColor = Color(0xFFC0C0C4),
-                        uncheckedTrackColor = Color.White.copy(alpha = 0.20f),
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color(0xFF47474C),
+                        uncheckedBorderColor = Color.Transparent,
                     ),
                 )
             }

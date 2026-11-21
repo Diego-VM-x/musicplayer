@@ -332,9 +332,22 @@ fun PlayerScreen(
                 ),
                 modifier = Modifier.fillMaxWidth().height(24.dp),
             )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatTime(state.position), color = Color(0xFF8E8E95), fontSize = 11.5.sp)
-                Text(formatTime(state.duration), color = Color(0xFF8E8E95), fontSize = 11.5.sp)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    formatTime(state.position),
+                    color = Color(0xFF8E8E95),
+                    fontSize = 11.5.sp,
+                    modifier = Modifier.padding(start = 2.dp),
+                )
+                Text(
+                    formatTime(state.duration),
+                    color = Color(0xFF8E8E95),
+                    fontSize = 11.5.sp,
+                    modifier = Modifier.padding(end = 2.dp),
+                )
             }
 
             Spacer(Modifier.height(20.dp))
@@ -353,22 +366,32 @@ fun PlayerScreen(
                     else -> Icons.Rounded.Repeat to "Normal"
                 }
                 val modeActive = currentMode != com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL
-                GlassIconButton(
-                    icon = modeIcon,
-                    contentDescription = modeDesc,
-                    onClick = {
-                        val nextMode = when (currentMode) {
-                            com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL -> com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL
-                            com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL -> com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE
-                            com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE -> com.larkplayer.feature.player.PlayerRepository.MODE_SHUFFLE
-                            else -> com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL
-                        }
-                        viewModel.setPlaybackMode(nextMode)
-                    },
-                    size = 46.dp,
-                    iconSize = 24.dp,
-                    tint = if (modeActive) accent else Color.White.copy(alpha = 0.65f),
+                val modeBtnScale by animateFloatAsState(
+                    targetValue = if (modeActive) 1.08f else 1.0f,
+                    animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
+                    label = "mode_btn_scale",
                 )
+                Box(
+                    modifier = Modifier.scale(modeBtnScale)
+                ) {
+                    GlassIconButton(
+                        icon = modeIcon,
+                        contentDescription = modeDesc,
+                        onClick = {
+                            val nextMode = when (currentMode) {
+                                com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL -> com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL
+                                com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL -> com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE
+                                com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE -> com.larkplayer.feature.player.PlayerRepository.MODE_SHUFFLE
+                                else -> com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL
+                            }
+                            viewModel.setPlaybackMode(nextMode)
+                        },
+                        size = 46.dp,
+                        iconSize = 24.dp,
+                        tint = if (modeActive) accent else Color.White.copy(alpha = 0.50f),
+                        containerAlpha = if (modeActive) 0.22f else 0.08f,
+                    )
+                }
 
                 GlassIconButton(
                     Icons.Rounded.SkipPrevious,
@@ -431,7 +454,7 @@ fun PlayerScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 6.dp, top = 12.dp),
+                    .padding(bottom = 12.dp, top = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 PlayerBottomAction(

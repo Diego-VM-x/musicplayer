@@ -9,6 +9,16 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 - Commit `fc8f044` (réplica de diseños/funciones) y `e22f068` (APK) enviados a `origin/master`.
 - Release pública `v1.0.9` con el asset `musicplayer-10.apk` (23.052.280 bytes, `versionCode` 10, SHA-256 `2603f7c19e7485296442478606ead31a031eb13946dd3cdccfef4db6821fb8f8`). Publicada mediante la API de GitHub con las credenciales del repositorio, sin abrir el navegador.
 
+## 2026-11-21 — Fase 24: corrección de márgenes, espaciados y retroalimentación On/Off
+
+- **Retroalimentación animada On/Off en modo de reproducción**:
+  - `PlayerScreen.kt`: botón de cambio de modo con micro-animación de escala (`1.08f` activo vs `1.0f` inactivo) y mayor contraste de fondo (`containerAlpha = 0.22f` cuando está activo vs `0.08f` inactivo).
+  - `MusicVisualizerSheet.kt`: Switch con colores fieles y contraste sólido (blanco + color de acento y gris neutro `0xFF47474C` en OFF con bordes limpios).
+- **Ajustes de márgenes y espaciados**:
+  - Ampliado el espacio de la barra inferior de acciones (Ecualizador, Letras, A continuación) a `top = 16.dp, bottom = 12.dp` para evitar que quede pegada a la botonera principal o al borde del dispositivo.
+  - Añadido margen horizontal a los textos de tiempo transcurrido y duración (`0:00` / `3:45`) para no rozar los bordes de la pantalla.
+- **Incremento a VersionCode 12 (`1.0.11-clean`)**: build exitoso con APK listo para distribución.
+
 ## 2026-11-21 — Fase 23: animaciones de desplazamiento, gestos swipe y sincronización de aleatorio
 
 - **Desplazamiento horizontal de canciones (Swipe en Player)**:
