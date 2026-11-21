@@ -4,6 +4,11 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 23: publicación v10
+
+- Commit `fc8f044` (réplica de diseños/funciones) y `e22f068` (APK) enviados a `origin/master`.
+- Release pública `v1.0.9` con el asset `musicplayer-10.apk` (23.052.280 bytes, `versionCode` 10, SHA-256 `2603f7c19e7485296442478606ead31a031eb13946dd3cdccfef4db6821fb8f8`). Publicada mediante la API de GitHub con las credenciales del repositorio, sin abrir el navegador.
+
 ## 2026-11-21 — Fase 22: réplica exacta de diseños y funciones del Lark Player original
 
 - **Visualizador de música interactivo (`MusicVisualizerSheet.kt` y `VisualizerWave`)**:
