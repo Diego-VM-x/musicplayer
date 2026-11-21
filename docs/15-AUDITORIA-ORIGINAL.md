@@ -33,6 +33,15 @@ jerarquía, código y recursos, no de ejecución en dispositivo.
 - `PlaybackService.kt`: la X ya no usa `exitProcess(0)`.
 - `PlaybackSettingsScreen.kt`: descripción del crossfade ajustada a lo que hace realmente.
 
+## Ajuste posterior (v16)
+
+- Reproductor reordenado: scroll + espaciado constante, carátula cuadrada ≤ 224 dp y controles uniformes
+  (52/72/44/40 dp) con márgenes de 16 dp. Evita que el título quede encima de la carátula/placeholder y
+  que los botones queden desproporcionados en pantallas bajas.
+- Arrastre con elevación: `DetailSongRow` (playlist) y `QueueScreen` (cola) usan `graphicsLayer` con
+  `scale`, `shadowElevation` y `translationY` animados por `spring`; la fila se levanta al mantener pulsado
+  y acompaña al dedo mientras el orden se recalcula y persiste en cada paso.
+
 ## Pendiente / no replicado a propósito
 
 - **Videos / MV**: la pestaña sigue vacía y no existe la acción `action_mv` (el original la muestra solo

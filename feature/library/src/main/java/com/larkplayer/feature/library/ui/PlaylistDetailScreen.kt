@@ -6,10 +6,13 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,13 +35,12 @@ import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.QueuePlayNext
+import androidx.compose.material.icons.rounded.Reorder
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SwapVert
@@ -50,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -57,8 +60,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -111,6 +117,17 @@ fun PlaylistDetailScreen(
     var targetSheet by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var addSelected by remember { mutableStateOf(emptySet<Long>()) }
+
+    // Manual reorder: a local copy keeps the list responsive while the finger
+    // moves a lifted row. The ViewModel persists each swap as it happens.
+    var displayOrder by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var draggingId by remember { mutableStateOf<Long?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val rowPx = with(density) { 66.dp.toPx() }
+    LaunchedEffect(state.songs, draggingId) {
+        if (draggingId == null) displayOrder = state.songs
+    }
 
     // The editor (including cover cropping) is a full-screen flow: hide the
     // floating mini-player while it is open.
@@ -190,15 +207,15 @@ fun PlaylistDetailScreen(
                             onShuffle = { viewModel.shuffleAll(); onOpenPlayer() },
                         )
                     }
-                    itemsIndexed(state.songs, key = { _, song -> song.id }) { index, song ->
+                    itemsIndexed(displayOrder, key = { _, song -> song.id }) { index, song ->
                         DetailSongRow(
                             song = song,
                             accent = accent,
                             manualOrder = state.sortMode == 3,
+                            lifted = draggingId == song.id,
+                            dragOffsetY = dragOffsetY,
                             selected = song.id in state.selectedIds,
                             selectionMode = state.selectionMode,
-                            canMoveUp = index > 0,
-                            canMoveDown = index < state.songs.lastIndex,
                             onClick = {
                                 if (state.selectionMode) viewModel.toggleSelection(song.id)
                                 else {
@@ -207,8 +224,32 @@ fun PlaylistDetailScreen(
                                 }
                             },
                             onLongClick = { viewModel.enterSelection(song.id) },
-                            onMoveUp = { viewModel.moveSong(index, index - 1) },
-                            onMoveDown = { viewModel.moveSong(index, index + 1) },
+                            onDragStart = {
+                                draggingId = song.id
+                                dragOffsetY = 0f
+                            },
+                            onDrag = { amount ->
+                                dragOffsetY += amount
+                                val steps = (dragOffsetY / rowPx).toInt()
+                                if (steps != 0) {
+                                    val from = displayOrder.indexOfFirst { it.id == song.id }
+                                    if (from >= 0) {
+                                        val target = (from + steps).coerceIn(0, displayOrder.lastIndex)
+                                        if (target != from) {
+                                            displayOrder = displayOrder.toMutableList().apply {
+                                                add(target, removeAt(from))
+                                            }
+                                            viewModel.moveSong(from, target)
+                                            dragOffsetY -= (target - from) * rowPx
+                                        }
+                                    }
+                                }
+                            },
+                            onDragEnd = {
+                                draggingId = null
+                                dragOffsetY = 0f
+                                displayOrder = state.songs
+                            },
                         )
                     }
                     if (state.playlist != null && state.songs.isEmpty()) {
@@ -569,14 +610,15 @@ private fun DetailSongRow(
     song: Song,
     accent: Color,
     manualOrder: Boolean,
+    lifted: Boolean,
+    dragOffsetY: Float,
     selected: Boolean,
     selectionMode: Boolean,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit,
 ) {
     val context = LocalContext.current
     var hasLyrics by remember(song.path) { mutableStateOf(false) }
@@ -584,13 +626,44 @@ private fun DetailSongRow(
         hasLyrics = withContext(Dispatchers.IO) { MediaFileUtils.hasLocalLyrics(context, song) }
     }
 
+    // Spring-driven lift: the row grows slightly, gains a shadow and follows
+    // the finger with a smooth spring instead of jumping between positions.
+    val liftScale by animateFloatAsState(
+        targetValue = if (lifted) 1.035f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 420f),
+        label = "playlist_row_lift",
+    )
+    val animatedY by animateFloatAsState(
+        targetValue = if (lifted) dragOffsetY else 0f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = 520f),
+        label = "playlist_row_drag",
+    )
+    val elevation = with(LocalDensity.current) {
+        if (lifted) 18.dp.toPx() else 0f
+    }
+
     Row(
         Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                translationY = animatedY
+                scaleX = liftScale
+                scaleY = liftScale
+                shadowElevation = elevation
+            }
             .padding(horizontal = 16.dp, vertical = 1.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) accent.copy(alpha = 0.12f) else Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .background(
+                when {
+                    lifted -> Color(0xEF2D2E36)
+                    selected -> accent.copy(alpha = 0.12f)
+                    else -> Color.Transparent
+                }
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = if (manualOrder) null else onLongClick,
+            )
             .height(64.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -639,11 +712,29 @@ private fun DetailSongRow(
             }
         }
         if (manualOrder) {
-            IconButton(onClick = onMoveUp, enabled = canMoveUp, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Rounded.KeyboardArrowUp, "Subir", tint = Color(0xFFAFAFB6), modifier = Modifier.size(20.dp))
-            }
-            IconButton(onClick = onMoveDown, enabled = canMoveDown, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Rounded.KeyboardArrowDown, "Bajar", tint = Color(0xFFAFAFB6), modifier = Modifier.size(20.dp))
+            // Right-side long-press handle: press and drag to lift the row.
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .pointerInput(song.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { onDragStart() },
+                            onDragEnd = { onDragEnd() },
+                            onDragCancel = { onDragEnd() },
+                        ) { change, amount ->
+                            change.consume()
+                            onDrag(amount.y)
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.Reorder,
+                    "Mantén pulsado y arrastra para reordenar",
+                    tint = if (lifted) accent else Color(0xFF9A9AA2),
+                    modifier = Modifier.size(22.dp),
+                )
             }
         }
     }

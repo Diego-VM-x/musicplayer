@@ -1,6 +1,8 @@
 package com.larkplayer.feature.player.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -48,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -88,6 +91,7 @@ fun QueueScreen(
     // Local copy so drag-to-reorder animates smoothly; synced from the player.
     var displayOrder by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     var dragging by remember { mutableStateOf(false) }
+    var draggingId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(queue) {
         if (!dragging) displayOrder = queue
     }
@@ -167,12 +171,36 @@ fun QueueScreen(
                     ) { index, item ->
                         val isCurrent = item.mediaId != null && item.mediaId == currentId
                         var dragY by remember(item.mediaId) { mutableFloatStateOf(0f) }
+                        val lifted = draggingId == item.mediaId
+                        val liftScale by animateFloatAsState(
+                            targetValue = if (lifted) 1.035f else 1f,
+                            animationSpec = spring(dampingRatio = 0.7f, stiffness = 420f),
+                            label = "queue_row_lift",
+                        )
+                        val animatedY by animateFloatAsState(
+                            targetValue = if (lifted) dragY else 0f,
+                            animationSpec = spring(dampingRatio = 0.65f, stiffness = 520f),
+                            label = "queue_row_drag",
+                        )
+                        val elevationPx = with(density) { if (lifted) 18.dp.toPx() else 0f }
                         Row(
                             Modifier
                                 .fillMaxWidth()
+                                .graphicsLayer {
+                                    translationY = animatedY
+                                    scaleX = liftScale
+                                    scaleY = liftScale
+                                    shadowElevation = elevationPx
+                                }
                                 .padding(horizontal = 12.dp, vertical = 3.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(if (isCurrent) accentColor.copy(alpha = 0.16f) else Color.Transparent)
+                                .background(
+                                    when {
+                                        lifted -> Color(0xEF2D2E36)
+                                        isCurrent -> accentColor.copy(alpha = 0.16f)
+                                        else -> Color.Transparent
+                                    }
+                                )
                                 .clickable {
                                     val original = viewModel.originalIndex(item.mediaId)
                                     viewModel.playAtIndex(if (original >= 0) original else index)
@@ -221,9 +249,21 @@ fun QueueScreen(
                                     .clip(RoundedCornerShape(10.dp))
                                     .pointerInput(item.mediaId) {
                                         detectDragGesturesAfterLongPress(
-                                            onDragStart = { dragging = true; dragY = 0f },
-                                            onDragEnd = { dragging = false },
-                                            onDragCancel = { dragging = false },
+                                            onDragStart = {
+                                                dragging = true
+                                                draggingId = item.mediaId
+                                                dragY = 0f
+                                            },
+                                            onDragEnd = {
+                                                dragging = false
+                                                draggingId = null
+                                                dragY = 0f
+                                            },
+                                            onDragCancel = {
+                                                dragging = false
+                                                draggingId = null
+                                                dragY = 0f
+                                            },
                                         ) { change, dragAmount ->
                                             change.consume()
                                             dragY += dragAmount.y
@@ -242,7 +282,7 @@ fun QueueScreen(
                                                             add(target, removeAt(liveFrom))
                                                         }
                                                         viewModel.moveQueueItemById(movingId, targetId)
-                                                        dragY = 0f
+                                                        dragY -= (target - liveFrom) * rowPx
                                                     }
                                                 }
                                             }
@@ -253,7 +293,7 @@ fun QueueScreen(
                                 Icon(
                                     Icons.Rounded.Reorder,
                                     "Arrastrar para reordenar",
-                                    tint = Color(0xFF9A9AA2),
+                                    tint = if (lifted) accentColor else Color(0xFF9A9AA2),
                                     modifier = Modifier.size(22.dp),
                                 )
                             }

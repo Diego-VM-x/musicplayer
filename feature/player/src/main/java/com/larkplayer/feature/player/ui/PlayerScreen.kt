@@ -27,6 +27,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +38,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -229,29 +232,33 @@ fun PlayerScreen(
     val currentMode = viewModel.currentPlaybackMode()
     val speedVisible = abs(state.playbackSpeed - 1f) > 0.01f
 
-    LarkGradientBackground(accent = accent, strength = 0.46f) {
+    LarkGradientBackground(accent = accent, strength = 0.34f) {
         Column(
             Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragEnd = {
-                            if (dragDown > 120f) onBack()
-                            dragDown = 0f
-                        },
-                        onDragCancel = { dragDown = 0f },
-                    ) { _, dragAmount ->
-                        dragDown += dragAmount
-                    }
-                }
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 10.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(top = 2.dp, bottom = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // ---- Drag-down handle (the original player has no top bar) ----
+            // The gesture lives only on the handle so it never fights the scroll.
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(30.dp),
+                    .height(26.dp)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragEnd = {
+                                if (dragDown > 90f) onBack()
+                                dragDown = 0f
+                            },
+                            onDragCancel = { dragDown = 0f },
+                        ) { _, dragAmount ->
+                            dragDown += dragAmount
+                        }
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -259,7 +266,7 @@ fun PlayerScreen(
                     contentDescription = "Cerrar reproductor",
                     tint = Color.White.copy(alpha = 0.55f),
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(30.dp)
                         .clip(CircleShape)
                         .clickable(onClick = onBack),
                 )
@@ -275,7 +282,7 @@ fun PlayerScreen(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 239.dp)
+                    .widthIn(max = 224.dp)
                     .aspectRatio(1f)
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures(
@@ -307,8 +314,8 @@ fun PlayerScreen(
                         Modifier
                             .fillMaxSize()
                             .scale(artworkScale)
-                            .shadow(if (state.isPlaying) 28.dp else 16.dp, RoundedCornerShape(26.dp))
-                            .clip(RoundedCornerShape(26.dp))
+                            .shadow(if (state.isPlaying) 18.dp else 10.dp, RoundedCornerShape(22.dp))
+                            .clip(RoundedCornerShape(22.dp))
                             .background(Color(0xFF242428)),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -328,8 +335,6 @@ fun PlayerScreen(
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
-
             // ---- Title + artist, with favourite and overflow on the right ----
             Row(
                 Modifier.fillMaxWidth(),
@@ -347,19 +352,19 @@ fun PlayerScreen(
                         Text(
                             titleText,
                             color = Color.White,
-                            fontSize = 23.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 2,
-                            lineHeight = 27.sp,
+                            lineHeight = 24.sp,
                             overflow = TextOverflow.Ellipsis,
                             letterSpacing = (-0.3).sp,
                         )
                     }
-                    Spacer(Modifier.height(3.dp))
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         state.artist.ifBlank { "Artista desconocido" },
                         color = Color(0xFFB9B9C0),
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -368,7 +373,7 @@ fun PlayerScreen(
                     if (state.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     if (state.isFavorite) "Quitar de favoritos" else "Favorito",
                     viewModel::toggleFavorite,
-                    size = 42.dp,
+                    size = 44.dp,
                     iconSize = 23.dp,
                     tint = if (state.isFavorite) accent else Color.White,
                     flat = true,
@@ -378,7 +383,7 @@ fun PlayerScreen(
                         Icons.Rounded.MoreVert,
                         "Más opciones",
                         { menuOpen = true },
-                        size = 38.dp,
+                        size = 40.dp,
                         iconSize = 23.dp,
                         tint = Color.White.copy(alpha = 0.78f),
                         flat = true,
@@ -427,19 +432,16 @@ fun PlayerScreen(
                 }
             }
 
-            Spacer(Modifier.weight(1f))
-
             if (state.visualizerEnabled) {
                 VisualizerWave(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .height(42.dp)
                         .clickable { visualizerSheetOpen = true },
                     accent = accent,
                     isPlaying = state.isPlaying,
                     style = state.visualizerStyle,
                 )
-                Spacer(Modifier.height(10.dp))
             }
 
             // Speed is only shown when it differs from 1x, like the original.
@@ -484,7 +486,7 @@ fun PlayerScreen(
                     activeTrackColor = accent,
                     inactiveTrackColor = Color.White.copy(alpha = 0.20f),
                 ),
-                modifier = Modifier.fillMaxWidth().height(24.dp),
+                modifier = Modifier.fillMaxWidth().height(20.dp),
             )
             Row(
                 Modifier.fillMaxWidth(),
@@ -493,31 +495,29 @@ fun PlayerScreen(
                 Text(
                     formatTime(state.position),
                     color = Color(0xFF8E8E95),
-                    fontSize = 11.5.sp,
+                    fontSize = 11.sp,
                     modifier = Modifier.padding(start = 2.dp),
                 )
                 Text(
                     formatTime(state.duration),
                     color = Color(0xFF8E8E95),
-                    fontSize = 11.5.sp,
+                    fontSize = 11.sp,
                     modifier = Modifier.padding(end = 2.dp),
                 )
             }
 
-            Spacer(Modifier.height(18.dp))
-
             // ---- Transport: previous / play / next only ----
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(30.dp, Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.spacedBy(26.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 GlassIconButton(
                     Icons.Rounded.SkipPrevious,
                     "Anterior",
                     viewModel::skipPrevious,
-                    size = 54.dp,
-                    iconSize = 34.dp,
+                    size = 52.dp,
+                    iconSize = 31.dp,
                     tint = accent,
                     flat = true,
                 )
@@ -528,9 +528,9 @@ fun PlayerScreen(
                 )
                 Box(
                     Modifier
-                        .size(76.dp)
+                        .size(72.dp)
                         .scale(playButtonScale)
-                        .shadow(16.dp, CircleShape, clip = false)
+                        .shadow(12.dp, CircleShape, clip = false)
                         .clip(CircleShape)
                         .background(
                             Brush.verticalGradient(
@@ -546,7 +546,7 @@ fun PlayerScreen(
                             if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             if (playing) "Pausar" else "Reproducir",
                             tint = accent,
-                            modifier = Modifier.size(46.dp),
+                            modifier = Modifier.size(42.dp),
                         )
                     }
                 }
@@ -554,20 +554,16 @@ fun PlayerScreen(
                     Icons.Rounded.SkipNext,
                     "Siguiente",
                     viewModel::skipNext,
-                    size = 54.dp,
-                    iconSize = 34.dp,
+                    size = 52.dp,
+                    iconSize = 31.dp,
                     tint = accent,
                     flat = true,
                 )
             }
 
-            Spacer(Modifier.weight(1f))
-
             // ---- EQ / Letras / queue (mode badge lives on the queue icon) ----
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 6.dp),
+                Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
@@ -576,7 +572,7 @@ fun PlayerScreen(
                         "Ecualizador",
                         onEqualizer,
                         size = 44.dp,
-                        iconSize = 24.dp,
+                        iconSize = 23.dp,
                         tint = ApplePalette.TextSecondary,
                         flat = true,
                     )
@@ -590,8 +586,8 @@ fun PlayerScreen(
                             Icons.Rounded.QueueMusic,
                             "A continuación",
                             onQueue,
-                            size = 46.dp,
-                            iconSize = 24.dp,
+                            size = 44.dp,
+                            iconSize = 23.dp,
                             tint = ApplePalette.TextSecondary,
                             flat = true,
                         )

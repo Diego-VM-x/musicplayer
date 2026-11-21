@@ -4,6 +4,22 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 29: orden visual del reproductor y arrastre elevado (v16)
+
+- **`PlayerScreen.kt`**: reorganizado el reproductor para evitar elementos solapados y márgenes excesivos.
+  - El contenido ahora es una columna con scroll y espaciado uniforme (`Arrangement.spacedBy(12.dp)`), sin
+    espaciadores `weight` que comprimieran la pantalla cuando faltaba altura.
+  - Carátula cuadrada de hasta 224 dp centrada (antes podía crecer hasta el ancho de la pantalla y empujar
+    el título sobre la carátula/placeholder).
+  - Título 20 sp / 2 líneas, artista 13 sp, controles uniformes: 52 dp (anterior/siguiente), 72 dp (play),
+    44 dp (favorito, EQ, cola), 40 dp (más opciones); márgenes laterales 16 dp.
+  - El gesto de cerrar se movió solo al chevron para no pelear con el scroll; el lavado de acento bajó a 0.34.
+- **`PlaylistDetailScreen.kt`**: el orden manual ya no usa flechas; la fila tiene un tirador a la derecha que,
+  al mantener pulsado, **se eleva** (escala 1.035, sombra 18 dp, fondo opaco) y sigue el dedo con un `spring`.
+  Los intercambios se aplican en vivo y se persisten con `moveSong`.
+- **`QueueScreen.kt`**: el mismo efecto de elevación y seguimiento animado al arrastrar canciones de la cola.
+- `versionCode` 16 / `1.0.15-clean`; `assembleDebug` → BUILD SUCCESSFUL.
+
 ## 2026-11-21 — Fase 28: fidelidad al reproductor original y acciones funcionales (v15)
 
 Dos commits: el primero ajusta la interfaz al APK original; el segundo conecta las acciones que antes no hacían nada.
