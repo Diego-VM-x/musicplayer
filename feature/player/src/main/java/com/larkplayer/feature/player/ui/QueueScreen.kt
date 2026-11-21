@@ -1,5 +1,12 @@
 package com.larkplayer.feature.player.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,7 +63,7 @@ fun QueueScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val accentInt by viewModel.accent.collectAsStateWithLifecycle()
-    val queue = viewModel.queue()
+    val queue = viewModel.visibleQueue(state.shuffle)
     val current = viewModel.currentIndex()
     val accentColor = Color(accentInt)
 
@@ -87,55 +94,68 @@ fun QueueScreen(
             )
             Spacer(Modifier.height(12.dp))
 
-            LazyColumn(
+            val currentId = viewModel.queue().getOrNull(current)?.mediaId
+            AnimatedContent(
+                targetState = state.shuffle,
+                transitionSpec = {
+                    (fadeIn(tween(220)) + slideInVertically { it / 12 }) togetherWith
+                        (fadeOut(tween(120)) + slideOutVertically { -it / 12 })
+                },
                 modifier = Modifier.weight(1f),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp),
-            ) {
-                itemsIndexed(queue) { index, item ->
-                    val isCurrent = index == current
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 3.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isCurrent) accentColor.copy(alpha = 0.16f) else Color.Transparent)
-                            .clickable { viewModel.playAtIndex(index) }
-                            .padding(horizontal = 8.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            Modifier.size(46.dp).clip(RoundedCornerShape(9.dp)).background(Color(0xFF2A2A2E)),
-                            contentAlignment = Alignment.Center,
+            ) { shuffled ->
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp),
+                ) {
+                    itemsIndexed(queue) { index, item ->
+                        val isCurrent = item.mediaId != null && item.mediaId == currentId
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 3.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isCurrent) accentColor.copy(alpha = 0.16f) else Color.Transparent)
+                                .clickable {
+                                    val original = viewModel.originalIndex(item.mediaId)
+                                    viewModel.playAtIndex(if (original >= 0) original else index)
+                                }
+                                .padding(horizontal = 8.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Rounded.MusicNote, null, tint = Color(0xFF6F6F76), modifier = Modifier.size(20.dp))
-                            AsyncImage(
-                                model = item.mediaMetadata.artworkUri,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                        Spacer(Modifier.width(13.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                item.mediaMetadata.title?.toString() ?: "Desconocido",
-                                color = if (isCurrent) accentColor else Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                item.mediaMetadata.artist?.toString() ?: "",
-                                color = ApplePalette.TextSecondary,
-                                fontSize = 11.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (isCurrent) {
-                            Text("SONANDO", color = accentColor, fontSize = 9.sp, letterSpacing = 0.6.sp)
-                            Spacer(Modifier.width(4.dp))
+                            Box(
+                                Modifier.size(46.dp).clip(RoundedCornerShape(9.dp)).background(Color(0xFF2A2A2E)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Rounded.MusicNote, null, tint = Color(0xFF6F6F76), modifier = Modifier.size(20.dp))
+                                AsyncImage(
+                                    model = item.mediaMetadata.artworkUri,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                            Spacer(Modifier.width(13.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    item.mediaMetadata.title?.toString() ?: "Desconocido",
+                                    color = if (isCurrent) accentColor else Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    item.mediaMetadata.artist?.toString() ?: "",
+                                    color = ApplePalette.TextSecondary,
+                                    fontSize = 11.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (isCurrent) {
+                                Text("SONANDO", color = accentColor, fontSize = 9.sp, letterSpacing = 0.6.sp)
+                                Spacer(Modifier.width(4.dp))
+                            }
                         }
                     }
                 }

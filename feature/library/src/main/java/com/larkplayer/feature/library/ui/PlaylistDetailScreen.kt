@@ -47,6 +47,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,6 +86,7 @@ import com.larkplayer.core.designsystem.component.SelectionAction
 import com.larkplayer.core.designsystem.component.SoftCheck
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.core.model.Song
+import com.larkplayer.feature.player.ui.MiniPlayerOverlay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -109,6 +111,13 @@ fun PlaylistDetailScreen(
     var targetSheet by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var addSelected by remember { mutableStateOf(emptySet<Long>()) }
+
+    // The editor (including cover cropping) is a full-screen flow: hide the
+    // floating mini-player while it is open.
+    DisposableEffect(editing) {
+        MiniPlayerOverlay.setVisible(!editing)
+        onDispose { MiniPlayerOverlay.setVisible(true) }
+    }
 
     LaunchedEffect(state.playlist?.coverUri, state.songs.firstOrNull()?.albumId) {
         val uri = state.playlist?.coverUri

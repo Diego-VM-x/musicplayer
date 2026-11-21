@@ -32,7 +32,7 @@ data class PlayerUiState(
     val position: Long = 0L,
     val duration: Long = 0L,
     val shuffle: Boolean = false,
-    val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val repeatMode: Int = Player.REPEAT_MODE_ALL,
     val playbackSpeed: Float = 1f,
     val isFavorite: Boolean = false,
 )
@@ -135,6 +135,8 @@ class PlayerViewModel @Inject constructor(
     val sleepTimerRemaining = repository.sleepTimerRemaining
 
     fun queue() = repository.currentQueue()
+    fun visibleQueue(shuffle: Boolean) = repository.displayQueue(shuffle)
+    fun originalIndex(mediaId: String?) = repository.originalIndex(mediaId)
     fun currentIndex() = repository.currentIndex()
     fun playAtIndex(index: Int) = repository.playAtIndex(index)
     fun removeFromQueue(index: Int) = repository.removeFromQueue(index)

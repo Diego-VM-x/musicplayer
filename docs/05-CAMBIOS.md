@@ -4,6 +4,13 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 16: repetición de cola, acento acotado y aleatorio visible
+
+- **Fin de lista**: `REPEAT_MODE_ALL` es el modo por defecto (`SettingsDataStore` y `PlayerViewModel`), así la cola vuelve a empezar al terminar en vez de detenerse.
+- **Acento por canción acotado**: la biblioteca usa un color fijo; solo el reproductor y el mini-player toman el color de la carátula.
+- **Mini-player global**: se renderiza en la capa de navegación y aparece en todas las vistas salvo el reproductor, los ajustes y el editor de playlist (incluido el recorte de portada, que lo oculta vía `MiniPlayerOverlay`).
+- **Aleatorio visible**: `PlayerRepository.displayQueue()` devuelve un orden barajado determinista mientras shuffle está activo; la cola lo muestra con animación y, al desactivar shuffle, recupera el orden original. Las pulsaciones se mapean al índice real del `MediaController`.
+
 ## 2026-11-21 — Fase 15: actualizador fijo y optimizaciones REA
 
 - **Actualizador**: repositorio `Diego-VM-x/musicplayer` fijado en `AppUpdate.GITHUB_REPO`; eliminado por completo el campo editable de Ajustes → Actualizaciones. Consulta `/releases` (no `/releases/latest`) y elige el release público más reciente; un repo sin releases devuelve «sin novedades» en vez de error. Filtra drafts/prereleases y extrae versión del asset, del body, del tag o del nombre. Descarga automática activa por defecto, sin exigir SHA-256.

@@ -59,7 +59,8 @@ class SettingsDataStore @Inject constructor(
     }
 
     val shuffle: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.SHUFFLE] ?: false }
-    val repeatMode: Flow<Int> = context.settingsDataStore.data.map { p -> p[Keys.REPEAT_MODE] ?: 0 }
+    // REPEAT_MODE_ALL: finishing a queue starts it again instead of stopping.
+    val repeatMode: Flow<Int> = context.settingsDataStore.data.map { p -> p[Keys.REPEAT_MODE] ?: 1 }
     val playbackSpeed: Flow<Float> = context.settingsDataStore.data.map { p -> p[Keys.PLAYBACK_SPEED] ?: 1f }
     val gapless: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.GAPLESS] ?: true }
     val playWithOthers: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.PLAY_WITH_OTHERS] ?: true }

@@ -133,8 +133,9 @@ fun LibraryScreen(
     playerViewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val accentInt by playerViewModel.accent.collectAsStateWithLifecycle()
-    val accent = Color(accentInt)
+    // The library keeps a stable look; the artwork accent is used only by the
+    // full player and the floating mini-player.
+    val accent = ApplePalette.Blue
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 

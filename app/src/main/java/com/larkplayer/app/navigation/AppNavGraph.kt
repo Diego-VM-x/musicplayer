@@ -42,6 +42,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.larkplayer.core.designsystem.theme.ApplePalette
@@ -56,6 +57,7 @@ import android.view.WindowManager
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larkplayer.feature.player.ui.MiniPlayer
+import com.larkplayer.feature.player.ui.MiniPlayerOverlay
 import com.larkplayer.feature.player.ui.PlayerScreen
 import com.larkplayer.feature.player.ui.PlayerViewModel
 import com.larkplayer.feature.player.ui.QueueScreen
@@ -95,6 +97,22 @@ private object Routes {
     const val UPDATES = "updates"
 }
 
+private val MINI_PLAYER_HIDDEN_ROUTES = setOf(
+    Routes.PLAYER,
+    Routes.SETTINGS,
+    Routes.PLAY_TIME,
+    Routes.BACKUP,
+    Routes.HIDDEN_FILES,
+    Routes.RECENTLY_DELETED,
+    Routes.PLAYBACK_SETTINGS,
+    Routes.NOTIFICATIONS,
+    Routes.LANGUAGE,
+    Routes.THEME,
+    Routes.ABOUT,
+    Routes.FEEDBACK,
+    Routes.UPDATES,
+)
+
 @Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
@@ -111,6 +129,12 @@ fun AppNavGraph() {
         onDispose { activity?.window?.clearFlags(flag) }
     }
 
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val miniAllowed = MiniPlayerOverlay.visible.collectAsStateWithLifecycle().value &&
+        currentRoute !in MINI_PLAYER_HIDDEN_ROUTES
+
+    Box(Modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
         startDestination = Routes.LIBRARY,
@@ -176,6 +200,16 @@ fun AppNavGraph() {
         composable(Routes.FEEDBACK) { FeedbackScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.UPDATES) { UpdateSettingsScreen(onBack = { navController.popBackStack() }) }
     }
+
+        // Floating mini-player on every screen except full player, settings and
+        // the playlist editor (which hides it through MiniPlayerOverlay).
+        if (miniAllowed) {
+            MiniPlayer(
+                onOpen = { navController.navigate(Routes.PLAYER) },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+    }
 }
 
 @Composable
@@ -227,10 +261,6 @@ private fun LibraryHome(navController: NavHostController) {
                 onOpenPlayer = { navController.navigate(Routes.PLAYER) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenPlaylist = { id -> navController.navigate(Routes.playlist(id)) },
-            )
-            MiniPlayer(
-                onOpen = { navController.navigate(Routes.PLAYER) },
-                modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
     }

@@ -58,7 +58,7 @@ class PlayerRepository @Inject constructor(
     @Volatile private var crossfadeMs = 4_000L
     @Volatile private var gaplessEnabled = true
     @Volatile private var desiredShuffle = false
-    @Volatile private var desiredRepeat = Player.REPEAT_MODE_OFF
+    @Volatile private var desiredRepeat = Player.REPEAT_MODE_ALL
     @Volatile private var desiredSpeed = 1f
     @Volatile private var fadeInUntil = 0L
     private var lastMediaId: String? = null
@@ -254,6 +254,26 @@ class PlayerRepository @Inject constructor(
     fun currentIndex(): Int {
         val c = _controller.value ?: return -1
         return runCatching { c.currentMediaItemIndex }.getOrDefault(-1)
+    }
+
+    /**
+     * Deterministic shuffled view of the queue. The same queue always yields the
+     * same order while shuffle is on, so the user can see the swap and it does
+     * not reshuffle on every recomposition. Turning shuffle off restores the
+     * original order.
+     */
+    fun displayQueue(shuffle: Boolean): List<MediaItem> {
+        val items = currentQueue()
+        if (!shuffle || items.size < 2) return items
+        val seed = items.fold(0L) { acc, item ->
+            acc * 31L + (item.mediaId?.toLongOrNull() ?: item.hashCode().toLong())
+        }
+        return items.shuffled(java.util.Random(seed))
+    }
+
+    fun originalIndex(mediaId: String?): Int {
+        if (mediaId == null) return -1
+        return currentQueue().indexOfFirst { it.mediaId == mediaId }
     }
 
     fun playAtIndex(index: Int) = withController { c ->
