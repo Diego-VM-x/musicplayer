@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -182,7 +183,7 @@ fun PlaylistDetailScreen(
 
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(bottom = 110.dp),
+                    contentPadding = PaddingValues(bottom = 96.dp),
                 ) {
                     item {
                         PlaylistHero(
@@ -274,6 +275,40 @@ fun PlaylistDetailScreen(
                         }
                     }
                 }
+            }
+        }
+
+        if (!state.selectionMode) {
+            // Fixed bottom actions replace the old empty gap reserved for the
+            // floating mini-player, which is hidden on this screen.
+            Row(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .background(ApplePalette.Background)
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                GlassPillButton(
+                    "Reproducir",
+                    onClick = { viewModel.playAll(); onOpenPlayer() },
+                    icon = Icons.Rounded.PlayArrow,
+                    accent = accent,
+                    filled = true,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(58.dp),
+                )
+                GlassPillButton(
+                    "Aleatorio",
+                    onClick = { viewModel.shuffleAll(); onOpenPlayer() },
+                    icon = Icons.Rounded.Shuffle,
+                    accent = accent,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(58.dp),
+                )
             }
         }
 
@@ -583,24 +618,7 @@ private fun PlaylistHero(
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(26.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GlassPillButton(
-                "Reproducir",
-                onClick = onPlay,
-                icon = Icons.Rounded.PlayArrow,
-                accent = accent,
-                modifier = Modifier.weight(1f),
-            )
-            GlassPillButton(
-                "Aleatorio",
-                onClick = onShuffle,
-                icon = Icons.Rounded.Shuffle,
-                accent = accent,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(6.dp))
     }
 }
 

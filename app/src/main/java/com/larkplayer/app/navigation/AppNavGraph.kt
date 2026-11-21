@@ -28,6 +28,7 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,6 +46,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.larkplayer.core.designsystem.component.LocalFlatSurface
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.backup.ui.BackupScreen
 import com.larkplayer.feature.equalizer.ui.EqualizerScreen
@@ -101,6 +103,25 @@ private object Routes {
 
 private val MINI_PLAYER_HIDDEN_ROUTES = setOf(
     Routes.PLAYER,
+    Routes.PLAYLIST,
+    Routes.SETTINGS,
+    Routes.PLAY_TIME,
+    Routes.BACKUP,
+    Routes.HIDDEN_FILES,
+    Routes.RECENTLY_DELETED,
+    Routes.PLAYBACK_SETTINGS,
+    Routes.NOTIFICATIONS,
+    Routes.LANGUAGE,
+    Routes.THEME,
+    Routes.ABOUT,
+    Routes.FEEDBACK,
+    Routes.UPDATES,
+    Routes.MEMORIES,
+)
+
+/** Routes that use the flat (non-glass) design language. */
+private val FLAT_ROUTES = setOf(
+    Routes.PLAYLIST,
     Routes.SETTINGS,
     Routes.PLAY_TIME,
     Routes.BACKUP,
@@ -138,6 +159,7 @@ fun AppNavGraph() {
         currentRoute !in MINI_PLAYER_HIDDEN_ROUTES
 
     Box(Modifier.fillMaxSize()) {
+    CompositionLocalProvider(LocalFlatSurface provides (currentRoute in FLAT_ROUTES)) {
     NavHost(
         navController = navController,
         startDestination = Routes.LIBRARY,
@@ -209,6 +231,7 @@ fun AppNavGraph() {
                 onOpenPlayer = { navController.go(Routes.PLAYER) },
             )
         }
+    }
     }
 
         // Floating mini-player on every screen except full player, settings and

@@ -93,12 +93,16 @@ fun GlassIconButton(
     containerAlpha: Float = 0.10f,
     flat: Boolean = false,
 ) {
+    val isFlat = LocalFlatSurface.current
     val base = modifier.size(size)
     Box(
-        modifier = if (flat) {
-            base.clip(CircleShape).clickable(onClick = onClick)
-        } else {
-            base
+        modifier = when {
+            flat -> base.clip(CircleShape).clickable(onClick = onClick)
+            isFlat -> base
+                .clip(CircleShape)
+                .background(Color(0xFF1D1E23))
+                .clickable(onClick = onClick)
+            else -> base
                 .shadow(8.dp, CircleShape, clip = false)
                 .clip(CircleShape)
                 .background(
@@ -124,12 +128,22 @@ fun GlassIconCluster(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val isFlat = LocalFlatSurface.current
     Row(
         modifier = modifier
-            .shadow(12.dp, RoundedCornerShape(50), clip = false)
+            .then(
+                if (isFlat) Modifier
+                else Modifier.shadow(12.dp, RoundedCornerShape(50), clip = false)
+            )
             .clip(RoundedCornerShape(50))
-            .background(GlassFill)
-            .border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(50))
+            .background(
+                if (isFlat) Brush.linearGradient(listOf(Color(0xFF16171A), Color(0xFF16171A)))
+                else GlassFill
+            )
+            .then(
+                if (isFlat) Modifier
+                else Modifier.border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(50))
+            )
             .padding(horizontal = 6.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
@@ -169,18 +183,29 @@ fun GlassPillButton(
     accent: Color = ApplePalette.Blue,
     filled: Boolean = false,
 ) {
+    val isFlat = LocalFlatSurface.current
     Row(
         modifier = modifier
             .heightIn(min = 50.dp)
             .clip(RoundedCornerShape(50))
-            .background(if (filled) Brush.linearGradient(listOf(accent, accent)) else GlassFill)
-            .border(
-                BorderStroke(
-                    1.dp,
-                    if (filled) Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
-                    else GlassStroke,
-                ),
-                RoundedCornerShape(50),
+            .background(
+                when {
+                    isFlat && filled -> Brush.linearGradient(listOf(accent, accent))
+                    isFlat -> Brush.linearGradient(listOf(Color(0xFF24252B), Color(0xFF24252B)))
+                    filled -> Brush.linearGradient(listOf(accent, accent))
+                    else -> GlassFill
+                }
+            )
+            .then(
+                if (isFlat) Modifier
+                else Modifier.border(
+                    BorderStroke(
+                        1.dp,
+                        if (filled) Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
+                        else GlassStroke,
+                    ),
+                    RoundedCornerShape(50),
+                )
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 24.dp),
@@ -211,11 +236,18 @@ fun GlassPill(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val isFlat = LocalFlatSurface.current
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(Color(0xFF25262B))
-            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), RoundedCornerShape(50))
+            .background(if (isFlat) Color(0xFF1D1E23) else Color(0xFF25262B))
+            .then(
+                if (isFlat) Modifier
+                else Modifier.border(
+                    BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                    RoundedCornerShape(50),
+                )
+            )
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
@@ -320,14 +352,24 @@ fun LarkDialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
+        val isFlat = LocalFlatSurface.current
         Column(
             modifier = modifier
                 .fillMaxWidth()
                 .padding(horizontal = 26.dp)
-                .shadow(24.dp, RoundedCornerShape(26.dp), clip = false)
+                .then(
+                    if (isFlat) Modifier
+                    else Modifier.shadow(24.dp, RoundedCornerShape(26.dp), clip = false)
+                )
                 .clip(RoundedCornerShape(26.dp))
-                .background(Color(0xFF1E1F24))
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(26.dp))
+                .background(if (isFlat) Color(0xFF16171A) else Color(0xFF1E1F24))
+                .then(
+                    if (isFlat) Modifier
+                    else Modifier.border(
+                        BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                        RoundedCornerShape(26.dp),
+                    )
+                )
                 .padding(24.dp),
             content = content,
         )
@@ -372,15 +414,22 @@ fun GlassSelectionBar(
     actions: List<SelectionAction>,
     modifier: Modifier = Modifier,
 ) {
+    val isFlat = LocalFlatSurface.current
     Box(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = 10.dp, vertical = 10.dp)
-            .shadow(24.dp, RoundedCornerShape(26.dp), clip = false)
+            .then(
+                if (isFlat) Modifier
+                else Modifier.shadow(24.dp, RoundedCornerShape(26.dp), clip = false)
+            )
             .clip(RoundedCornerShape(26.dp))
-            .background(Color(0xF21A1A1E))
-            .border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(26.dp))
+            .background(if (isFlat) Color(0xFF16171A) else Color(0xF21A1A1E))
+            .then(
+                if (isFlat) Modifier
+                else Modifier.border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(26.dp))
+            )
             .padding(vertical = 10.dp, horizontal = 2.dp),
     ) {
         Row(
@@ -465,11 +514,18 @@ fun GlassDivider(modifier: Modifier = Modifier) {
 /** Small glass tag (LETRAS, counts…). */
 @Composable
 fun GlassTag(text: String, modifier: Modifier = Modifier) {
+    val isFlat = LocalFlatSurface.current
     Box(
         modifier
             .clip(RoundedCornerShape(5.dp))
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(BorderStroke(0.8.dp, Color.White.copy(alpha = 0.16f)), RoundedCornerShape(5.dp))
+            .background(if (isFlat) Color(0xFF2A2B31) else Color.White.copy(alpha = 0.07f))
+            .then(
+                if (isFlat) Modifier
+                else Modifier.border(
+                    BorderStroke(0.8.dp, Color.White.copy(alpha = 0.16f)),
+                    RoundedCornerShape(5.dp),
+                )
+            )
             .padding(horizontal = 4.dp, vertical = 1.dp),
     ) {
         Text(text, color = Color(0xFFC9C9D0), fontSize = 7.sp, letterSpacing = 0.4.sp)

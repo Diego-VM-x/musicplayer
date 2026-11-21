@@ -42,6 +42,16 @@ jerarquía, código y recursos, no de ejecución en dispositivo.
   `scale`, `shadowElevation` y `translationY` animados por `spring`; la fila se levanta al mantener pulsado
   y acompaña al dedo mientras el orden se recalcula y persiste en cada paso.
 
+## Ajuste posterior (v17)
+
+- El avance automático sigue el orden visible de la cola/custom ShuffleOrder, no el orden aleatorio interno
+  de ExoPlayer: se instala la orden antes de habilitar shuffle y se corrige cualquier transición `AUTO` que no
+  coincida con el siguiente esperado.
+- La pantalla de playlist oculta la mini-reproductora, elimina el padding inferior vacío y usa una barra fija
+  con botones de 58 dp (Reproducir / Aleatorio).
+- Playlist y ajustes usan un `CompositionLocal` de superficie plana: sin degradados, bordes ni sombras; el
+  reproductor mantiene su estilo.
+
 ## Pendiente / no replicado a propósito
 
 - **Videos / MV**: la pestaña sigue vacía y no existe la acción `action_mv` (el original la muestra solo

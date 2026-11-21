@@ -4,6 +4,24 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 30: avance por orden, barra inferior y diseño plano (v17)
+
+- **Avance correcto al terminar una canción** (`PlayerRepository.kt`):
+  - `sendShuffleOrder()` instala el orden personalizado **antes** de activar `shuffleModeEnabled`; antes se activaba
+    primero el shuffle y ExoPlayer generaba un orden aleatorio propio que podía avanzar la pista.
+  - Listener de transiciones: si con shuffle activo ExoPlayer elige un tema distinto del siguiente mostrado en
+    "A continuación", se corrige de inmediato con `seekTo` al índice esperado (respetando `REPEAT_MODE_ALL`).
+- **Playlist sin hueco negro** (`PlaylistDetailScreen.kt`, `AppNavGraph.kt`):
+  - La mini-reproductora flotante se oculta en la pantalla de playlist.
+  - El `LazyColumn` ya no reserva 110 dp vacíos; en su lugar hay una barra inferior fija con botones grandes
+    (58 dp de alto, 16 dp de separación): **Reproducir** (relleno) y **Aleatorio**.
+- **Diseño plano en playlist y ajustes**:
+  - Nuevo `LocalFlatSurface` en `core:designsystem`, activado por `AppNavGraph` en las rutas de playlist y ajustes.
+  - `LarkCard`, `LarkGradientBackground`, `LarkPill`, `GlassIconButton`, `GlassIconCluster`, `GlassPillButton`,
+    `GlassPill`, `GlassTag`, `GlassSelectionBar` y `LarkDialog` sustituyen degradados, bordes y sombras por
+    superficies sólidas cuando el modo plano está activo. El reproductor conserva su aspecto original.
+- `versionCode` 17 / `1.0.16-clean`; `assembleDebug` → BUILD SUCCESSFUL.
+
 ## 2026-11-21 — Fase 29: orden visual del reproductor y arrastre elevado (v16)
 
 - **`PlayerScreen.kt`**: reorganizado el reproductor para evitar elementos solapados y márgenes excesivos.

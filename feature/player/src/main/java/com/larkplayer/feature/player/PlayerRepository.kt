@@ -190,9 +190,32 @@ class PlayerRepository @Inject constructor(
         widgetListener = listener
         runCatching { controller.addListener(listener) }
         
-        // Listener to keep visibleOrder synchronized when ExoPlayer advances tracks automatically in shuffle mode
+        // Automatic transitions must follow the order displayed in the queue.
+        // ExoPlayer may still pick its own random item if the custom order has
+        // not reached the service yet, so we correct the transition immediately.
+        var lastAutoId: String? = runCatching { controller.currentMediaItem?.mediaId }.getOrNull()
         val shuffleSyncListener = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val newId = mediaItem?.mediaId
+                if (desiredShuffle && visibleOrder.isNotEmpty() && newId != null &&
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
+                ) {
+                    val previousPosition = visibleOrder.indexOf(lastAutoId)
+                    val expected = when {
+                        previousPosition in 0 until visibleOrder.lastIndex ->
+                            visibleOrder[previousPosition + 1]
+                        desiredRepeat == Player.REPEAT_MODE_ALL -> visibleOrder.firstOrNull()
+                        else -> null
+                    }
+                    if (expected != null && expected != newId) {
+                        val index = currentQueue().indexOfFirst { it.mediaId == expected }
+                        if (index >= 0) {
+                            runCatching { controller.seekTo(index, 0L) }
+                            runCatching { controller.play() }
+                        }
+                    }
+                }
+                lastAutoId = newId
                 if (desiredShuffle && visibleOrder.isEmpty() && currentQueue().isNotEmpty()) {
                     rebuildShuffleOrder()
                 }
@@ -342,25 +365,23 @@ class PlayerRepository @Inject constructor(
 
     /** Sends the visible order to the service; the service owns Media3's shuffle state. */
     private fun sendShuffleOrder(controller: MediaController, enabled: Boolean) {
-        // Always set shuffleModeEnabled directly on the controller first so the
-        // UI state is immediately consistent regardless of whether the custom
-        // command reaches the service.
-        runCatching { controller.shuffleModeEnabled = enabled }
-
-        if (!enabled) return  // No need to send an order when disabling.
-
-        val command = androidx.media3.session.SessionCommand(
-            PlaybackService.COMMAND_SET_SHUFFLE_ORDER,
-            Bundle.EMPTY,
-        )
-        val args = Bundle().apply {
-            putStringArray(
-                PlaybackService.EXTRA_SHUFFLE_ORDER,
-                visibleOrder.toTypedArray(),
+        if (enabled) {
+            val command = androidx.media3.session.SessionCommand(
+                PlaybackService.COMMAND_SET_SHUFFLE_ORDER,
+                Bundle.EMPTY,
             )
+            val args = Bundle().apply {
+                putStringArray(
+                    PlaybackService.EXTRA_SHUFFLE_ORDER,
+                    visibleOrder.toTypedArray(),
+                )
+            }
+            // install the custom order BEFORE enabling shuffle: enabling first
+            // makes ExoPlayer generate a random default order and a track can
+            // already advance with it before our command is processed.
+            runCatching { controller.sendCustomCommand(command, args) }
         }
-        // Best-effort: tell the service which order to use in its ShuffleOrder impl.
-        runCatching { controller.sendCustomCommand(command, args) }
+        runCatching { controller.shuffleModeEnabled = enabled }
     }
 
     fun setRepeat(mode: Int) {

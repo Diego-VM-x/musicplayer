@@ -44,19 +44,27 @@ fun LarkCard(
     shape: RoundedCornerShape = RoundedCornerShape(22.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val isFlat = LocalFlatSurface.current
     Column(
         modifier = modifier
             .clip(shape)
             .background(
-                Brush.linearGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.11f),
-                        Color.White.copy(alpha = 0.045f),
-                        Color.White.copy(alpha = 0.02f),
+                if (isFlat) {
+                    Brush.linearGradient(listOf(Color(0xFF16171A), Color(0xFF16171A)))
+                } else {
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.11f),
+                            Color.White.copy(alpha = 0.045f),
+                            Color.White.copy(alpha = 0.02f),
+                        )
                     )
-                )
+                }
             )
-            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), shape),
+            .then(
+                if (isFlat) Modifier
+                else Modifier.border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), shape)
+            ),
         content = content,
     )
 }
@@ -175,13 +183,21 @@ fun LarkPill(
     icon: ImageVector? = null,
     showText: Boolean = true,
 ) {
+    val isFlat = LocalFlatSurface.current
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(if (selected) accent else Color.White.copy(alpha = 0.07f))
-            .border(
-                BorderStroke(1.dp, Color.White.copy(alpha = if (selected) 0f else 0.09f)),
-                RoundedCornerShape(50),
+            .background(
+                if (selected) accent
+                else if (isFlat) Color(0xFF24252B)
+                else Color.White.copy(alpha = 0.07f)
+            )
+            .then(
+                if (isFlat || selected) Modifier
+                else Modifier.border(
+                    BorderStroke(1.dp, Color.White.copy(alpha = 0.09f)),
+                    RoundedCornerShape(50),
+                )
             )
             .clickable(onClick = onClick)
             .padding(horizontal = if (showText) 16.dp else 12.dp, vertical = 9.dp),
@@ -238,16 +254,21 @@ fun LarkGradientBackground(
     strength: Float = 0.22f,
     content: @Composable () -> Unit,
 ) {
+    val isFlat = LocalFlatSurface.current
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(
-                Brush.verticalGradient(
-                    0f to accent.copy(alpha = strength),
-                    0.32f to accent.copy(alpha = strength * 0.35f),
-                    0.62f to ApplePalette.Background,
-                    1f to ApplePalette.Background,
-                )
+                if (isFlat) {
+                    Brush.linearGradient(listOf(ApplePalette.Background, ApplePalette.Background))
+                } else {
+                    Brush.verticalGradient(
+                        0f to accent.copy(alpha = strength),
+                        0.32f to accent.copy(alpha = strength * 0.35f),
+                        0.62f to ApplePalette.Background,
+                        1f to ApplePalette.Background,
+                    )
+                }
             ),
     ) { content() }
 }
