@@ -4,6 +4,11 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 20: release publicado y versión 9
+
+- **Actualización publicada**: release `v1.0.8` en `Diego-VM-x/musicplayer` con el asset `musicplayer-9.apk` (`versionCode` 9, SHA-256 `fe0f0464…`). El actualizador ya puede detectarlo: el parser obtiene el código del nombre del APK/body del release y el digest SHA-256 del asset.
+- La causa del fallo anterior era externa: el repositorio no tenía releases ni APKs (API devolvía `[]`). Ya no es necesario subir nada manualmente.
+
 ## 2026-11-21 — Fase 19: aleatorio fresco, reordenado y navegación
 
 - **Aleatorio**: cada activación genera un orden nuevo sin semilla fija; la canción actual va primero y el resto se baraja al azar. El orden se envía a Media3 vía `ShuffleOrder` y al desactivarse se restaura el original.

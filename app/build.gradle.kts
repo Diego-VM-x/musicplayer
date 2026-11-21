@@ -14,8 +14,8 @@ android {
         applicationId = "com.larkplayer.clean"
         minSdk = 24
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.0.7-clean"
+        versionCode = 9
+        versionName = "1.0.8-clean"
     }
 
     buildTypes {
