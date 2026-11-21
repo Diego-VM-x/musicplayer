@@ -1,11 +1,18 @@
 package com.larkplayer.feature.player.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +58,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -165,48 +173,89 @@ fun PlayerScreen(
 
             Spacer(Modifier.height(22.dp))
 
-            // ---- Artwork ----
+            // ---- Artwork (with swipe gesture and slide animation) ----
             val artworkScale by animateFloatAsState(
                 targetValue = if (state.isPlaying) 1.0f else 0.94f,
                 animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
                 label = "artwork_scale",
             )
+            var dragDistance by remember { mutableFloatStateOf(0f) }
             Box(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(max = 300.dp)
                     .aspectRatio(1f)
-                    .scale(artworkScale)
-                    .shadow(if (state.isPlaying) 28.dp else 16.dp, RoundedCornerShape(26.dp))
-                    .clip(RoundedCornerShape(26.dp))
-                    .background(Color(0xFF242428)),
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = {
+                                if (dragDistance > 60f) {
+                                    viewModel.skipPrevious()
+                                } else if (dragDistance < -60f) {
+                                    viewModel.skipNext()
+                                }
+                                dragDistance = 0f
+                            },
+                            onDragCancel = { dragDistance = 0f },
+                        ) { change, dragAmount ->
+                            change.consume()
+                            dragDistance += dragAmount
+                        }
+                    },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    Icons.Rounded.MusicNote,
-                    null,
-                    tint = Color(0xFF5C5C64),
-                    modifier = Modifier.size(64.dp),
-                )
-                AsyncImage(
-                    model = state.albumArt,
-                    contentDescription = "Carátula",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                AnimatedContent(
+                    targetState = state.id,
+                    transitionSpec = {
+                        (slideInHorizontally(tween(260)) { width -> width / 3 } + fadeIn(tween(260))) togetherWith
+                            (slideOutHorizontally(tween(200)) { width -> -width / 3 } + fadeOut(tween(200)))
+                    },
+                    label = "artwork_slide_transition",
+                ) { targetId ->
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .scale(artworkScale)
+                            .shadow(if (state.isPlaying) 28.dp else 16.dp, RoundedCornerShape(26.dp))
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(Color(0xFF242428)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Rounded.MusicNote,
+                            null,
+                            tint = Color(0xFF5C5C64),
+                            modifier = Modifier.size(64.dp),
+                        )
+                        AsyncImage(
+                            model = state.albumArt,
+                            contentDescription = "Carátula",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(22.dp))
 
-            Text(
-                state.title,
-                color = accent,
-                fontSize = 25.sp,
-                fontWeight = FontWeight.ExtraBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                letterSpacing = (-0.4).sp,
-            )
+            AnimatedContent(
+                targetState = state.title,
+                transitionSpec = {
+                    (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 4 }) togetherWith
+                        (fadeOut(tween(160)) + slideOutHorizontally(tween(160)) { -it / 4 })
+                },
+                label = "title_transition",
+            ) { titleText ->
+                Text(
+                    titleText,
+                    color = accent,
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    letterSpacing = (-0.4).sp,
+                )
+            }
             Spacer(Modifier.height(5.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

@@ -186,6 +186,17 @@ class PlayerRepository @Inject constructor(
         }
         widgetListener = listener
         runCatching { controller.addListener(listener) }
+        
+        // Listener to keep visibleOrder synchronized when ExoPlayer advances tracks automatically in shuffle mode
+        val shuffleSyncListener = object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (desiredShuffle && visibleOrder.isEmpty() && currentQueue().isNotEmpty()) {
+                    rebuildShuffleOrder()
+                }
+            }
+        }
+        runCatching { controller.addListener(shuffleSyncListener) }
+
         writeWidgetState(
             title = controller.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty(),
             artist = controller.currentMediaItem?.mediaMetadata?.artist?.toString().orEmpty(),

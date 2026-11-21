@@ -9,6 +9,15 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 - Commit `fc8f044` (réplica de diseños/funciones) y `e22f068` (APK) enviados a `origin/master`.
 - Release pública `v1.0.9` con el asset `musicplayer-10.apk` (23.052.280 bytes, `versionCode` 10, SHA-256 `2603f7c19e7485296442478606ead31a031eb13946dd3cdccfef4db6821fb8f8`). Publicada mediante la API de GitHub con las credenciales del repositorio, sin abrir el navegador.
 
+## 2026-11-21 — Fase 23: animaciones de desplazamiento, gestos swipe y sincronización de aleatorio
+
+- **Desplazamiento horizontal de canciones (Swipe en Player)**:
+  - Soporte de gestos táctiles directos sobre la carátula (`detectHorizontalDragGestures`): deslizar hacia la izquierda pasa a la siguiente canción y deslizar hacia la derecha vuelve a la anterior.
+  - Transición animada de desplazamiento lateral y desvanecimiento (`AnimatedContent` con `slideInHorizontally` + `slideOutHorizontally` + `fadeIn` / `fadeOut`) tanto en la portada como en el título de la canción.
+- **Corrección de sincronización en aleatorio**:
+  - Se añadió un listener de ciclo en `PlayerRepository.kt` para garantizar que cuando ExoPlayer avanza pistas de manera desatendida o automática, el orden visible (`visibleOrder`) y la cola se mantengan íntegros sin saltos no esperados.
+- **Incremento a VersionCode 11 (`1.0.10-clean`)**: build exitoso con APK listo para distribución.
+
 ## 2026-11-21 — Fase 22: réplica exacta de diseños y funciones del Lark Player original
 
 - **Visualizador de música interactivo (`MusicVisualizerSheet.kt` y `VisualizerWave`)**:
