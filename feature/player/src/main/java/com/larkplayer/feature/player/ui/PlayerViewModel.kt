@@ -5,7 +5,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import com.larkplayer.core.database.dao.PlaylistDao
+import com.larkplayer.core.database.entity.PlaylistEntity
+import com.larkplayer.core.database.entity.PlaylistSong
 import com.larkplayer.core.datastore.SettingsDataStore
+import com.larkplayer.core.model.Song
 import com.larkplayer.feature.player.AlbumColorRepository
 import com.larkplayer.feature.player.PlayerRepository
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_NORMAL
@@ -15,8 +19,11 @@ import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_SHUFFLE
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -44,6 +51,7 @@ class PlayerViewModel @Inject constructor(
     private val repository: PlayerRepository,
     private val albumColors: AlbumColorRepository,
     private val settings: SettingsDataStore,
+    private val playlistDao: PlaylistDao,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PlayerUiState())
@@ -146,6 +154,10 @@ class PlayerViewModel @Inject constructor(
 
     val sleepTimerRemaining = repository.sleepTimerRemaining
 
+    /** Playlists shown by the "add to playlist" sheet of the player. */
+    val playlists: StateFlow<List<PlaylistEntity>> = playlistDao.observePlaylists()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun queue() = repository.currentQueue()
     fun visibleQueue(shuffle: Boolean) = repository.displayQueue(shuffle)
     fun originalIndex(mediaId: String?) = repository.originalIndex(mediaId)
@@ -156,12 +168,61 @@ class PlayerViewModel @Inject constructor(
     fun moveQueueItemById(fromId: String?, toId: String?) = repository.moveQueueItemById(fromId, toId)
     fun setSleepTimer(minutes: Int) = repository.setSleepTimer(minutes)
     fun cancelSleepTimer() = repository.cancelSleepTimer()
+    fun clearQueue() {
+        repository.clearQueue()
+        _uiState.value = PlayerUiState()
+    }
+
+    /** Snapshot of the current track for share / ringtone / delete actions. */
+    fun currentSong(): Song? {
+        val s = _uiState.value
+        if (s.id <= 0) return null
+        return Song(
+            id = s.id,
+            title = s.title,
+            artist = s.artist,
+            album = s.album,
+            duration = s.duration,
+            path = s.songPath,
+        )
+    }
+
+    fun hideCurrent() {
+        val id = _uiState.value.id
+        if (id > 0) viewModelScope.launch { runCatching { settings.hideSong(id) } }
+    }
+
+    fun addCurrentToPlaylist(playlistId: Long) = viewModelScope.launch {
+        val songId = _uiState.value.id
+        if (songId <= 0 || playlistId <= 0) return@launch
+        runCatching {
+            val existing = playlistDao.observeSongs(playlistId).first().map { it.id }.toSet()
+            if (songId !in existing) {
+                playlistDao.addSongs(
+                    listOf(PlaylistSong(playlistId, songId, playlistDao.maxPosition(playlistId) + 1)),
+                )
+            }
+        }
+    }
+
+    fun createPlaylistWithCurrent(name: String) = viewModelScope.launch {
+        val clean = name.trim()
+        val songId = _uiState.value.id
+        if (clean.isBlank() || songId <= 0) return@launch
+        runCatching {
+            val playlistId = playlistDao.insert(PlaylistEntity(name = clean))
+            playlistDao.addSongs(listOf(PlaylistSong(playlistId, songId, 0)))
+        }
+    }
 
     fun togglePlayPause() = repository.togglePlayPause()
     fun skipNext() = repository.skipNext()
     fun skipPrevious() = repository.skipPrevious()
     fun seek(ms: Long) = repository.seekTo(ms)
-    fun toggleShuffle() = repository.setShuffle(!_uiState.value.shuffle)
+    /** Kept for compatibility: toggles shuffle through the single-choice mode API. */
+    fun toggleShuffle() {
+        setPlaybackMode(if (_uiState.value.shuffle) MODE_NORMAL else MODE_SHUFFLE)
+    }
     fun setRepeatMode(mode: Int) = repository.setRepeat(mode)
 
     fun currentPlaybackMode(): Int = when {

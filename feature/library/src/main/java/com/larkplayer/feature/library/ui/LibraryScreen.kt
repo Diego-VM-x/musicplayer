@@ -403,14 +403,27 @@ fun LibraryScreen(
                             Icons.Rounded.Share,
                             "Compartir",
                             onClick = {
-                                selectedSongs.firstOrNull()?.let { song ->
+                                if (selectedSongs.isNotEmpty()) {
                                     runCatching {
-                                        val intent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "audio/*"
-                                            putExtra(Intent.EXTRA_STREAM, MediaFileUtils.songUri(song))
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        val uris = ArrayList(selectedSongs.map { MediaFileUtils.songUri(it) })
+                                        val intent = if (uris.size == 1) {
+                                            Intent(Intent.ACTION_SEND).apply {
+                                                type = "audio/*"
+                                                putExtra(Intent.EXTRA_STREAM, uris.first())
+                                            }
+                                        } else {
+                                            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                                                type = "audio/*"
+                                                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                                            }
                                         }
-                                        context.startActivity(Intent.createChooser(intent, "Compartir canción"))
+                                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        context.startActivity(
+                                            Intent.createChooser(
+                                                intent,
+                                                if (uris.size == 1) "Compartir canción" else "Compartir canciones",
+                                            ),
+                                        )
                                     }
                                 }
                                 clearSelection()

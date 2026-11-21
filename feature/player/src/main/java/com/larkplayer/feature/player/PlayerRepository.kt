@@ -64,6 +64,9 @@ class PlayerRepository @Inject constructor(
     @Volatile private var desiredRepeat = Player.REPEAT_MODE_ALL
     @Volatile private var desiredSpeed = 1f
     @Volatile private var fadeInUntil = 0L
+
+    /** Moment until which the start of the track stays muted (gapless disabled). */
+    @Volatile private var gapUntil = 0L
     private var lastMediaId: String? = null
     private var lastPosition = 0L
     @Volatile private var visibleOrder: List<String> = emptyList()
@@ -245,9 +248,13 @@ class PlayerRepository @Inject constructor(
     }
 
     fun addToQueue(song: Song) = withController { c ->
-        c.addMediaItem(song.toMediaItem())
+        val item = song.toMediaItem()
+        c.addMediaItem(item)
         if (desiredShuffle) {
-            rebuildShuffleOrder()
+            // Append at the end of the visible order instead of reshuffling
+            // everything the user is already listening to.
+            if (visibleOrder.isEmpty()) rebuildShuffleOrder()
+            else if (item.mediaId !in visibleOrder) visibleOrder = visibleOrder + item.mediaId
             sendShuffleOrder(c, enabled = true)
         }
     }
@@ -376,6 +383,9 @@ class PlayerRepository @Inject constructor(
             when (mode) {
                 MODE_REPEAT_ALL -> Player.REPEAT_MODE_ALL
                 MODE_REPEAT_ONE -> Player.REPEAT_MODE_ONE
+                // Shuffle keeps the queue looping; otherwise it would stop
+                // after the last shuffled track and contradict "repeat all".
+                MODE_SHUFFLE -> Player.REPEAT_MODE_ALL
                 else -> Player.REPEAT_MODE_OFF
             },
         )
@@ -422,20 +432,35 @@ class PlayerRepository @Inject constructor(
     }
 
     fun removeFromQueue(index: Int) = withController { c ->
-        c.removeMediaItem(index)
+        val safe = index.coerceIn(0, (c.mediaItemCount - 1).coerceAtLeast(0))
+        val removedId = runCatching { c.getMediaItemAt(safe).mediaId }.getOrNull()
+        c.removeMediaItem(safe)
         if (desiredShuffle) {
-            rebuildShuffleOrder()
+            // Keep the user's visible order; only drop the removed entry.
+            if (removedId != null) visibleOrder = visibleOrder - removedId
             sendShuffleOrder(c, enabled = true)
         }
     }
 
     /** Reorders two items in the real timeline (used by the queue drag handles). */
     fun moveQueueItem(from: Int, to: Int) = withController { c ->
-        val safeFrom = from.coerceIn(0, c.mediaItemCount - 1)
-        val safeTo = to.coerceIn(0, c.mediaItemCount - 1)
-        if (safeFrom != safeTo) c.moveMediaItem(safeFrom, safeTo)
+        val safeFrom = from.coerceIn(0, (c.mediaItemCount - 1).coerceAtLeast(0))
+        val safeTo = to.coerceIn(0, (c.mediaItemCount - 1).coerceAtLeast(0))
+        if (safeFrom == safeTo) return@withController
+        val fromId = runCatching { c.getMediaItemAt(safeFrom).mediaId }.getOrNull()
+        val toId = runCatching { c.getMediaItemAt(safeTo).mediaId }.getOrNull()
+        c.moveMediaItem(safeFrom, safeTo)
         if (desiredShuffle) {
-            rebuildShuffleOrder()
+            // Preserve the manual arrangement instead of reshuffling it away.
+            if (fromId != null && toId != null) {
+                val fromPos = visibleOrder.indexOf(fromId)
+                val toPos = visibleOrder.indexOf(toId)
+                if (fromPos >= 0 && toPos >= 0) {
+                    visibleOrder = visibleOrder.toMutableList().apply {
+                        add(toPos, removeAt(fromPos))
+                    }
+                }
+            }
             sendShuffleOrder(c, enabled = true)
         }
     }
@@ -452,9 +477,23 @@ class PlayerRepository @Inject constructor(
         if (fromIdx < 0 || toIdx < 0) return@withController
         c.moveMediaItem(fromIdx, toIdx)
         if (desiredShuffle) {
-            rebuildShuffleOrder()
+            // Apply exactly the move requested by the queue screen.
+            val fromPos = visibleOrder.indexOf(fromId)
+            val toPos = visibleOrder.indexOf(toId)
+            if (fromPos >= 0 && toPos >= 0 && fromPos != toPos) {
+                visibleOrder = visibleOrder.toMutableList().apply {
+                    add(toPos, removeAt(fromPos))
+                }
+            }
             sendShuffleOrder(c, enabled = true)
         }
+    }
+
+    /** Stops playback and empties the queue (the "clear queue" action). */
+    fun clearQueue() = withController { c ->
+        c.stop()
+        c.clearMediaItems()
+        visibleOrder = emptyList()
     }
 
     // ---- Sleep timer ----
@@ -500,7 +539,19 @@ class PlayerRepository @Inject constructor(
             } else {
                 runCatching {
                     if (!crossfadeEnabled) {
-                        if (c.volume != 1f) c.volume = 1f
+                        if (!gaplessEnabled && c.isPlaying) {
+                            // "Reproducción sin pausas" off: keep a short silence at
+                            // the beginning of each track so the change is audible.
+                            val now = SystemClock.elapsedRealtime()
+                            val currentId = c.currentMediaItem?.mediaId
+                            if (currentId != null && lastMediaId != null && currentId != lastMediaId) {
+                                gapUntil = now + 350L
+                            }
+                            lastMediaId = currentId
+                            c.volume = if (now < gapUntil) 0f else 1f
+                        } else {
+                            if (c.volume != 1f) c.volume = 1f
+                        }
                     } else if (c.isPlaying) {
                         val now = SystemClock.elapsedRealtime()
                         val currentId = c.currentMediaItem?.mediaId
@@ -536,6 +587,7 @@ class PlayerRepository @Inject constructor(
         lastMediaId = null
         lastPosition = 0L
         fadeInUntil = 0L
+        gapUntil = 0L
     }
 
     // ---- Listening stats ----------------------------------------------------

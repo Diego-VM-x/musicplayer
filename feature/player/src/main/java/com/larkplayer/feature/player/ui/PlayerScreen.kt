@@ -1,5 +1,16 @@
 package com.larkplayer.feature.player.ui
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
@@ -29,9 +40,12 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
@@ -66,6 +80,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,11 +89,16 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.larkplayer.core.common.MediaFileUtils
+import com.larkplayer.core.common.RingtoneHelper
 import com.larkplayer.core.designsystem.component.GlassIconButton
 import com.larkplayer.core.designsystem.component.GlassMenu
 import com.larkplayer.core.designsystem.component.GlassMenuItem
 import com.larkplayer.core.designsystem.component.GlassPill
+import com.larkplayer.core.designsystem.component.LarkDialog
 import com.larkplayer.core.designsystem.component.LarkGradientBackground
+import com.larkplayer.core.designsystem.component.LarkSheet
+import com.larkplayer.core.designsystem.component.LarkTextField
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.player.PlayerRepository
 import java.util.Locale
@@ -102,6 +122,8 @@ fun PlayerScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val accentInt by viewModel.accent.collectAsStateWithLifecycle()
     val accent = Color(accentInt)
+    val context = LocalContext.current
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
 
     var sliderValue by remember(state.id) { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }
@@ -109,6 +131,96 @@ fun PlayerScreen(
     var speedMenu by remember { mutableStateOf(false) }
     var visualizerSheetOpen by remember { mutableStateOf(false) }
     var dragDown by remember { mutableFloatStateOf(0f) }
+    var playlistPickerOpen by remember { mutableStateOf(false) }
+    var createPlaylistOpen by remember { mutableStateOf(false) }
+    var newPlaylistName by remember { mutableStateOf("") }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var ringtoneWaitingPermission by remember { mutableStateOf(false) }
+
+    val writeSettingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        if (ringtoneWaitingPermission && Settings.System.canWrite(context)) {
+            val song = viewModel.currentSong()
+            if (song != null) {
+                val ok = RingtoneHelper.set(context, song)
+                Toast.makeText(
+                    context,
+                    if (ok) "Tono de llamada actualizado" else "No se pudo cambiar el tono",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+        ringtoneWaitingPermission = false
+    }
+
+    val deleteLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.hideCurrent()
+            viewModel.skipNext()
+            Toast.makeText(context, "Canción borrada", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun shareCurrent() {
+        val song = viewModel.currentSong() ?: return
+        runCatching {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "audio/*"
+                putExtra(Intent.EXTRA_STREAM, MediaFileUtils.songUri(song))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Compartir canción"))
+        }.onFailure {
+            Toast.makeText(context, "No se pudo compartir", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun requestRingtone() {
+        val song = viewModel.currentSong() ?: return
+        if (Settings.System.canWrite(context)) {
+            val ok = RingtoneHelper.set(context, song)
+            Toast.makeText(
+                context,
+                if (ok) "Tono de llamada actualizado" else "No se pudo cambiar el tono",
+                Toast.LENGTH_SHORT,
+            ).show()
+        } else {
+            ringtoneWaitingPermission = true
+            val intent = Intent(
+                Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                Uri.parse("package:${context.packageName}"),
+            )
+            runCatching { writeSettingsLauncher.launch(intent) }.onFailure {
+                ringtoneWaitingPermission = false
+                Toast.makeText(context, "Activa el permiso de tonos manualmente", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    fun requestDelete() {
+        val song = viewModel.currentSong() ?: return
+        val uri = MediaFileUtils.songUri(song)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            runCatching {
+                val request = MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
+                deleteLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+            }.onFailure {
+                Toast.makeText(context, "No se pudo borrar la canción", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            val ok = runCatching { context.contentResolver.delete(uri, null, null) }.isSuccess
+            if (ok) {
+                viewModel.hideCurrent()
+                viewModel.skipNext()
+                Toast.makeText(context, "Canción borrada", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "No se pudo borrar la canción", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LaunchedEffect(state.position, dragging) {
         if (!dragging) sliderValue = state.position.toFloat()
@@ -278,10 +390,11 @@ fun PlayerScreen(
                             albumArt = state.albumArt,
                             onAddToPlaylist = {
                                 menuOpen = false
-                                onBack() // Go to library with selection
+                                playlistPickerOpen = true
                             },
                             onShare = {
                                 menuOpen = false
+                                shareCurrent()
                             },
                             onVisualizer = {
                                 menuOpen = false
@@ -293,6 +406,7 @@ fun PlayerScreen(
                             },
                             onSetRingtone = {
                                 menuOpen = false
+                                requestRingtone()
                             },
                             onSleepTimer = {
                                 menuOpen = false
@@ -300,9 +414,12 @@ fun PlayerScreen(
                             },
                             onHide = {
                                 menuOpen = false
+                                viewModel.hideCurrent()
+                                Toast.makeText(context, "Canción oculta de la biblioteca", Toast.LENGTH_SHORT).show()
                             },
                             onDelete = {
                                 menuOpen = false
+                                confirmDelete = true
                             },
                             onDismissRequest = { menuOpen = false },
                         )
@@ -500,6 +617,156 @@ fun PlayerScreen(
                 accent = accent,
                 onDismissRequest = { visualizerSheetOpen = false },
             )
+        }
+    }
+
+    // ---- Add to playlist ----
+    if (playlistPickerOpen) {
+        LarkSheet(onDismissRequest = { playlistPickerOpen = false }) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 26.dp),
+            ) {
+                Text(
+                    "Agregar a la lista de reproducción",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable {
+                            playlistPickerOpen = false
+                            newPlaylistName = ""
+                            createPlaylistOpen = true
+                        }
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Add, null, tint = accent, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(14.dp))
+                    Text("Nueva playlist", color = accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                }
+                LazyColumn(Modifier.heightIn(max = 340.dp)) {
+                    items(playlists, key = { it.id }) { playlist ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    viewModel.addCurrentToPlaylist(playlist.id)
+                                    playlistPickerOpen = false
+                                    Toast.makeText(context, "Agregada a ${playlist.name}", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Rounded.QueueMusic,
+                                null,
+                                tint = Color(0xFFC9C9D0),
+                                modifier = Modifier.size(22.dp),
+                            )
+                            Spacer(Modifier.width(14.dp))
+                            Text(
+                                playlist.name,
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+                if (playlists.isEmpty()) {
+                    Text(
+                        "Todavía no tienes playlists",
+                        color = ApplePalette.TextSecondary,
+                        fontSize = 12.5.sp,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
+            }
+        }
+    }
+
+    if (createPlaylistOpen) {
+        LarkDialog(onDismissRequest = { createPlaylistOpen = false }) {
+            Text("Nueva playlist", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(18.dp))
+            LarkTextField(
+                value = newPlaylistName,
+                onValueChange = { newPlaylistName = it },
+                placeholder = "Nombre de playlist",
+            )
+            Spacer(Modifier.height(22.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text(
+                    "Cancelar",
+                    color = ApplePalette.TextSecondary,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .clickable {
+                            createPlaylistOpen = false
+                            newPlaylistName = ""
+                        }
+                        .padding(12.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Crear",
+                    color = if (newPlaylistName.isBlank()) Color(0xFF5A5A61) else ApplePalette.Blue,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clickable(enabled = newPlaylistName.isNotBlank()) {
+                            viewModel.createPlaylistWithCurrent(newPlaylistName.trim())
+                            createPlaylistOpen = false
+                            newPlaylistName = ""
+                            Toast.makeText(context, "Playlist creada", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(12.dp),
+                )
+            }
+        }
+    }
+
+    if (confirmDelete) {
+        LarkDialog(onDismissRequest = { confirmDelete = false }) {
+            Text("Borrar canción", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "¿Borrar «${state.title}» del dispositivo? Esta acción no se puede deshacer.",
+                color = ApplePalette.TextSecondary,
+                fontSize = 13.sp,
+            )
+            Spacer(Modifier.height(22.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text(
+                    "Cancelar",
+                    color = ApplePalette.TextSecondary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable { confirmDelete = false }.padding(12.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Borrar",
+                    color = Color(0xFFFF6B6B),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clickable {
+                            confirmDelete = false
+                            requestDelete()
+                        }
+                        .padding(12.dp),
+                )
+            }
         }
     }
 }

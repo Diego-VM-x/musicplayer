@@ -23,7 +23,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlin.system.exitProcess
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -47,13 +46,18 @@ class PlaybackService : MediaSessionService() {
     /** Mirrors "Reproducir en segundo plano": keeps the foreground service alive. */
     @Volatile private var backgroundPlayback = true
 
+    /** Set by the notification X: suppress the notification until playback resumes. */
+    @Volatile private var shuttingDown = false
+
     private var wakeLock: PowerManager.WakeLock? = null
 
     private val playerListener = object : Player.Listener {
         // The wake lock is owned by the "background playback" setting, not by
         // the play/pause state: pausing and closing the app must not let the
         // system freeze the process and lose the paused session.
-        override fun onIsPlayingChanged(isPlaying: Boolean) = Unit
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) shuttingDown = false
+        }
     }
 
     override fun onCreate() {
@@ -164,6 +168,10 @@ class PlaybackService : MediaSessionService() {
         session: MediaSession,
         startInForegroundRequired: Boolean,
     ) {
+        if (shuttingDown && !player.isPlaying) {
+            stopForeground(Service.STOP_FOREGROUND_REMOVE)
+            return
+        }
         if (showNotification || backgroundPlayback || startInForegroundRequired || player.isPlaying) {
             super.onUpdateNotification(session, startInForegroundRequired)
         } else {
@@ -187,17 +195,18 @@ class PlaybackService : MediaSessionService() {
         if (!backgroundPlayback) super.onTaskRemoved(rootIntent)
     }
 
-    /** X button in the media notification: stop everything and kill the process. */
+    /**
+     * X button in the media notification: stops playback, clears the queue and
+     * removes the notification. The process is left alive so an open UI is not
+     * killed mid-use (the old `exitProcess(0)` closed the app from the shade).
+     */
     private fun stopPlaybackCompletely() {
+        shuttingDown = true
         runCatching { player.stop() }
         runCatching { player.clearMediaItems() }
         releaseWakeLock()
         stopForeground(Service.STOP_FOREGROUND_REMOVE)
-        runCatching { session?.release() }
-        session = null
-        scope.cancel()
         stopSelf()
-        exitProcess(0)
     }
 
     override fun onDestroy() {

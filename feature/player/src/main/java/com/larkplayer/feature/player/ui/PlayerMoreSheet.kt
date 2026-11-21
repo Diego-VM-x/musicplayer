@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PlaylistAdd
@@ -114,13 +113,6 @@ fun PlayerMoreSheet(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.width(10.dp))
-                Icon(
-                    Icons.Rounded.Edit,
-                    contentDescription = "Editar",
-                    tint = Color(0xFFC0C0C6),
-                    modifier = Modifier.size(22.dp),
-                )
             }
 
             Spacer(Modifier.height(10.dp))

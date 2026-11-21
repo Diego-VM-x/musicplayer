@@ -24,9 +24,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.Reorder
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
@@ -39,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,12 +63,14 @@ import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import com.larkplayer.core.designsystem.component.CircleIconButton
 import com.larkplayer.core.designsystem.component.GlassIconButton
+import com.larkplayer.core.designsystem.component.LarkDialog
 import com.larkplayer.core.designsystem.component.LarkGradientBackground
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_NORMAL
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_REPEAT_ALL
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_REPEAT_ONE
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_SHUFFLE
+import kotlinx.coroutines.launch
 
 /** Cola de reproducción con controles de repetición y aleatorio siempre visibles. */
 @OptIn(ExperimentalFoundationApi::class)
@@ -87,6 +93,10 @@ fun QueueScreen(
     }
     val density = LocalDensity.current
     val rowPx = with(density) { 72.dp.toPx() }
+    val currentId = viewModel.queue().getOrNull(current)?.mediaId
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var confirmClear by remember { mutableStateOf(false) }
 
     LarkGradientBackground(accent = accentColor, strength = 0.30f) {
         Column(Modifier.fillMaxSize()) {
@@ -113,10 +123,31 @@ fun QueueScreen(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                 )
+                Spacer(Modifier.width(6.dp))
+                GlassIconButton(
+                    Icons.Rounded.MyLocation,
+                    "Ir a la canción actual",
+                    onClick = {
+                        val index = displayOrder.indexOfFirst { it.mediaId == currentId }
+                        if (index >= 0) scope.launch { listState.animateScrollToItem(index) }
+                    },
+                    size = 36.dp,
+                    iconSize = 19.dp,
+                    tint = Color.White.copy(alpha = 0.72f),
+                    flat = true,
+                )
+                GlassIconButton(
+                    Icons.Rounded.DeleteSweep,
+                    "Vaciar cola",
+                    onClick = { confirmClear = true },
+                    size = 36.dp,
+                    iconSize = 19.dp,
+                    tint = Color.White.copy(alpha = 0.72f),
+                    flat = true,
+                )
             }
             Spacer(Modifier.height(10.dp))
 
-            val currentId = viewModel.queue().getOrNull(current)?.mediaId
             AnimatedContent(
                 targetState = state.shuffle,
                 transitionSpec = {
@@ -126,6 +157,7 @@ fun QueueScreen(
                 modifier = Modifier.weight(1f),
             ) { shuffled ->
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp),
                 ) {
@@ -271,6 +303,41 @@ fun QueueScreen(
                             if (mode == MODE_SHUFFLE) MODE_NORMAL else MODE_SHUFFLE
                         )
                     },
+                )
+            }
+        }
+    }
+
+    if (confirmClear) {
+        LarkDialog(onDismissRequest = { confirmClear = false }) {
+            Text("Vaciar cola", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Se quitarán todas las canciones de la cola y se detendrá la reproducción.",
+                color = ApplePalette.TextSecondary,
+                fontSize = 13.sp,
+            )
+            Spacer(Modifier.height(22.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text(
+                    "Cancelar",
+                    color = ApplePalette.TextSecondary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable { confirmClear = false }.padding(12.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Vaciar",
+                    color = Color(0xFFFF6B6B),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clickable {
+                            confirmClear = false
+                            viewModel.clearQueue()
+                            onBack()
+                        }
+                        .padding(12.dp),
                 )
             }
         }

@@ -12,3 +12,4 @@ local.properties
 *.aab
 .kotlin/
 build_debug.log
+build_*.log

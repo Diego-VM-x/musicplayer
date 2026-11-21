@@ -4,6 +4,26 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 28: fidelidad al reproductor original y acciones funcionales (v15)
+
+Dos commits: el primero ajusta la interfaz al APK original; el segundo conecta las acciones que antes no hacían nada.
+
+**Commit 1 — Reproductor fiel al original**
+- `PlayerScreen.kt`: eliminada la barra superior (flecha + "Reproduciendo" + 3 puntos), sustituida por un chevron centrado y gesto de arrastre hacia abajo para cerrar; portada limitada a 239 dp; título blanco a 2 líneas (antes acento y 1 línea); favorito y 3 puntos a la derecha del título; transporte reducido a anterior / play / siguiente; píldora de velocidad solo cuando es distinta de 1x; formato de velocidad con `Locale.US` (corrige "2,x" en español); modo como badge sobre el icono de cola; cola duplicada eliminada; EQ y cola sin etiqueta, solo "Letras" con texto.
+- `LiquidGlass.kt`: nuevo parámetro `flat` en `GlassIconButton` para iconos planos con ripple (solo play mantiene el círculo).
+- `MiniPlayer.kt`: botón de modo único (normal/repetir/repetir una/aleatorio) + siguiente, en lugar del shuffle aislado.
+- `LibraryScreen.kt`: retirado el icono Radio de la cabecera; añadida marca de app junto al wordmark.
+- `AndroidManifest.xml`: `android:label="Lark Player"`.
+
+**Commit 2 — Acciones funcionales y motor**
+- `PlayerScreen.kt` + `PlayerViewModel.kt`: la hoja de opciones ya permite elegir o crear playlist, compartir (ACTION_SEND), poner como tono (pide `WRITE_SETTINGS` y usa `RingtoneHelper`), ocultar y borrar (confirmación + `MediaStore.createDeleteRequest`). Eliminado el icono Editar inerte.
+- `PlayerRepository.kt`: el shuffle mantiene `REPEAT_MODE_ALL` (la cola ya no se detiene al terminar); añadir/quitar/reordenar conserva el orden visible en vez de volver a barajar; `toggleShuffle` pasa por la API de modo único; "Reproducción sin pausas" ahora se aplica insertando una breve pausa cuando está desactivada; `clearQueue()`.
+- `QueueScreen.kt`: acciones "ir a la canción actual" y "vaciar cola" con confirmación, propias del original.
+- `PlaybackService.kt`: la X de la notificación ya no llama a `exitProcess(0)`; solo detiene, limpia y quita la notificación sin matar la UI abierta.
+- `LibraryScreen.kt`: compartir varias seleccionadas usa `ACTION_SEND_MULTIPLE` en lugar de enviar solo la primera.
+- `PlaybackSettingsScreen.kt`: subtítulo de crossfade honesto (desvanecimiento de entrada/salida, sin prometer superposición).
+- `build`: `assembleDebug` → BUILD SUCCESSFUL; `versionCode` 15 / `1.0.14-clean`.
+
 ## 2026-11-21 — Fase 27: publicación v14
 
 - Commits `49ba317` (diseño satinado y animaciones) y `d9a496d` (correcciones de aleatorio y drag-reorder), confirmados en `origin/master`.
