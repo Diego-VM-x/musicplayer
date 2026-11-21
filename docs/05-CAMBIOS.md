@@ -4,6 +4,14 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 19: aleatorio fresco, reordenado y navegación
+
+- **Aleatorio**: cada activación genera un orden nuevo sin semilla fija; la canción actual va primero y el resto se baraja al azar. El orden se envía a Media3 vía `ShuffleOrder` y al desactivarse se restaura el original.
+- **Cola reordenable**: tirador a la derecha de cada fila; pulsación larga y arrastre mueven la canción en la timeline real (`moveMediaItem`), con el orden local animado.
+- **Botones de la cola**: se añadió padding inferior para que el mini-player no tape repetir/aleatorio.
+- **Navegación**: todas las rutas usan `launchSingleTop` + `restoreState`, de modo que el botón atrás no reapila ventanas ya abiertas.
+- **Mini-player**: fondo del color de la reproducción sin blur ni imagen de fondo.
+
 ## 2026-11-21 — Fase 18: logo, widget, recuerdos y aleatorio ordenado
 
 - **Logo propio**: icono adaptativo vectorial (nota musical sobre degradado índigo/azul) con recursos `mipmap` para todas las densidades; eliminado el icono por defecto de Android.

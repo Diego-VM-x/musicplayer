@@ -89,7 +89,8 @@ class PlayerRepository @Inject constructor(
         scope.launch {
             settings.shuffle.collect { enabled ->
                 desiredShuffle = enabled
-                withController { it.shuffleModeEnabled = enabled }
+                if (enabled) rebuildShuffleOrder() else visibleOrder = emptyList()
+                withController { controller -> sendShuffleOrder(controller, enabled) }
             }
         }
         scope.launch {
@@ -146,7 +147,7 @@ class PlayerRepository @Inject constructor(
                     _controller.value = controller
                     if (desiredShuffle) {
                         rebuildShuffleOrder()
-                        sendShuffleOrder(controller)
+                        sendShuffleOrder(controller, enabled = true)
                     }
                     attachWidgetListener(controller)
                     pendingAction?.let { action ->
@@ -223,12 +224,22 @@ class PlayerRepository @Inject constructor(
         val safeIndex = startIndex.coerceIn(0, items.lastIndex)
         withController { c ->
             c.setMediaItems(items, safeIndex, 0L)
+            if (desiredShuffle) {
+                rebuildShuffleOrder()
+                sendShuffleOrder(c, enabled = true)
+            }
             c.prepare()
             c.play()
         }
     }
 
-    fun addToQueue(song: Song) = withController { it.addMediaItem(song.toMediaItem()) }
+    fun addToQueue(song: Song) = withController { c ->
+        c.addMediaItem(song.toMediaItem())
+        if (desiredShuffle) {
+            rebuildShuffleOrder()
+            sendShuffleOrder(c, enabled = true)
+        }
+    }
 
     fun play(song: Song) = playSongs(listOf(song))
 
@@ -265,14 +276,11 @@ class PlayerRepository @Inject constructor(
     fun setShuffle(on: Boolean) {
         desiredShuffle = on
         if (on) rebuildShuffleOrder() else visibleOrder = emptyList()
-        withController { controller ->
-            controller.shuffleModeEnabled = on
-            sendShuffleOrder(controller)
-        }
+        withController { controller -> sendShuffleOrder(controller, on) }
         scope.launch { runCatching { settings.setShuffle(on) } }
     }
 
-    /** Current track first, then the remaining songs in a stable shuffled order. */
+    /** Current track first, then a brand-new random order on every activation. */
     private fun rebuildShuffleOrder() {
         val items = currentQueue()
         if (items.isEmpty()) {
@@ -281,21 +289,28 @@ class PlayerRepository @Inject constructor(
         }
         val currentId = runCatching { _controller.value?.currentMediaItem?.mediaId }.getOrNull()
         val first = currentId?.takeIf { id -> items.any { it.mediaId == id } }
+        // No fixed seed: each activation produces a different order.
         val rest = items.mapNotNull { it.mediaId }
             .filter { it != first }
-            .shuffled(java.util.Random(items.size * 7919L + (first?.hashCode() ?: 0)))
+            .shuffled()
         visibleOrder = listOfNotNull(first) + rest
     }
 
-    private fun sendShuffleOrder(controller: MediaController) {
+    /** Sends the visible order to the service; the service owns Media3's shuffle state. */
+    private fun sendShuffleOrder(controller: MediaController, enabled: Boolean) {
         val command = androidx.media3.session.SessionCommand(
             PlaybackService.COMMAND_SET_SHUFFLE_ORDER,
             Bundle.EMPTY,
         )
         val args = Bundle().apply {
-            putStringArray(PlaybackService.EXTRA_SHUFFLE_ORDER, visibleOrder.toTypedArray())
+            putStringArray(
+                PlaybackService.EXTRA_SHUFFLE_ORDER,
+                if (enabled) visibleOrder.toTypedArray() else emptyArray(),
+            )
         }
-        runCatching { controller.sendCustomCommand(command, args) }
+        val sent = runCatching { controller.sendCustomCommand(command, args) }.isSuccess
+        // Fallback if the service did not receive the command.
+        if (!sent || !enabled) runCatching { controller.shuffleModeEnabled = enabled }
     }
 
     fun setRepeat(mode: Int) {
@@ -363,7 +378,24 @@ class PlayerRepository @Inject constructor(
         c.play()
     }
 
-    fun removeFromQueue(index: Int) = withController { it.removeMediaItem(index) }
+    fun removeFromQueue(index: Int) = withController { c ->
+        c.removeMediaItem(index)
+        if (desiredShuffle) {
+            rebuildShuffleOrder()
+            sendShuffleOrder(c, enabled = true)
+        }
+    }
+
+    /** Reorders two items in the real timeline (used by the queue drag handles). */
+    fun moveQueueItem(from: Int, to: Int) = withController { c ->
+        val safeFrom = from.coerceIn(0, c.mediaItemCount - 1)
+        val safeTo = to.coerceIn(0, c.mediaItemCount - 1)
+        if (safeFrom != safeTo) c.moveMediaItem(safeFrom, safeTo)
+        if (desiredShuffle) {
+            rebuildShuffleOrder()
+            sendShuffleOrder(c, enabled = true)
+        }
+    }
 
     // ---- Sleep timer ----
 

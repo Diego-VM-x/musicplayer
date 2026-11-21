@@ -152,11 +152,11 @@ fun AppNavGraph() {
         composable(Routes.PLAYER) {
             PlayerScreen(
                 onBack = { navController.popBackStack() },
-                onLyrics = { navController.navigate(Routes.LYRICS) },
-                onQueue = { navController.navigate(Routes.QUEUE) },
-                onSleepTimer = { navController.navigate(Routes.SLEEP) },
-                onEqualizer = { navController.navigate(Routes.EQUALIZER) },
-                onSettings = { navController.navigate(Routes.SETTINGS) },
+                onLyrics = { navController.go(Routes.LYRICS) },
+                onQueue = { navController.go(Routes.QUEUE) },
+                onSleepTimer = { navController.go(Routes.SLEEP) },
+                onEqualizer = { navController.go(Routes.EQUALIZER) },
+                onSettings = { navController.go(Routes.SETTINGS) },
             )
         }
         composable(
@@ -165,7 +165,7 @@ fun AppNavGraph() {
         ) {
             PlaylistDetailScreen(
                 onBack = { navController.popBackStack() },
-                onOpenPlayer = { navController.navigate(Routes.PLAYER) },
+                onOpenPlayer = { navController.go(Routes.PLAYER) },
             )
         }
         composable(Routes.LYRICS) {
@@ -177,19 +177,19 @@ fun AppNavGraph() {
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
-                onPlayTime = { navController.navigate(Routes.PLAY_TIME) },
-                onBackup = { navController.navigate(Routes.BACKUP) },
-                onTheme = { navController.navigate(Routes.THEME) },
-                onSleepTimer = { navController.navigate(Routes.SLEEP) },
-                onHiddenFiles = { navController.navigate(Routes.HIDDEN_FILES) },
-                onRecentlyDeleted = { navController.navigate(Routes.RECENTLY_DELETED) },
-                onPlaybackSettings = { navController.navigate(Routes.PLAYBACK_SETTINGS) },
-                onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
-                onLanguage = { navController.navigate(Routes.LANGUAGE) },
-                onFeedback = { navController.navigate(Routes.FEEDBACK) },
-                onAbout = { navController.navigate(Routes.ABOUT) },
-                onUpdates = { navController.navigate(Routes.UPDATES) },
-                onMemories = { navController.navigate(Routes.MEMORIES) },
+                onPlayTime = { navController.go(Routes.PLAY_TIME) },
+                onBackup = { navController.go(Routes.BACKUP) },
+                onTheme = { navController.go(Routes.THEME) },
+                onSleepTimer = { navController.go(Routes.SLEEP) },
+                onHiddenFiles = { navController.go(Routes.HIDDEN_FILES) },
+                onRecentlyDeleted = { navController.go(Routes.RECENTLY_DELETED) },
+                onPlaybackSettings = { navController.go(Routes.PLAYBACK_SETTINGS) },
+                onNotifications = { navController.go(Routes.NOTIFICATIONS) },
+                onLanguage = { navController.go(Routes.LANGUAGE) },
+                onFeedback = { navController.go(Routes.FEEDBACK) },
+                onAbout = { navController.go(Routes.ABOUT) },
+                onUpdates = { navController.go(Routes.UPDATES) },
+                onMemories = { navController.go(Routes.MEMORIES) },
             )
         }
         composable(Routes.PLAY_TIME) { PlayTimeScreen(onBack = { navController.popBackStack() }) }
@@ -206,7 +206,7 @@ fun AppNavGraph() {
         composable(Routes.MEMORIES) {
             MemoriesScreen(
                 onBack = { navController.popBackStack() },
-                onOpenPlayer = { navController.navigate(Routes.PLAYER) },
+                onOpenPlayer = { navController.go(Routes.PLAYER) },
             )
         }
     }
@@ -215,7 +215,7 @@ fun AppNavGraph() {
         // the playlist editor (which hides it through MiniPlayerOverlay).
         if (miniAllowed) {
             MiniPlayer(
-                onOpen = { navController.navigate(Routes.PLAYER) },
+                onOpen = { navController.go(Routes.PLAYER) },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
@@ -237,42 +237,50 @@ private fun LibraryHome(navController: NavHostController) {
                 }
                 DrawerItem("Ajustes", Icons.Rounded.Settings) {
                     scope.launch { drawerState.close() }
-                    navController.navigate(Routes.SETTINGS)
+                    navController.go(Routes.SETTINGS)
                 }
                 DrawerItem("Tema", Icons.Rounded.Palette) {
                     scope.launch { drawerState.close() }
-                    navController.navigate(Routes.THEME)
+                    navController.go(Routes.THEME)
                 }
                 DrawerItem("Ajustes de reproducción", Icons.Rounded.Headphones) {
                     scope.launch { drawerState.close() }
-                    navController.navigate(Routes.PLAYBACK_SETTINGS)
+                    navController.go(Routes.PLAYBACK_SETTINGS)
                 }
                 DrawerItem("Ecualizador", Icons.Rounded.Equalizer) {
                     scope.launch { drawerState.close() }
-                    navController.navigate(Routes.EQUALIZER)
+                    navController.go(Routes.EQUALIZER)
                 }
                 DrawerItem("Temporizador para dormir", Icons.Rounded.Timer) {
                     scope.launch { drawerState.close() }
-                    navController.navigate(Routes.SLEEP)
+                    navController.go(Routes.SLEEP)
                 }
                 DrawerItem("Respaldar y guardar", Icons.Rounded.CloudUpload) {
                     scope.launch { drawerState.close() }
-                    navController.navigate(Routes.BACKUP)
+                    navController.go(Routes.BACKUP)
                 }
                 DrawerItem("Actualizaciones", Icons.Rounded.SystemUpdate) {
                     scope.launch { drawerState.close() }
-                    navController.navigate(Routes.UPDATES)
+                    navController.go(Routes.UPDATES)
                 }
             }
         },
     ) {
         Box(Modifier.fillMaxSize()) {
             LibraryScreen(
-                onOpenPlayer = { navController.navigate(Routes.PLAYER) },
-                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
-                onOpenPlaylist = { id -> navController.navigate(Routes.playlist(id)) },
+                onOpenPlayer = { navController.go(Routes.PLAYER) },
+                onOpenSettings = { navController.go(Routes.SETTINGS) },
+                onOpenPlaylist = { id -> navController.go(Routes.playlist(id)) },
             )
         }
+    }
+}
+
+/** Reuses existing destinations instead of stacking duplicates on every tap. */
+private fun NavHostController.go(route: String) {
+    navigate(route) {
+        launchSingleTop = true
+        restoreState = true
     }
 }
 

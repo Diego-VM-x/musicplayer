@@ -7,8 +7,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,25 +27,34 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Reorder
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import com.larkplayer.core.designsystem.component.CircleIconButton
@@ -56,6 +67,7 @@ import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_REPEAT_ONE
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_SHUFFLE
 
 /** Cola de reproducción con controles de repetición y aleatorio siempre visibles. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun QueueScreen(
     onBack: () -> Unit,
@@ -66,6 +78,15 @@ fun QueueScreen(
     val queue = viewModel.visibleQueue(state.shuffle)
     val current = viewModel.currentIndex()
     val accentColor = Color(accentInt)
+
+    // Local copy so drag-to-reorder animates smoothly; synced from the player.
+    var displayOrder by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+    var dragging by remember { mutableStateOf(false) }
+    LaunchedEffect(queue) {
+        if (!dragging) displayOrder = queue
+    }
+    val density = LocalDensity.current
+    val rowPx = with(density) { 72.dp.toPx() }
 
     LarkGradientBackground(accent = accentColor, strength = 0.30f) {
         Column(Modifier.fillMaxSize()) {
@@ -107,8 +128,12 @@ fun QueueScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp),
                 ) {
-                    itemsIndexed(queue) { index, item ->
+                    itemsIndexed(
+                        displayOrder,
+                        key = { index, item -> item.mediaId ?: "queue-$index" },
+                    ) { index, item ->
                         val isCurrent = item.mediaId != null && item.mediaId == currentId
+                        var dragY by remember(item.mediaId) { mutableFloatStateOf(0f) }
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -156,6 +181,41 @@ fun QueueScreen(
                                 Text("SONANDO", color = accentColor, fontSize = 9.sp, letterSpacing = 0.6.sp)
                                 Spacer(Modifier.width(4.dp))
                             }
+                            // Drag handle: long-press and drag to reorder the queue.
+                            Box(
+                                Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .pointerInput(item.mediaId) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = { dragging = true; dragY = 0f },
+                                            onDragEnd = { dragging = false },
+                                            onDragCancel = { dragging = false },
+                                        ) { change, dragAmount ->
+                                            change.consume()
+                                            dragY += dragAmount.y
+                                            val steps = (dragY / rowPx).toInt()
+                                            if (steps != 0 && displayOrder.indices.contains(index)) {
+                                                val target = (index + steps).coerceIn(0, displayOrder.lastIndex)
+                                                if (target != index) {
+                                                    displayOrder = displayOrder.toMutableList().apply {
+                                                        add(target, removeAt(index))
+                                                    }
+                                                    viewModel.moveQueueItem(index, target)
+                                                    dragY = 0f
+                                                }
+                                            }
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Reorder,
+                                    "Arrastrar para reordenar",
+                                    tint = Color(0xFF9A9AA2),
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -166,7 +226,7 @@ fun QueueScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 18.dp),
+                    .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 92.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {

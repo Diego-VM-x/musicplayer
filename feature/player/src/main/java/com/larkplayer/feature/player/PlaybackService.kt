@@ -118,12 +118,18 @@ class PlaybackService : MediaSessionService() {
 
     /** Applies the order shown in the UI to Media3's internal shuffle engine. */
     private fun applyShuffleOrder(ids: List<String>) {
-        if (ids.isEmpty()) return
+        if (ids.isEmpty()) {
+            runCatching { player.shuffleModeEnabled = false }
+            return
+        }
         val indexById = (0 until player.mediaItemCount).associate { index ->
             player.getMediaItemAt(index).mediaId to index
         }
         val indices = ids.mapNotNull { indexById[it] }.toIntArray()
-        if (indices.isEmpty()) return
+        if (indices.isEmpty()) {
+            runCatching { player.shuffleModeEnabled = false }
+            return
+        }
         runCatching {
             player.setShuffleOrder(VisibleShuffleOrder(indices))
             player.shuffleModeEnabled = true
