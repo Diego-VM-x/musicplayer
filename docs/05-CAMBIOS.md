@@ -4,6 +4,11 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 27: publicación v14
+
+- Commits `49ba317` (diseño satinado y animaciones) y `d9a496d` (correcciones de aleatorio y drag-reorder), confirmados en `origin/master`.
+- Release pública `v1.0.13` con `musicplayer-14.apk` (23.052.280 bytes, `versionCode` 14, SHA-256 `b54d4003c00eb2f07357a0b3778847527d399a2a8eb32168c16b9eaedc48133a`). Verificado con la API: es la última release, no es draft ni pre-release y el asset está cargado.
+
 ## 2026-11-21 — Fase 26: eliminación de liquid glass y nuevo diseño elegante satinado con animaciones fluidas (v13)
 
 - **Eliminación del Liquid Glass**:
