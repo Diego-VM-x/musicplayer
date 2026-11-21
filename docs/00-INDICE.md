@@ -13,5 +13,6 @@
 | [`08-REPO.md`](08-REPO.md) | Estado e instrucciones del repositorio Git |
 | [`09-APPLE-GLASS.md`](09-APPLE-GLASS.md) | Rediseño Apple Music / liquid glass y fix de detección de música |
 | [`10-LARK-UI.md`](10-LARK-UI.md) | Rediseño fiel a las capturas de Lark y acabado liquid glass (sin barra inferior, playlists, selección múltiple, tema, idioma, ajustes) |
+| [`11-REA-ORIGINAL.md`](11-REA-ORIGINAL.md) | Escaneo REA del APK original: inventario, optimizaciones de reproducción en segundo plano y arranque, funciones faltantes |
 
 Regla: **todo cambio de código se documenta en `05-CAMBIOS.md`** y, si introduce una función nueva, se registra en `03-FUNCIONES.md`.
