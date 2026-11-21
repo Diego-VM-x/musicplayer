@@ -21,6 +21,7 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
     `GlassPill`, `GlassTag`, `GlassSelectionBar` y `LarkDialog` sustituyen degradados, bordes y sombras por
     superficies sólidas cuando el modo plano está activo. El reproductor conserva su aspecto original.
 - `versionCode` 17 / `1.0.16-clean`; `assembleDebug` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.16` con `musicplayer-17.apk` (23.101.436 bytes, SHA-256 `62094B84BA3FC115794FD8F79D00FE19240604AF352D0FE913F0150C415F40A8`). Verificada como última release, sin draft/pre-release y con el asset `uploaded`.
 
 ## 2026-11-21 — Fase 29: orden visual del reproductor y arrastre elevado (v16)
 
