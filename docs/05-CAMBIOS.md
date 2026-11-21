@@ -23,6 +23,7 @@ Dos commits: el primero ajusta la interfaz al APK original; el segundo conecta l
 - `LibraryScreen.kt`: compartir varias seleccionadas usa `ACTION_SEND_MULTIPLE` en lugar de enviar solo la primera.
 - `PlaybackSettingsScreen.kt`: subtítulo de crossfade honesto (desvanecimiento de entrada/salida, sin prometer superposición).
 - `build`: `assembleDebug` → BUILD SUCCESSFUL; `versionCode` 15 / `1.0.14-clean`.
+- Publicada la release `v1.0.14` con `musicplayer-15.apk` (23.085.052 bytes, SHA-256 `04BB5117967BD6E86E9ABE5EF8A3F5C89570F6088B1FC1054C1C00FD0A3C6E2A`). Verificada con la API: es la última release, no es draft ni pre-release y el asset está `uploaded`. Detalle completo en [`15-AUDITORIA-ORIGINAL.md`](15-AUDITORIA-ORIGINAL.md).
 
 ## 2026-11-21 — Fase 27: publicación v14
 
