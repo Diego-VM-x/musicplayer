@@ -64,6 +64,40 @@ class BackupViewModel @Inject constructor(
         )
 
     /** Finds the newest `Backup_of_Lark_Player_*.lrc` for one-tap restore. */
+    /** Finds a copied `vlc_database` in Downloads/Documents or app folders. */
+    fun findOriginalDatabase(): Uri? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            runCatching {
+                context.contentResolver.query(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME),
+                    null, null,
+                    "${MediaStore.Downloads.DATE_ADDED} DESC",
+                )?.use { c ->
+                    while (c.moveToNext()) {
+                        val name = c.getString(c.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)).orEmpty()
+                        if (name.equals("vlc_database", true) || name.startsWith("vlc_database")) {
+                            val id = c.getLong(c.getColumnIndexOrThrow(MediaStore.Downloads._ID))
+                            return ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+                        }
+                    }
+                }
+            }
+        }
+        val dirs = listOfNotNull(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+            context.getExternalFilesDir(null),
+        )
+        return dirs.flatMap { dir ->
+            runCatching {
+                dir.walkTopDown().maxDepth(3).filter {
+                    it.isFile && it.name.equals("vlc_database", true)
+                }.toList()
+            }.getOrDefault(emptyList())
+        }.maxByOrNull { it.lastModified() }?.let { Uri.fromFile(it) }
+    }
+
     fun findLocalBackup(): Uri? {
         // Professional detection: query MediaStore first (works without
         // storage permission and finds files in any Downloads location),

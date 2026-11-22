@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,7 +44,7 @@ import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.backup.BackupViewModel
 import kotlinx.coroutines.launch
 
-/** Restores only the local Lark Player backup (`Backup_of_Lark_Player_*.lrc`). */
+/** Imports playlists by scanning the original Lark Player local database. */
 @Composable
 fun BackupScreen(
     onBack: () -> Unit,
@@ -53,14 +54,12 @@ fun BackupScreen(
     var status by remember { mutableStateOf("") }
     val accent = MaterialTheme.colorScheme.primary
 
-    val localLauncher = rememberLauncherForActivityResult(
+    val dbLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri != null) {
-            scope.launch { status = viewModel.importLocalBackup(uri) }
-        }
+        if (uri != null) scope.launch { status = viewModel.importOriginalDatabase(uri) }
     }
-    val localBackup by remember { mutableStateOf(viewModel.findLocalBackup()) }
+    val detectedDb by remember { mutableStateOf(viewModel.findOriginalDatabase()) }
 
     Column(
         Modifier
@@ -73,7 +72,7 @@ fun BackupScreen(
         CircleIconButton(onClick = onBack)
         Spacer(Modifier.height(16.dp))
         Text(
-            "Restaurar copia local",
+            "Importar de Lark Player",
             color = Color.White,
             fontSize = 25.sp,
             fontWeight = FontWeight.ExtraBold,
@@ -81,7 +80,8 @@ fun BackupScreen(
             modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
         )
         Text(
-            "Importa tus playlists desde la copia local de Lark Player.",
+            "Escanea la base de datos local de Lark Player y recrea tus playlists " +
+                "con las canciones que ya tienes en el dispositivo.",
             color = ApplePalette.TextSecondary,
             fontSize = 11.5.sp,
             lineHeight = 16.sp,
@@ -89,25 +89,25 @@ fun BackupScreen(
         )
 
         LarkCard(Modifier.fillMaxWidth()) {
-            if (localBackup != null) {
+            if (detectedDb != null) {
                 BackupAction(
                     icon = Icons.Rounded.Unarchive,
-                    title = "Restaurar copia detectada",
-                    subtitle = "Copia de Lark Player encontrada — toca para importar",
+                    title = "Base de datos detectada",
+                    subtitle = "Toca para escanear e importar las playlists",
                     accent = accent,
                     onClick = {
-                        localBackup?.let { uri ->
-                            scope.launch { status = viewModel.importLocalBackup(uri) }
+                        detectedDb?.let { uri ->
+                            scope.launch { status = viewModel.importOriginalDatabase(uri) }
                         }
                     },
                 )
             }
             BackupAction(
                 icon = Icons.Rounded.Folder,
-                title = "Seleccionar copia local",
-                subtitle = "Elige Backup_of_Lark_Player_*.lrc",
+                title = "Seleccionar vlc_database",
+                subtitle = "Cierra Lark Player y elige el archivo copiado",
                 accent = accent,
-                onClick = { localLauncher.launch(arrayOf("*/*")) },
+                onClick = { dbLauncher.launch(arrayOf("*/*")) },
             )
         }
 
@@ -149,7 +149,7 @@ private fun BackupAction(
                 .clip(RoundedCornerShape(12.dp))
                 .background(accent.copy(alpha = 0.14f)),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+            verticalArrangement = Arrangement.Center,
         ) {
             Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp))
         }

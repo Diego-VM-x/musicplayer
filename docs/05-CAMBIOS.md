@@ -4,6 +4,18 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-22 — Fase 42: importación escaneando la BD local del original (v29)
+
+- Pantalla de importación simplificada: solo **Importar de Lark Player**, basada en `vlc_database`.
+- `BackupViewModel.findOriginalDatabase()` detecta el archivo copiado mediante `MediaStore.Downloads` y
+  recorrido de Descargas/Documentos/almacenamiento de la app; si no existe, abre el selector SAF.
+- `OriginalLibraryScanner` lee `playlist_table` + `playlist_media_table` + `media_table` con el mismo JOIN
+  del original, ignora `INVALID_*`, empareja por ruta/nombre de archivo y conserva `playlist_order`.
+- Se eliminaron definitivamente de la UI el importador LPBK, los `.info` de Drive, el ZIP y `vlc_database`
+  como opciones separadas (ahora es la única).
+- `versionCode` 29 / `1.0.28-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.28` con `musicplayer-29.apk` (3.422.811 bytes, SHA-256 `8DCEA66B6F000C429294870B61884E6399D5D5A46067FAF393C03DA58ADE4380`), verificada con `aapt` (`versionCode=29`).
+
 ## 2026-11-22 — Fase 41: importador local en solitario y diagnóstico ZIP (v28)
 
 - `BackupScreen` reducida a una sola función: detectar/restaurar la copia local `Backup_of_Lark_Player_*.lrc`.
