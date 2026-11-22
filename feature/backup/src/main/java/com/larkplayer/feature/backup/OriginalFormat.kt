@@ -58,7 +58,14 @@ object OriginalBackupFiles {
     const val PLAY_COUNT = "(Don’t delete) Play count you backed up in Lark Player.info"
     const val PLAYTIME = "(Don’t delete) Playtime you backed up in Lark Player.info"
 
-    /** Matching is case-insensitive in the original app. */
-    fun isPlaylists(name: String) = name.equals(PLAYLISTS, ignoreCase = true)
-    fun isPlayCount(name: String) = name.equals(PLAY_COUNT, ignoreCase = true)
+    /** Matching is case-insensitive in the original app and handles curly/straight apostrophes. */
+    fun isPlaylists(name: String): Boolean {
+        val n = name.lowercase().replace("’", "'")
+        return n.contains("playlists you backed up in lark player") ||
+            (n.startsWith("(don't delete)") && n.contains("playlist"))
+    }
+    fun isPlayCount(name: String): Boolean {
+        val n = name.lowercase().replace("’", "'")
+        return n.contains("play count you backed up in lark player")
+    }
 }

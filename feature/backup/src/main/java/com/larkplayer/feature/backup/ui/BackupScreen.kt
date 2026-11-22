@@ -71,6 +71,19 @@ fun BackupScreen(
     var showTutorial by remember { mutableStateOf(false) }
     val availableBackups by remember { mutableStateOf(viewModel.findAvailableBackups()) }
 
+    val openFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                isOperating = true
+                statusMessage = "Escaneando carpeta de Drive..."
+                statusMessage = viewModel.importDriveFolder(uri)
+                isOperating = false
+            }
+        }
+    }
+
     val openBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -193,19 +206,19 @@ fun BackupScreen(
                         TutorialStep(
                             number = "1",
                             title = "En Lark Player original:",
-                            desc = "Ve a 'Yo' > 'Copia de seguridad' y selecciona 'Copia de seguridad en Google Drive' o 'Copia local'.",
+                            desc = "Ve a 'Yo' > 'Copia de seguridad' y pulsa 'Copia de seguridad en Google Drive' (creará la carpeta 'Backed-up music / Music / Info' en tu Drive).",
                         )
                         Spacer(Modifier.height(10.dp))
                         TutorialStep(
                             number = "2",
-                            title = "Si usaste Google Drive:",
-                            desc = "Abre tu Google Drive, busca el archivo que empiece por '(Don’t delete) Playlists...' o con extensión '.info' y descárgalo a tu teléfono (quedará en la carpeta Descargas / Download).",
+                            title = "¿Cómo importar las playlists desde Drive?:",
+                            desc = "En 'IMPORTACIÓN MANUAL' pulsa 'Escanear carpeta de Google Drive', navega a 'Backed-up music > Music > Info' y pulsa 'Usar esta carpeta'. La app extraerá automáticamente el archivo de playlists sin que tengas que adivinar cuál es.",
                         )
                         Spacer(Modifier.height(10.dp))
                         TutorialStep(
                             number = "3",
-                            title = "Detección o selección:",
-                            desc = "Al entrar aquí, la app lo detectará automáticamente arriba en 'RESPALDOS DETECTADOS'. Solo tócalo para importar. O usa 'Seleccionar archivo' si lo guardaste en otra carpeta.",
+                            title = "Si descargaste el archivo a tu teléfono:",
+                            desc = "Aparecerá directamente arriba en 'RESPALDOS DETECTADOS' listo para tocar y restaurar.",
                         )
                     }
                 }
@@ -317,7 +330,7 @@ fun BackupScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // Sección 2: Importación manual universal
+        // Sección 2: Importación manual y carpetas de Drive
         Text(
             "IMPORTACIÓN MANUAL",
             color = ApplePalette.TextSecondary,
@@ -327,6 +340,17 @@ fun BackupScreen(
             modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
         )
         LarkCard(Modifier.fillMaxWidth()) {
+            BackupItemRow(
+                icon = Icons.Rounded.CloudDownload,
+                title = "Escanear carpeta de Google Drive",
+                subtitle = "Selecciona la carpeta 'Info' de Drive y cargará las playlists automáticamente",
+                accent = accent,
+                onClick = {
+                    if (!isOperating) {
+                        openFolderLauncher.launch(null)
+                    }
+                },
+            )
             BackupItemRow(
                 icon = Icons.Rounded.FolderOpen,
                 title = "Seleccionar archivo de respaldo",

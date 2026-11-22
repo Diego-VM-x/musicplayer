@@ -35,6 +35,57 @@ class BackupViewModel @Inject constructor(
         _lastErrorLog.value = null
     }
 
+    suspend fun importDriveFolder(treeUri: Uri): String {
+        _lastErrorLog.value = null
+        return runCatching {
+            val resolver = context.contentResolver
+            val docId = android.provider.DocumentsContract.getTreeDocumentId(treeUri)
+            val childrenUri = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
+
+            data class ChildDoc(val uri: Uri, val name: String)
+            val children = mutableListOf<ChildDoc>()
+
+            resolver.query(
+                childrenUri,
+                arrayOf(
+                    android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                ),
+                null, null, null
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                val nameCol = cursor.getColumnIndexOrThrow(android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                while (cursor.moveToNext()) {
+                    val childId = cursor.getString(idCol)
+                    val displayName = cursor.getString(nameCol).orEmpty()
+                    val childUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, childId)
+                    children.add(ChildDoc(childUri, displayName))
+                }
+            }
+
+            if (children.isEmpty()) error("La carpeta seleccionada está vacía o no tiene permisos de lectura")
+
+            // Prioridad:
+            // 1. Archivo de Playlists exacto ('Playlists you backed up in Lark Player')
+            // 2. Cualquier archivo .info con 'playlist'
+            // 3. Cualquier archivo .info
+            val target = children.firstOrNull { child ->
+                OriginalBackupFiles.isPlaylists(child.name)
+            } ?: children.firstOrNull { child ->
+                val n = child.name.lowercase()
+                n.contains("playlist") && (n.endsWith(".info") || n.endsWith(".json"))
+            } ?: children.firstOrNull { child ->
+                val n = child.name.lowercase().replace("’", "'")
+                n.endsWith(".info") || n.startsWith("(don't delete)")
+            } ?: error("No se encontró el archivo de playlists (.info) dentro de esta carpeta")
+
+            importBackup(target.uri)
+        }.getOrElse { err ->
+            val simplified = simplifyError(err)
+            _lastErrorLog.value = simplified
+            "Error al leer carpeta de Drive: ${err.message ?: "Archivo no encontrado"}"
+        }
+    }
     suspend fun importBackup(uri: Uri): String {
         _lastErrorLog.value = null
         val result = manager.importUniversal(uri)
@@ -177,11 +228,14 @@ class BackupViewModel @Inject constructor(
     }
 
     private fun classifyFileName(name: String): String? {
-        val lower = name.lowercase().trim()
+        val lower = name.lowercase().trim().replace("’", "'")
         return when {
+            OriginalBackupFiles.isPlaylists(name) -> "Playlists de Lark en Drive (.info)"
+            lower.contains("playlists you backed up in lark player") -> "Playlists de Lark en Drive (.info)"
             lower.endsWith(".lrc") -> "Copia local Lark (.lrc)"
-            lower.contains("playlists you backed up in lark player") -> "Respaldo Drive Lark (.info)"
-            lower.endsWith(".info") -> "Respaldo Drive Lark (.info)"
+            lower.endsWith(".info") && lower.contains("playlist") -> "Playlists de Lark en Drive (.info)"
+            lower.endsWith(".info") && lower.contains("play count") -> "Contadores de Lark (.info)"
+            lower.endsWith(".info") -> "Respaldo Lark Drive (.info)"
             lower.endsWith(".json") && (lower.contains("playlist") || lower.contains("lark") || lower.contains("backup")) ->
                 "Respaldo Drive / JSON (.json)"
             lower.contains("lark-backup") && lower.endsWith(".zip") -> "Copia LarkClean (.zip)"
