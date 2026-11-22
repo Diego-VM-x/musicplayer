@@ -4,6 +4,15 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-22 — Fase 41: importador local en solitario y diagnóstico ZIP (v28)
+
+- `BackupScreen` reducida a una sola función: detectar/restaurar la copia local `Backup_of_Lark_Player_*.lrc`.
+  Se eliminaron exportar ZIP, importar ZIP, `vlc_database` y los `.info` de Drive.
+- `LpbkImporter` valida que el payload descifrado empiece por `PK`, prueba `ZipFile` y, si falla,
+  `ZipInputStream`, e incluye el cabezal y el error real en el mensaje para diagnosticar en dispositivo.
+- `versionCode` 28 / `1.0.27-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.27` con `musicplayer-28.apk` (3.422.811 bytes, SHA-256 `734CFAE75FE9558BA07B1EF2DBA421BD921E5E758EFD910A3E4894FEFB9390FD`), verificada con `aapt` (`versionCode=28`).
+
 ## 2026-11-22 — Fase 40: lectura ZIP robusta y detección MediaStore (v27)
 
 - El payload descifrado se escribe a un archivo temporal y se abre con `java.util.zip.ZipFile`

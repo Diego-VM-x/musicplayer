@@ -12,9 +12,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.spec.IvParameterSpec
@@ -101,6 +103,10 @@ class LpbkImporter @Inject constructor(
         cipher.init(Cipher.DECRYPT_MODE, encKey, IvParameterSpec(iv16))
         val payload = cipher.doFinal(bytes, 24 + metaLen, signedLength - (24 + metaLen))
 
+        val head = payload.copyOfRange(0, 2).joinToString(" ") { "%02X".format(it) }
+        if (payload.size < 2 || payload[0] != 0x50.toByte() || payload[1] != 0x4B.toByte()) {
+            error("El payload descifrado no es ZIP (cabezal=$head, bytes=${payload.size})")
+        }
         val payloadFile = File(workDir, "payload.zip")
         payloadFile.writeBytes(payload)
         val sections = readSections(payloadFile)
@@ -157,36 +163,62 @@ class LpbkImporter @Inject constructor(
     }
 
     private fun readSections(payloadFile: File): Sections {
+        val bytes = payloadFile.readBytes()
+        var lastError: Throwable? = null
+        // ZipFile uses the central directory; ZipInputStream is kept as a
+        // fallback because ROM implementations differ on data descriptors.
+        runCatching { return readZipFile(payloadFile) }
+            .onFailure { lastError = it }
+        runCatching { return readZipStream(bytes) }
+            .onFailure { lastError = it }
+        throw IllegalStateException(
+            "No se pudo leer el ZIP interno: ${lastError?.message.orEmpty()}",
+            lastError,
+        )
+    }
+
+    private fun readZipFile(payloadFile: File): Sections {
         var media = emptyList<LpbkMedia>()
         var playlists = emptyList<LpbkPlaylist>()
         val covers = HashMap<String, ByteArray>()
-        val header = payloadFile.readBytes().copyOfRange(0, 2)
-        val isZip = header[0] == 0x50.toByte() && header[1] == 0x4B.toByte()
-        if (isZip) {
-            // ZipFile reads the central directory, which is tolerant of the
-            // data descriptors used by the original writer. ZipInputStream
-            // failed on some devices with "invalid stored block lengths".
-            ZipFile(payloadFile).use { zip ->
-                val entries = zip.entries()
-                while (entries.hasMoreElements()) {
-                    val entry = entries.nextElement()
-                    when {
-                        entry.name.endsWith("media.json") -> media = parseMedia(
-                            zip.getInputStream(entry).use { it.readBytes() },
-                        )
-                        entry.name.endsWith("playlists.json") -> playlists = parsePlaylists(
-                            zip.getInputStream(entry).use { it.readBytes() },
-                        )
-                        entry.name.startsWith("files/") && !entry.isDirectory ->
-                            covers[entry.name] = zip.getInputStream(entry).use { it.readBytes() }
-                    }
+        ZipFile(payloadFile).use { zip ->
+            val entries = zip.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                when {
+                    entry.name.endsWith("media.json") -> media = parseMedia(
+                        zip.getInputStream(entry).use { it.readBytes() },
+                    )
+                    entry.name.endsWith("playlists.json") -> playlists = parsePlaylists(
+                        zip.getInputStream(entry).use { it.readBytes() },
+                    )
+                    entry.name.startsWith("files/") && !entry.isDirectory ->
+                        covers[entry.name] = zip.getInputStream(entry).use { it.readBytes() }
                 }
             }
-        } else {
-            val json = JSONObject(payloadFile.readBytes().toString(StandardCharsets.UTF_8))
-            media = parseJsonMedia(json.optJSONArray("media"))
-            playlists = parseJsonPlaylists(json.optJSONArray("playlists"))
         }
+        require(playlists.isNotEmpty()) { "ZIP sin playlists.json" }
+        return Sections(media, playlists, covers)
+    }
+
+    private fun readZipStream(bytes: ByteArray): Sections {
+        var media = emptyList<LpbkMedia>()
+        var playlists = emptyList<LpbkPlaylist>()
+        val covers = HashMap<String, ByteArray>()
+        ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                when {
+                    entry.name.endsWith("media.json") -> media = parseMedia(zip.readBytes())
+                    entry.name.endsWith("playlists.json") -> playlists = parsePlaylists(zip.readBytes())
+                    entry.name.startsWith("files/") && !entry.isDirectory ->
+                        covers[entry.name] = zip.readBytes()
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+        require(playlists.isNotEmpty()) { "ZIP sin playlists.json" }
         return Sections(media, playlists, covers)
     }
 
