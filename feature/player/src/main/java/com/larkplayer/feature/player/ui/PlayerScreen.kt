@@ -562,43 +562,54 @@ fun PlayerScreen(
             }
 
             // ---- EQ / Letras / queue (mode badge lives on the queue icon) ----
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+            // A subtle solid footer keeps the bottom of the screen from reading
+            // as an empty black rectangle when the content is shorter than the
+            // viewport.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF1A1B20).copy(alpha = 0.72f))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
             ) {
-                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    GlassIconButton(
-                        Icons.Rounded.Equalizer,
-                        "Ecualizador",
-                        onEqualizer,
-                        size = 44.dp,
-                        iconSize = 23.dp,
-                        tint = ApplePalette.TextSecondary,
-                        flat = true,
-                    )
-                }
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    PlayerBottomLabel("Letras", onClick = onLyrics)
-                }
-                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                    Box {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                         GlassIconButton(
-                            Icons.Rounded.QueueMusic,
-                            "A continuación",
-                            onQueue,
+                            Icons.Rounded.Equalizer,
+                            "Ecualizador",
+                            onEqualizer,
                             size = 44.dp,
                             iconSize = 23.dp,
                             tint = ApplePalette.TextSecondary,
                             flat = true,
                         )
-                        PlayerModeBadge(
-                            mode = currentMode,
-                            accent = accent,
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 5.dp, y = (-4).dp),
-                            onClick = { viewModel.setPlaybackMode(nextMode(currentMode)) },
-                        )
+                    }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        PlayerBottomLabel("Letras", onClick = onLyrics)
+                    }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                        Box {
+                            GlassIconButton(
+                                Icons.Rounded.QueueMusic,
+                                "A continuación",
+                                onQueue,
+                                size = 44.dp,
+                                iconSize = 23.dp,
+                                tint = ApplePalette.TextSecondary,
+                                flat = true,
+                            )
+                            PlayerModeBadge(
+                                mode = currentMode,
+                                accent = accent,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 5.dp, y = (-4).dp),
+                                onClick = { viewModel.setPlaybackMode(nextMode(currentMode)) },
+                            )
+                        }
                     }
                 }
             }

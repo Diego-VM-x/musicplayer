@@ -91,7 +91,7 @@ fun PlaybackSettingsScreen(
         PlayToggleRow(
             icon = Icons.Rounded.ShowChart,
             title = "Crossfade",
-            subtitle = "Desvanecimiento de salida y entrada entre pistas",
+            subtitle = "Mezcla las canciones superponiendo salida y entrada",
             checked = playback.crossfade,
             onCheckedChange = viewModel::setCrossfade,
             accent = accent,

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -87,9 +88,19 @@ class LibraryViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
     init {
-        scan()
+        // MainActivity emits a scan request after the first frame (and after
+        // permissions). Waiting for it avoids a MediaStore query competing with
+        // the first composition; the delayed fallback covers other entry points.
+        var scanRequested = false
         viewModelScope.launch {
-            scanBus.events.collect { scan() }
+            scanBus.events.collect {
+                scanRequested = true
+                scan()
+            }
+        }
+        viewModelScope.launch {
+            delay(1_500)
+            if (!scanRequested) scan()
         }
     }
 

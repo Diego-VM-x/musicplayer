@@ -4,6 +4,26 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 31: arranque, pie del reproductor y crossfade real (v18)
+
+- **Arranque más rápido**:
+  - `PlayerRepository`: no enlaza el servicio de reproducción durante los primeros frames; la conexión se
+    pospone 900 ms y cualquier acción de play la fuerza de inmediato. Los colectores de ajustes ya no llaman
+    al controlador al inicio (los valores se aplican al conectar).
+  - `LibraryViewModel`: el escaneo de MediaStore espera al evento que `MainActivity` emite tras el primer frame;
+    queda un fallback de 1,5 s para otras entradas. Evita consultar MediaStore compitiendo con la primera composición.
+  - `MainActivity`: el diálogo de optimización de batería se pospone 2,5 s para no robar el foco inicial.
+  - `LarkApp`: la comprobación de actualizaciones pasa de 3 s a 20 s.
+- **Pie del reproductor** (`PlayerScreen.kt`, `LarkComponents.kt`): el degradado ya no termina en un bloque
+  negro plano (ahora 0.68→1.0 es un degradado suave) y la fila EQ/Letras/Cola va sobre un pie sólido con
+  esquinas redondeadas, de modo que la parte inferior no parece un recuadro vacío.
+- **Crossfade real** (`PlaybackService.kt`): se usa un segundo `ExoPlayer` con la siguiente canción; ambos
+  streams se mezclan en el mezclador de audio del sistema mientras sus volúmenes se cruzan con un `ValueAnimator`.
+  El reproductor principal mantiene la pausa al final del tema (`pauseAtEndOfMediaItems`) y al terminar la mezcla
+  retoma la siguiente canción en el punto alcanzado. Se cancela al pausar, saltar, parar o destruir el servicio.
+  `PlayerRepository` ya no hace falsos fades de volumen; el gapless sin pausas sigue funcionando.
+- `versionCode` 18 / `1.0.17-clean`; `assembleDebug` → BUILD SUCCESSFUL.
+
 ## 2026-11-21 — Fase 30: avance por orden, barra inferior y diseño plano (v17)
 
 - **Avance correcto al terminar una canción** (`PlayerRepository.kt`):

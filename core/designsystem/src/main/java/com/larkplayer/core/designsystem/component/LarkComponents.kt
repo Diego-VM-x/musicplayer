@@ -264,9 +264,9 @@ fun LarkGradientBackground(
                 } else {
                     Brush.verticalGradient(
                         0f to accent.copy(alpha = strength),
-                        0.32f to accent.copy(alpha = strength * 0.35f),
-                        0.62f to ApplePalette.Background,
-                        1f to ApplePalette.Background,
+                        0.30f to accent.copy(alpha = strength * 0.45f),
+                        0.68f to Color(0xFF15151A),
+                        1f to Color(0xFF101014),
                     )
                 }
             ),

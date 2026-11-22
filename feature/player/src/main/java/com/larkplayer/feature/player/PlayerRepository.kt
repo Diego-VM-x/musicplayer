@@ -76,7 +76,12 @@ class PlayerRepository @Inject constructor(
     private var pendingAction: ((MediaController) -> Unit)? = null
 
     init {
-        connect()
+        // Don't bind the playback service during the first, most expensive
+        // frames. Any play action still connects immediately via withController.
+        scope.launch {
+            delay(900)
+            connect()
+        }
         scope.launch {
             settings.crossfadeEnabled.collect { enabled ->
                 crossfadeEnabled = enabled
@@ -93,22 +98,14 @@ class PlayerRepository @Inject constructor(
             settings.shuffle.collect { enabled ->
                 desiredShuffle = enabled
                 if (enabled) rebuildShuffleOrder() else visibleOrder = emptyList()
-                withController { controller -> sendShuffleOrder(controller, enabled) }
+                // Applied when the controller connects (see connect() onSuccess).
             }
         }
         scope.launch {
-            settings.repeatMode.collect { mode ->
-                desiredRepeat = mode
-                withController { it.repeatMode = mode }
-            }
+            settings.repeatMode.collect { mode -> desiredRepeat = mode }
         }
         scope.launch {
-            settings.playbackSpeed.collect { speed ->
-                desiredSpeed = speed
-                withController {
-                    it.setPlaybackParameters(androidx.media3.common.PlaybackParameters(speed))
-                }
-            }
+            settings.playbackSpeed.collect { speed -> desiredSpeed = speed }
         }
         scope.launch { crossfadeLoop() }
         scope.launch { listeningTimeLoop() }
@@ -548,53 +545,24 @@ class PlayerRepository @Inject constructor(
     // ---- Crossfade ----------------------------------------------------------
 
     /**
-     * Applies the user's "Transición de sonido": with crossfade disabled (or gapless
-     * enabled) the volume stays at 1. With crossfade enabled we fade out during the
-     * configured number of seconds before the end and fade in the incoming track.
+     * Only handles the "gapless off" short silence. Real crossfade volume ramps
+     * are owned by PlaybackService, which mixes two ExoPlayer instances so the
+     * outgoing and incoming songs overlap.
      */
     private suspend fun crossfadeLoop() {
         while (scope.isActive) {
             val c = _controller.value
-            if (c == null || !c.isConnected) {
-                connect()
-            } else {
+            if (c != null && c.isConnected && !crossfadeEnabled) {
                 runCatching {
-                    if (!crossfadeEnabled) {
-                        if (!gaplessEnabled && c.isPlaying) {
-                            // "Reproducción sin pausas" off: keep a short silence at
-                            // the beginning of each track so the change is audible.
-                            val now = SystemClock.elapsedRealtime()
-                            val currentId = c.currentMediaItem?.mediaId
-                            if (currentId != null && lastMediaId != null && currentId != lastMediaId) {
-                                gapUntil = now + 350L
-                            }
-                            lastMediaId = currentId
-                            c.volume = if (now < gapUntil) 0f else 1f
-                        } else {
-                            if (c.volume != 1f) c.volume = 1f
-                        }
-                    } else if (c.isPlaying) {
+                    if (!gaplessEnabled && c.isPlaying) {
                         val now = SystemClock.elapsedRealtime()
                         val currentId = c.currentMediaItem?.mediaId
-                        val position = c.currentPosition
-                        val restarted = currentId != null && currentId == lastMediaId &&
-                            lastPosition - position > 1_000L
-                        if (currentId != lastMediaId || restarted) {
-                            lastMediaId = currentId
-                            fadeInUntil = now + crossfadeMs
+                        if (currentId != null && lastMediaId != null && currentId != lastMediaId) {
+                            gapUntil = now + 350L
                         }
-                        lastPosition = position
-                        val duration = c.duration
-                        val remaining = duration - position
-                        val fadeOut = if (duration > 0 && remaining <= crossfadeMs) {
-                            (remaining.toFloat() / crossfadeMs).coerceIn(0f, 1f)
-                        } else 1f
-                        val fadeInRemaining = fadeInUntil - now
-                        val fadeIn = if (fadeInRemaining > 0) {
-                            1f - (fadeInRemaining.toFloat() / crossfadeMs).coerceIn(0f, 1f)
-                        } else 1f
-                        c.volume = minOf(fadeOut, fadeIn).coerceIn(0f, 1f)
-                    } else if (c.volume != 1f && fadeInUntil <= SystemClock.elapsedRealtime()) {
+                        lastMediaId = currentId
+                        c.volume = if (now < gapUntil) 0f else 1f
+                    } else if (c.volume != 1f) {
                         c.volume = 1f
                     }
                 }

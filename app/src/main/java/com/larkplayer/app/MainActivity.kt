@@ -56,7 +56,8 @@ class MainActivity : ComponentActivity() {
         // so the app window paints immediately without waiting.
         window.decorView.post {
             requestMediaPermissions()
-            requestBatteryOptimizationExemption()
+            // The battery dialog can steal focus and stall early interaction.
+            window.decorView.postDelayed({ requestBatteryOptimizationExemption() }, 2_500L)
         }
 
         setContent {

@@ -1,8 +1,13 @@
 package com.larkplayer.feature.player
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.app.Service
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -51,12 +56,36 @@ class PlaybackService : MediaSessionService() {
 
     private var wakeLock: PowerManager.WakeLock? = null
 
+    // ---- Real crossfade: two players mixed by the system audio mixer --------
+    private var audioAttributes = AudioAttributes.Builder()
+        .setUsage(C.USAGE_MEDIA)
+        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+        .build()
+    @Volatile private var crossfadeEnabled = false
+    @Volatile private var crossfadeMs = 4_000L
+    private var mixPlayer: ExoPlayer? = null
+    private var crossfadeAnimator: ValueAnimator? = null
+    private var crossfadeInProgress = false
+    private var crossfadeCancelled = false
+    private var lastCrossfadeId: String? = null
+    private val fadeHandler = Handler(Looper.getMainLooper())
+    private val fadeRunnable = object : Runnable {
+        override fun run() {
+            maybeStartCrossfade()
+            fadeHandler.postDelayed(this, 200L)
+        }
+    }
+
     private val playerListener = object : Player.Listener {
         // The wake lock is owned by the "background playback" setting, not by
         // the play/pause state: pausing and closing the app must not let the
         // system freeze the process and lose the paused session.
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            if (isPlaying) shuttingDown = false
+            if (isPlaying) {
+                shuttingDown = false
+            } else {
+                cancelCrossfade()
+            }
         }
     }
 
@@ -99,14 +128,23 @@ class PlaybackService : MediaSessionService() {
         // exclusive audio focus, so other apps keep playing.
         scope.launch {
             settings.playWithOthers.collect { together ->
-                player.setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(C.USAGE_MEDIA)
-                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                        .build(),
-                    /* handleAudioFocus = */ !together,
-                )
+                audioAttributes = AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build()
+                player.setAudioAttributes(audioAttributes, /* handleAudioFocus = */ !together)
             }
+        }
+        scope.launch {
+            settings.crossfadeEnabled.collect { enabled ->
+                if (!enabled) cancelCrossfade()
+                crossfadeEnabled = enabled
+                fadeHandler.removeCallbacks(fadeRunnable)
+                if (enabled) fadeHandler.post(fadeRunnable)
+            }
+        }
+        scope.launch {
+            settings.crossfadeSeconds.collect { seconds -> crossfadeMs = seconds * 1_000L }
         }
         scope.launch {
             settings.notificationPlayback.collect { enabled -> showNotification = enabled }
@@ -138,6 +176,101 @@ class PlaybackService : MediaSessionService() {
             player.setShuffleOrder(VisibleShuffleOrder(indices))
             player.shuffleModeEnabled = true
         }
+    }
+
+    // ---- Crossfade ----------------------------------------------------------
+
+    /**
+     * Starts the incoming track in a second ExoPlayer while the outgoing one is
+     * still playing. The system audio mixer blends both streams, so the songs
+     * really overlap instead of a sequential fade-out / fade-in.
+     */
+    private fun maybeStartCrossfade() {
+        if (!crossfadeEnabled || crossfadeInProgress || !player.isPlaying) return
+        val duration = player.duration
+        val remaining = duration - player.currentPosition
+        if (duration <= 0L || remaining > crossfadeMs || remaining < 120L) return
+        if (player.repeatMode == Player.REPEAT_MODE_ONE) return
+
+        val nextIndex = when {
+            player.hasNextMediaItem() -> player.nextMediaItemIndex
+            player.repeatMode == Player.REPEAT_MODE_ALL -> 0
+            else -> return
+        }
+        val nextItem = runCatching { player.getMediaItemAt(nextIndex) }.getOrNull() ?: return
+        val currentId = player.currentMediaItem?.mediaId
+        if (currentId != null && currentId == lastCrossfadeId) return
+        lastCrossfadeId = currentId
+
+        crossfadeInProgress = true
+        crossfadeCancelled = false
+        // Keep the primary player from auto-advancing while both are audible.
+        @Suppress("DEPRECATION")
+        player.pauseAtEndOfMediaItems = true
+
+        val incoming = ExoPlayer.Builder(this)
+            .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ false)
+            .build()
+            .also { mix ->
+                mix.setMediaItems(listOf(nextItem))
+                mix.playbackParameters = player.playbackParameters
+                mix.volume = 0f
+                mix.prepare()
+                mix.play()
+            }
+        mixPlayer = incoming
+
+        val targetIndex = nextIndex
+        crossfadeAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            this.duration = crossfadeMs
+            addUpdateListener { animation ->
+                val value = animation.animatedValue as Float
+                incoming.volume = value
+                player.volume = 1f - value
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (crossfadeCancelled) {
+                        crossfadeCancelled = false
+                        return
+                    }
+                    finishCrossfade(targetIndex)
+                }
+            })
+            start()
+        }
+    }
+
+    /** Hands audio back to the primary player at the point the mix reached. */
+    private fun finishCrossfade(targetIndex: Int) {
+        mixPlayer?.let { mix ->
+            runCatching { mix.stop() }
+            runCatching { mix.release() }
+        }
+        mixPlayer = null
+        crossfadeAnimator = null
+        @Suppress("DEPRECATION")
+        player.pauseAtEndOfMediaItems = false
+        runCatching { player.seekTo(targetIndex, crossfadeMs) }
+        player.volume = 1f
+        player.play()
+        crossfadeInProgress = false
+    }
+
+    private fun cancelCrossfade() {
+        if (!crossfadeInProgress) return
+        crossfadeCancelled = true
+        crossfadeAnimator?.cancel()
+        crossfadeAnimator = null
+        mixPlayer?.let { mix ->
+            runCatching { mix.stop() }
+            runCatching { mix.release() }
+        }
+        mixPlayer = null
+        @Suppress("DEPRECATION")
+        player.pauseAtEndOfMediaItems = false
+        player.volume = 1f
+        crossfadeInProgress = false
     }
 
     /** Held while background playback is on, even when the track is paused. */
@@ -183,8 +316,8 @@ class PlaybackService : MediaSessionService() {
         when (intent?.action) {
             ACTION_PLAY -> player.play()
             ACTION_PAUSE -> player.pause()
-            ACTION_NEXT -> player.seekToNext()
-            ACTION_PREV -> player.seekToPrevious()
+            ACTION_NEXT -> { cancelCrossfade(); player.seekToNext() }
+            ACTION_PREV -> { cancelCrossfade(); player.seekToPrevious() }
         }
         val result = super.onStartCommand(intent, flags, startId)
         return if (backgroundPlayback && result == START_NOT_STICKY) START_STICKY else result
@@ -201,6 +334,7 @@ class PlaybackService : MediaSessionService() {
      * killed mid-use (the old `exitProcess(0)` closed the app from the shade).
      */
     private fun stopPlaybackCompletely() {
+        cancelCrossfade()
         shuttingDown = true
         runCatching { player.stop() }
         runCatching { player.clearMediaItems() }
@@ -210,6 +344,8 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        fadeHandler.removeCallbacks(fadeRunnable)
+        cancelCrossfade()
         scope.cancel()
         runCatching { player.removeListener(playerListener) }
         releaseWakeLock()

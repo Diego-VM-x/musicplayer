@@ -36,7 +36,7 @@ class LarkApp : Application(), Configuration.Provider {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             installCrashLogger()
             UpdateManager.initFromPackage(this@LarkApp)
-            delay(3_000)
+            delay(20_000)
             UpdateManager.checkNow(manual = false)
         }
     }
