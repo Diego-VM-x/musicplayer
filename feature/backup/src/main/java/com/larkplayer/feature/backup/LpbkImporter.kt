@@ -2,8 +2,6 @@ package com.larkplayer.feature.backup
 
 import android.content.Context
 import android.net.Uri
-import com.google.gson.Gson
-import com.google.gson.annotations.SerializedName
 import com.larkplayer.core.database.dao.PlaylistDao
 import com.larkplayer.core.database.dao.SongDao
 import com.larkplayer.core.database.entity.PlaylistEntity
@@ -12,6 +10,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -30,54 +30,33 @@ data class LpbkImportResult(
     val deviceModel: String?,
 )
 
-private data class LpbkMeta(
-    @SerializedName("format_version") val formatVersion: Int? = null,
-    @SerializedName("app_version_code") val appVersionCode: Long = 0L,
-    @SerializedName("exported_at") val exportedAt: Long? = null,
-    @SerializedName("device_model") val deviceModel: String? = null,
-    @SerializedName("song_count") val songCount: Int = 0,
-    @SerializedName("playlist_count") val playlistCount: Int = 0,
-    @SerializedName("payload_size") val payloadSize: Long = 0L,
-)
-
 private data class LpbkMedia(
-    @SerializedName("id") val id: Int? = null,
-    @SerializedName("location") val location: String? = null,
-    @SerializedName("rel") val rel: String? = null,
-    @SerializedName("volume") val volume: String? = null,
-    @SerializedName("name") val name: String? = null,
-    @SerializedName("size") val size: Long = 0L,
-    @SerializedName("length") val length: Long = 0L,
+    val id: Int?,
+    val location: String?,
+    val rel: String?,
+    val name: String?,
 )
 
-private data class LpbkMember(
-    @SerializedName("media_id") val mediaId: Int? = null,
-    @SerializedName("order") val order: Int = 0,
-)
+private data class LpbkMember(val mediaId: Int?, val order: Int)
 
 private data class LpbkPlaylist(
-    @SerializedName("name") val name: String? = null,
-    @SerializedName("create_time") val createTime: Long = 0L,
-    @SerializedName("cover") val cover: String? = null,
-    @SerializedName("members") val members: List<LpbkMember>? = null,
+    val name: String?,
+    val createTime: Long,
+    val cover: String?,
+    val members: List<LpbkMember>,
 )
 
 /**
  * Reads the new local backup format introduced in Lark Player 2027.3.x.
  *
- * File layout (reverse engineered from `feature/backup/pack`):
- *   "LPBK" | version(uint16 BE) | 14 bytes | 12-byte IV | 4-byte metaLen(BE)
- *   meta JSON (metaLen bytes) | AES-CTR payload | HMAC-SHA256(header+meta+payload, 32 bytes)
- *
- * Keys are derived with HMAC-SHA256 from the legacy Drive key and the labels
- * "lpbk-enc" / "lpbk-mac". The decrypted payload is a ZIP with section JSON files.
+ * Layout: "LPBK" | version(uint16) | 14 bytes | IV(12) | metaLen(uint32 BE)
+ *         meta JSON | AES-CTR payload | HMAC-SHA256(header+meta+payload)
  */
 @Singleton
 class LpbkImporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val songDao: SongDao,
     private val playlistDao: PlaylistDao,
-    private val gson: Gson,
 ) {
     suspend fun import(uri: Uri): Result<LpbkImportResult> = withContext(Dispatchers.IO) {
         runCatching {
@@ -114,11 +93,11 @@ class LpbkImporter @Inject constructor(
         require(expectedMac.contentEquals(storedMac)) { "Firma HMAC no válida" }
 
         val metaJson = bytes.copyOfRange(24, 24 + metaLen).toString(StandardCharsets.UTF_8)
-        val meta = runCatching { gson.fromJson(metaJson, LpbkMeta::class.java) }.getOrNull()
+        val meta = JSONObject(metaJson)
+        val deviceModel = meta.optString("device_model").takeIf { it.isNotBlank() && it != "null" }
 
-        val iv12 = bytes.copyOfRange(8, 20)
         val iv16 = ByteArray(16)
-        System.arraycopy(iv12, 0, iv16, 0, 12)
+        System.arraycopy(bytes, 8, iv16, 0, 12)
         val cipher = Cipher.getInstance("AES/CTR/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, encKey, IvParameterSpec(iv16))
         val payload = cipher.doFinal(bytes, 24 + metaLen, signedLength - (24 + metaLen))
@@ -131,10 +110,9 @@ class LpbkImporter @Inject constructor(
 
         var linked = 0
         var unmatched = 0
+        var restored = 0
         sections.playlists.forEach { source ->
             val name = source.name?.takeIf { it.isNotBlank() } ?: return@forEach
-            // Virtual playlists (favourites/recent) are excluded by the original
-            // importer too (n55.C()).
             if (name.startsWith("INVALID_", true)) return@forEach
             val existing = playlistDao.observePlaylists().first()
                 .firstOrNull { it.name.equals(name, true) }
@@ -155,11 +133,11 @@ class LpbkImporter @Inject constructor(
                 ),
             )
             val refs = buildList {
-                source.members.orEmpty().sortedBy { it.order }.forEachIndexed { index, member ->
+                source.members.sortedBy { it.order }.forEachIndexed { index, member ->
                     val media = mediaById[member.mediaId]
                     val candidate = listOfNotNull(
                         media?.name?.let { byName[normalize(it)] },
-                        media?.name?.let { n -> byPath[normalize(n)] },
+                        media?.name?.let { byPath[normalize(it)] },
                         media?.location?.let { byPath[normalize(it)] },
                         media?.rel?.let { byPath[normalize(it)] },
                     ).firstOrNull()
@@ -172,13 +150,9 @@ class LpbkImporter @Inject constructor(
                 }
             }
             playlistDao.replaceSongs(playlistId, refs)
+            restored++
         }
-        return LpbkImportResult(
-            playlists = sections.playlists.size,
-            linked = linked,
-            unmatched = unmatched,
-            deviceModel = meta?.deviceModel,
-        )
+        return LpbkImportResult(restored, linked, unmatched, deviceModel)
     }
 
     private fun readSections(payload: ByteArray): Sections {
@@ -191,14 +165,8 @@ class LpbkImporter @Inject constructor(
                 var entry = zip.nextEntry
                 while (entry != null) {
                     when {
-                        entry.name.endsWith("media.json") -> media = gson.fromJson(
-                            zip.readBytes().toString(StandardCharsets.UTF_8),
-                            Array<LpbkMedia>::class.java,
-                        ).orEmpty().toList()
-                        entry.name.endsWith("playlists.json") -> playlists = gson.fromJson(
-                            zip.readBytes().toString(StandardCharsets.UTF_8),
-                            Array<LpbkPlaylist>::class.java,
-                        ).orEmpty().toList()
+                        entry.name.endsWith("media.json") -> media = parseMedia(zip.readBytes())
+                        entry.name.endsWith("playlists.json") -> playlists = parsePlaylists(zip.readBytes())
                         entry.name.startsWith("files/") && !entry.isDirectory ->
                             covers[entry.name] = zip.readBytes()
                     }
@@ -207,25 +175,57 @@ class LpbkImporter @Inject constructor(
                 }
             }
         } else {
-            val json = payload.toString(StandardCharsets.UTF_8)
-            runCatching {
-                val wrapper = gson.fromJson(json, LpbkSectionsJson::class.java)
-                media = wrapper.media.orEmpty()
-                playlists = wrapper.playlists.orEmpty()
-            }
+            val json = JSONObject(payload.toString(StandardCharsets.UTF_8))
+            media = parseJsonMedia(json.optJSONArray("media"))
+            playlists = parseJsonPlaylists(json.optJSONArray("playlists"))
         }
         return Sections(media, playlists, covers)
+    }
+
+    private fun parseMedia(bytes: ByteArray): List<LpbkMedia> =
+        parseJsonMedia(JSONArray(bytes.toString(StandardCharsets.UTF_8)))
+
+    private fun parsePlaylists(bytes: ByteArray): List<LpbkPlaylist> =
+        parseJsonPlaylists(JSONArray(bytes.toString(StandardCharsets.UTF_8)))
+
+    private fun parseJsonMedia(array: JSONArray?): List<LpbkMedia> {
+        if (array == null) return emptyList()
+        return (0 until array.length()).mapNotNull { i ->
+            val o = array.optJSONObject(i) ?: return@mapNotNull null
+            LpbkMedia(
+                id = o.optInt("id", -1).takeIf { it > 0 },
+                location = o.optString("location").takeIf { it.isNotBlank() && it != "null" },
+                rel = o.optString("rel").takeIf { it.isNotBlank() && it != "null" },
+                name = o.optString("name").takeIf { it.isNotBlank() && it != "null" },
+            )
+        }
+    }
+
+    private fun parseJsonPlaylists(array: JSONArray?): List<LpbkPlaylist> {
+        if (array == null) return emptyList()
+        return (0 until array.length()).mapNotNull { i ->
+            val o = array.optJSONObject(i) ?: return@mapNotNull null
+            val members = o.optJSONArray("members")
+            LpbkPlaylist(
+                name = o.optString("name").takeIf { it.isNotBlank() && it != "null" },
+                createTime = o.optLong("create_time", 0L),
+                cover = o.optString("cover").takeIf { it.isNotBlank() && it != "null" },
+                members = if (members == null) emptyList() else
+                    (0 until members.length()).mapNotNull { j ->
+                        val m = members.optJSONObject(j) ?: return@mapNotNull null
+                        LpbkMember(
+                            mediaId = m.optInt("media_id", -1).takeIf { it > 0 },
+                            order = m.optInt("order", 0),
+                        )
+                    },
+            )
+        }
     }
 
     private data class Sections(
         val media: List<LpbkMedia>,
         val playlists: List<LpbkPlaylist>,
         val covers: Map<String, ByteArray>,
-    )
-
-    private data class LpbkSectionsJson(
-        @SerializedName("media") val media: List<LpbkMedia>? = null,
-        @SerializedName("playlists") val playlists: List<LpbkPlaylist>? = null,
     )
 
     private fun hmac(key: ByteArray, label: String): ByteArray {

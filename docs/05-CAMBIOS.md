@@ -4,6 +4,15 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-22 — Fase 39: corrección del importador LPBK en release (v26)
+
+- `LpbkImporter` ya no usa Gson: parsea `manifest.json`, `media.json` y `playlists.json` con `org.json`,
+  evitando el error *“Abstract classes can't be instantiated”* que R8 causaba en las clases ofuscadas.
+- Regla ProGuard añadida para conservar los modelos de `feature:backup` usados por Gson en el resto de
+  importadores (`.info` de Drive).
+- `versionCode` 26 / `1.0.25-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.25` con `musicplayer-26.apk` (3.422.815 bytes, SHA-256 `EC31BD1B4180EE30D98787510A2CEA7C19C85589B3A828005AB8430F008C7786`), verificada con `aapt` (`versionCode=26`).
+
 ## 2026-11-22 — Fase 38: importador de copia local LPBK (v25)
 
 - Descargado y descompilado el APK original `2027.3.6 (2027030609)` para inversión del formato local.
