@@ -23,6 +23,7 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
   retoma la siguiente canción en el punto alcanzado. Se cancela al pausar, saltar, parar o destruir el servicio.
   `PlayerRepository` ya no hace falsos fades de volumen; el gapless sin pausas sigue funcionando.
 - `versionCode` 18 / `1.0.17-clean`; `assembleDebug` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.17` con `musicplayer-18.apk` (23.101.436 bytes, SHA-256 `A23588722E995B5EE92ED4C10BB133FA590D45740C4B87470772D714175AE2A9`). Verificada como última release, sin draft/pre-release y con el asset `uploaded`.
 
 ## 2026-11-21 — Fase 30: avance por orden, barra inferior y diseño plano (v17)
 
