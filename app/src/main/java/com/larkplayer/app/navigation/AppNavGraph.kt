@@ -1,9 +1,13 @@
 package com.larkplayer.app.navigation
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -161,10 +165,37 @@ fun AppNavGraph() {
     NavHost(
         navController = navController,
         startDestination = Routes.LIBRARY,
-        enterTransition = { slideInHorizontally { it / 5 } + fadeIn() },
-        exitTransition = { slideOutHorizontally { -it / 6 } + fadeOut() },
-        popEnterTransition = { slideInHorizontally { -it / 5 } + fadeIn() },
-        popExitTransition = { slideOutHorizontally { it / 5 } + fadeOut() },
+        enterTransition = {
+            if (targetState.destination.route == Routes.PLAYER) {
+                slideInVertically(tween(380, easing = FastOutSlowInEasing)) { it / 4 } +
+                    fadeIn(tween(300))
+            } else {
+                slideInHorizontally(tween(340, easing = FastOutSlowInEasing)) { it / 6 } +
+                    fadeIn(tween(280))
+            }
+        },
+        exitTransition = {
+            if (initialState.destination.route == Routes.PLAYER) {
+                slideOutVertically(tween(320, easing = FastOutSlowInEasing)) { it / 4 } +
+                    fadeOut(tween(240))
+            } else {
+                slideOutHorizontally(tween(300, easing = FastOutSlowInEasing)) { -it / 6 } +
+                    fadeOut(tween(240))
+            }
+        },
+        popEnterTransition = {
+            slideInHorizontally(tween(340, easing = FastOutSlowInEasing)) { -it / 6 } +
+                fadeIn(tween(280))
+        },
+        popExitTransition = {
+            if (initialState.destination.route == Routes.PLAYER) {
+                slideOutVertically(tween(320, easing = FastOutSlowInEasing)) { it / 4 } +
+                    fadeOut(tween(240))
+            } else {
+                slideOutHorizontally(tween(300, easing = FastOutSlowInEasing)) { it / 6 } +
+                    fadeOut(tween(240))
+            }
+        },
     ) {
         composable(Routes.LIBRARY) {
             LibraryHome(navController)

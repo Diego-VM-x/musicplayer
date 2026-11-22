@@ -27,6 +27,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -525,23 +527,24 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.spacedBy(34.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                GlassIconButton(
-                    Icons.Rounded.SkipPrevious,
-                    "Anterior",
-                    viewModel::skipPrevious,
-                    size = 62.dp,
-                    iconSize = 36.dp,
+                AnimatedTransportButton(
+                    icon = Icons.Rounded.SkipPrevious,
+                    description = "Anterior",
+                    onClick = viewModel::skipPrevious,
+                    size = 68.dp,
+                    iconSize = 38.dp,
                     tint = accent,
-                    flat = true,
                 )
+                val playInteraction = remember { MutableInteractionSource() }
+                val playPressed by playInteraction.collectIsPressedAsState()
                 val playButtonScale by animateFloatAsState(
-                    targetValue = if (state.isPlaying) 1.05f else 1.0f,
-                    animationSpec = spring(dampingRatio = 0.65f, stiffness = 400f),
+                    targetValue = (if (state.isPlaying) 1.05f else 1.0f) * if (playPressed) 0.93f else 1f,
+                    animationSpec = spring(dampingRatio = 0.6f, stiffness = 420f),
                     label = "play_button_scale",
                 )
                 Box(
                     Modifier
-                        .size(86.dp)
+                        .size(96.dp)
                         .scale(playButtonScale)
                         .shadow(14.dp, CircleShape, clip = false)
                         .clip(CircleShape)
@@ -551,26 +554,29 @@ fun PlayerScreen(
                             )
                         )
                         .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape)
-                        .clickable(onClick = viewModel::togglePlayPause),
+                        .clickable(
+                            interactionSource = playInteraction,
+                            indication = null,
+                            onClick = viewModel::togglePlayPause,
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Crossfade(targetState = state.isPlaying, animationSpec = tween(180), label = "play_pause_crossfade") { playing ->
+                    Crossfade(targetState = state.isPlaying, animationSpec = tween(220), label = "play_pause_crossfade") { playing ->
                         Icon(
                             if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             if (playing) "Pausar" else "Reproducir",
                             tint = accent,
-                            modifier = Modifier.size(52.dp),
+                            modifier = Modifier.size(56.dp),
                         )
                     }
                 }
-                GlassIconButton(
-                    Icons.Rounded.SkipNext,
-                    "Siguiente",
-                    viewModel::skipNext,
-                    size = 62.dp,
-                    iconSize = 36.dp,
+                AnimatedTransportButton(
+                    icon = Icons.Rounded.SkipNext,
+                    description = "Siguiente",
+                    onClick = viewModel::skipNext,
+                    size = 68.dp,
+                    iconSize = 38.dp,
                     tint = accent,
-                    flat = true,
                 )
             }
 
@@ -852,6 +858,35 @@ private fun PlayerBottomLabel(text: String, onClick: () -> Unit) {
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
+    }
+}
+
+/** Transport button that springs when pressed, like a launcher icon. */
+@Composable
+private fun AnimatedTransportButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    onClick: () -> Unit,
+    size: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    tint: Color,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.88f else 1f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = 520f),
+        label = "transport_press",
+    )
+    Box(
+        Modifier
+            .size(size)
+            .scale(scale)
+            .clip(CircleShape)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, description, tint = tint, modifier = Modifier.size(iconSize))
     }
 }
 

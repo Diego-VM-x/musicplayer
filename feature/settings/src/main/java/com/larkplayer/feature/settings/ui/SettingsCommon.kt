@@ -39,7 +39,7 @@ fun SettingsPage(
     Column(
         Modifier
             .fillMaxSize()
-            .background(ApplePalette.Background)
+            .background(Color.Transparent)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
     ) {

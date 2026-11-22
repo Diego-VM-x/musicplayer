@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Unarchive
 import androidx.compose.material3.Icon
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.larkplayer.core.designsystem.component.CircleIconButton
 import com.larkplayer.core.designsystem.component.LarkCard
+import com.larkplayer.core.designsystem.component.LarkSwitch
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.backup.BackupViewModel
 import kotlinx.coroutines.launch
@@ -53,15 +55,24 @@ fun BackupScreen(
 ) {
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf("") }
+    var includeSongs by remember { mutableStateOf(false) }
+    val autoBackup by remember { mutableStateOf(viewModel.findAutoBackup()) }
     val accent = MaterialTheme.colorScheme.primary
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
-    ) { uri: Uri? -> uri?.let { scope.launch { status = viewModel.export(it) } } }
+    ) { uri: Uri? -> uri?.let { scope.launch { status = viewModel.export(it, includeSongs) } } }
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? -> uri?.let { scope.launch { status = viewModel.import(it) } } }
+
+    val originalLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) scope.launch { status = viewModel.importOriginalFiles(uris) }
+    }
+    val originalFiles by remember { mutableStateOf(viewModel.findOriginalFiles()) }
 
     Column(
         Modifier
@@ -82,8 +93,8 @@ fun BackupScreen(
             modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
         )
         Text(
-            "Guarda playlists, favoritos, historial y ajustes en un archivo ZIP local. " +
-                "Tú eliges la carpeta; nada se sube a Internet.",
+            "Guarda playlists, favoritos e historial en un ZIP local compatible con el formato del original. " +
+                "Elige si incluir las canciones; nada se sube a Internet.",
             color = ApplePalette.TextSecondary,
             fontSize = 11.5.sp,
             lineHeight = 16.sp,
@@ -91,6 +102,22 @@ fun BackupScreen(
         )
 
         LarkCard(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Incluir canciones", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Copia también los archivos de audio para no volver a descargarlos",
+                        color = ApplePalette.TextSecondary,
+                        fontSize = 11.sp,
+                    )
+                }
+                LarkSwitch(checked = includeSongs, onCheckedChange = { includeSongs = it }, accent = accent)
+            }
             BackupAction(
                 icon = Icons.Rounded.CloudUpload,
                 title = "Exportar copia de seguridad",
@@ -105,6 +132,41 @@ fun BackupScreen(
                 accent = accent,
                 onClick = { importLauncher.launch(arrayOf("application/zip")) },
             )
+        }
+
+        if (autoBackup != null) {
+            Spacer(Modifier.height(12.dp))
+            LarkCard(Modifier.fillMaxWidth()) {
+                BackupAction(
+                    icon = Icons.Rounded.Unarchive,
+                    title = "Restaurar copia detectada",
+                    subtitle = "Se encontró un ZIP de respaldo; restaura las playlists automáticamente",
+                    accent = accent,
+                    onClick = {
+                        autoBackup?.let { uri -> scope.launch { status = viewModel.import(uri) } }
+                    },
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        LarkCard(Modifier.fillMaxWidth()) {
+            BackupAction(
+                icon = Icons.Rounded.Unarchive,
+                title = "Importar playlists de Lark Player",
+                subtitle = "Selecciona los archivos .info de tu copia original",
+                accent = accent,
+                onClick = { originalLauncher.launch(arrayOf("*/*")) },
+            )
+            originalFiles.take(5).forEach { uri ->
+                BackupAction(
+                    icon = Icons.Rounded.Folder,
+                    title = uri.lastPathSegment ?: "Copia de Lark Player",
+                    subtitle = "Detectada automáticamente — toca para importar",
+                    accent = accent,
+                    onClick = { scope.launch { status = viewModel.importOriginalFiles(listOf(uri)) } },
+                )
+            }
         }
 
         if (status.isNotBlank()) {

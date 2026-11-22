@@ -66,6 +66,9 @@ interface PlaylistDao {
     @Query("SELECT s.* FROM songs s INNER JOIN playlist_songs ps ON s.id = ps.songId WHERE ps.playlistId = :playlistId ORDER BY ps.position")
     fun observeSongs(playlistId: Long): Flow<List<SongEntity>>
 
+    @Query("SELECT * FROM playlist_songs ORDER BY playlistId, position")
+    fun observeAllPlaylistSongs(): Flow<List<PlaylistSong>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addSongs(refs: List<PlaylistSong>)
 

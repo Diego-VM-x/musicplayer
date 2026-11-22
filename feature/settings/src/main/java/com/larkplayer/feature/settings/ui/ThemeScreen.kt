@@ -1,5 +1,7 @@
 package com.larkplayer.feature.settings.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.larkplayer.core.designsystem.component.BackgroundVariants
 import com.larkplayer.core.designsystem.component.CircleIconButton
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.core.model.ThemeConfig
@@ -99,8 +103,14 @@ fun ThemeScreen(
     val accent = Color(config.accentColor.toInt())
     var customDialog by remember { mutableStateOf(false) }
     val dark = config.themeMode != 0
+    val context = LocalContext.current
+    val bgUri by viewModel.appBackgroundUri.collectAsStateWithLifecycle("")
+    val bgVariant by viewModel.backgroundVariant.collectAsStateWithLifecycle(0)
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) viewModel.setAppBackgroundImage(context, uri)
+    }
 
-    Column(Modifier.fillMaxSize().background(ApplePalette.Background)) {
+    Column(Modifier.fillMaxSize().background(Color.Transparent)) {
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -184,6 +194,78 @@ fun ThemeScreen(
                     accent = accent,
                 ) { viewModel.setAccentColor(color.toArgbLong()) }
             }
+        }
+
+        Spacer(Modifier.height(22.dp))
+        Text(
+            "Fondo de la app",
+            color = Color.White,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFF1C1D22))
+                    .clickable { imagePicker.launch("image/*") }
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("Elegir imagen", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+            if (bgUri.isNotBlank()) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF3A2024))
+                        .clickable { viewModel.clearAppBackgroundImage(context) }
+                        .padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Quitar imagen", color = Color(0xFFFF9A9A), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        BackgroundVariants.colors.chunked(5).forEachIndexed { rowIndex, row ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                row.forEachIndexed { columnIndex, color ->
+                    val index = rowIndex * 5 + columnIndex
+                    Box(
+                        Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                            .border(
+                                width = if (index == bgVariant) 3.dp else 1.dp,
+                                color = if (index == bgVariant) Color.White else Color.White.copy(alpha = 0.16f),
+                                shape = CircleShape,
+                            )
+                            .clickable { viewModel.setBackgroundVariant(index) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (index == bgVariant) {
+                            Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
         }
 
         Spacer(Modifier.height(20.dp))

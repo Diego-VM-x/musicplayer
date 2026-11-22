@@ -95,7 +95,7 @@ fun LanguageScreen(
     val current by viewModel.language.collectAsStateWithLifecycle()
     val accent = MaterialTheme.colorScheme.primary
 
-    Column(Modifier.fillMaxSize().background(ApplePalette.Background)) {
+    Column(Modifier.fillMaxSize().background(Color.Transparent)) {
         LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 30.dp)) {
             item {
                 Spacer(Modifier.height(12.dp))

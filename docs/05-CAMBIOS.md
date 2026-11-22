@@ -4,6 +4,34 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-22 — Fase 36: transiciones, controles grandes y fondo personalizable (v23)
+
+- **Transiciones fluidas** (`AppNavGraph.kt`): entradas/salidas con `tween` y `FastOutSlowInEasing`; el
+  reproductor entra y sale deslizándose desde abajo, el resto de vistas horizontalmente.
+- **Controles del reproductor más grandes** (`PlayerScreen.kt`): anterior/siguiente 68 dp (icono 38),
+  play 96 dp (icono 56) y botones con escala elástica al pulsar; crossfade del icono play/pausa más suave.
+- **Fondo personalizable**:
+  - `SettingsDataStore` guarda `app_background_uri` y `background_variant`.
+  - `AppBackdrop` + `LocalAppBackground` en `core:designsystem` pintan el fondo (color o imagen con velo)
+    detrás de toda la app; `LarkGradientBackground` deja ver la imagen mediante alfas.
+  - `ThemeScreen` añade **20 variantes de color** en rejilla y un selector de imagen que se copia a
+    `filesDir/app_background.jpg`, con opción de quitarla. Las pantallas de ajustes ahora son transparentes.
+- **Backup de playlists compatible con el original** (`feature:backup`):
+  - `OriginalFormat.kt` replica exactamente los nombres JSON (`playlistInfos`, `playlist_name`,
+    `playlist_id`, `createTime`, `cover`, `items`, `songs_name`, `size`, `play_count`) y el cifrado
+    AES/ECB/PKCS5Padding con la clave del APK original, incluido el atajo para JSON sin cifrar.
+  - El ZIP exportado incluye `backup.json` (formato propio, ahora con las canciones de cada playlist) y
+    los tres `.info` del original con sus nombres exactos. Opción **Incluir canciones** añade `Music/<archivo>`.
+  - La importación detecta ambos formatos, fusiona playlists por nombre en vez de borrar la biblioteca,
+    reempareja las canciones por nombre de archivo y, si el ZIP trae audio, lo copia y vuelve a escanear.
+  - `BackupScreen` detecta automáticamente un ZIP en Descargas o en la carpeta de backups y ofrece
+    restaurarlo con un toque.
+  - **Importación directa desde Lark Player**: `BackupScreen` permite seleccionar uno o varios `.info`
+    originales y muestra los que detecta en Descargas / carpetas de la app; `importOriginalInfo()` los
+    descifra, fusiona las playlists y vincula las canciones por nombre de archivo con la biblioteca actual.
+- `versionCode` 23 / `1.0.22-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.22` con `musicplayer-23.apk` (3.406.427 bytes, SHA-256 `786FA343C98147CF36A01D58932E3F2D0886B9D80A49A1B43AF6DF818F81009C`), verificada con `aapt` (`versionCode=23`). Detalle en [`17-BACKUP-COMPATIBLE.md`](17-BACKUP-COMPATIBLE.md).
+
 ## 2026-11-21 — Fase 35: arrastre tipo launcher y crossfade sin tirones (v22)
 
 - **Cola y playlist**: las filas que no se están arrastrando usan `Modifier.animateItemPlacement()` con un

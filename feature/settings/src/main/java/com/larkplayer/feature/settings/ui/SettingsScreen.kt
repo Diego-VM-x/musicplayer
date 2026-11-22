@@ -86,7 +86,7 @@ fun SettingsScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .background(ApplePalette.Background)
+            .background(androidx.compose.ui.graphics.Color.Transparent)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
     ) {

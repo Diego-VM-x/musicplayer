@@ -1,5 +1,7 @@
 package com.larkplayer.feature.settings
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.larkplayer.core.datastore.SettingsDataStore
@@ -73,6 +75,14 @@ class SettingsViewModel @Inject constructor(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), true,
     )
 
+    val appBackgroundUri: StateFlow<String> = dataStore.appBackgroundUri.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), "",
+    )
+
+    val backgroundVariant: StateFlow<Int> = dataStore.backgroundVariant.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), 0,
+    )
+
     fun setDynamicColor(enabled: Boolean) = viewModelScope.launch { dataStore.setDynamicColor(enabled) }
     fun setThemeMode(mode: Int) = viewModelScope.launch { dataStore.setThemeMode(mode) }
     fun setThemeSize(size: Int) = viewModelScope.launch { dataStore.setThemeSize(size) }
@@ -93,4 +103,22 @@ class SettingsViewModel @Inject constructor(
     fun setLanguage(tag: String) = viewModelScope.launch { dataStore.setLanguage(tag) }
     fun setNotificationPlayback(enabled: Boolean) = viewModelScope.launch { dataStore.setNotificationPlayback(enabled) }
     fun setNotificationLockScreen(enabled: Boolean) = viewModelScope.launch { dataStore.setNotificationLockScreen(enabled) }
+
+    fun setBackgroundVariant(index: Int) = viewModelScope.launch { dataStore.setBackgroundVariant(index) }
+
+    /** Copies the picked image into app storage so it survives permission changes. */
+    fun setAppBackgroundImage(context: Context, uri: Uri) = viewModelScope.launch {
+        runCatching {
+            val file = java.io.File(context.filesDir, "app_background.jpg")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (file.exists()) dataStore.setAppBackgroundUri(Uri.fromFile(file).toString())
+        }
+    }
+
+    fun clearAppBackgroundImage(context: Context) = viewModelScope.launch {
+        runCatching { java.io.File(context.filesDir, "app_background.jpg").delete() }
+        dataStore.setAppBackgroundUri("")
+    }
 }

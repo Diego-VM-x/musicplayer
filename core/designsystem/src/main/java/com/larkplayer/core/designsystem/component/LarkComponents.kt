@@ -255,18 +255,21 @@ fun LarkGradientBackground(
     content: @Composable () -> Unit,
 ) {
     val isFlat = LocalFlatSurface.current
+    val background = LocalAppBackground.current
+    val base = BackgroundVariants.color(background.variantIndex)
+    val hasImage = !background.imageUri.isNullOrBlank()
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(
                 if (isFlat) {
-                    Brush.linearGradient(listOf(ApplePalette.Background, ApplePalette.Background))
+                    Brush.linearGradient(listOf(base, base))
                 } else {
                     Brush.verticalGradient(
-                        0f to accent.copy(alpha = strength),
-                        0.30f to accent.copy(alpha = strength * 0.45f),
-                        0.68f to Color(0xFF15151A),
-                        1f to Color(0xFF101014),
+                        0f to accent.copy(alpha = if (hasImage) strength * 0.55f else strength),
+                        0.30f to accent.copy(alpha = strength * 0.35f),
+                        0.68f to base.copy(alpha = if (hasImage) 0.45f else 1f),
+                        1f to base.copy(alpha = if (hasImage) 0.72f else 1f),
                     )
                 }
             ),

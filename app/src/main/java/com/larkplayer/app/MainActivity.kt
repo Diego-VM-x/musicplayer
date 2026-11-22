@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -26,6 +27,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larkplayer.app.navigation.AppNavGraph
 import com.larkplayer.core.common.MediaScanBus
 import com.larkplayer.core.datastore.SettingsDataStore
+import com.larkplayer.core.designsystem.component.AppBackdrop
+import com.larkplayer.core.designsystem.component.AppBackground
+import com.larkplayer.core.designsystem.component.LocalAppBackground
 import com.larkplayer.core.designsystem.theme.LarkTheme
 import com.larkplayer.core.model.ThemeConfig
 import com.larkplayer.core.update.UpdateManager
@@ -61,26 +65,25 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val config by settingsDataStore.themeConfig.collectAsStateWithLifecycle(ThemeConfig())
+            val bgUri by settingsDataStore.appBackgroundUri.collectAsStateWithLifecycle("")
+            val bgVariant by settingsDataStore.backgroundVariant.collectAsStateWithLifecycle(0)
             LarkTheme(config = config) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
-                                    MaterialTheme.colorScheme.background,
-                                )
-                            )
-                        ),
+                CompositionLocalProvider(
+                    LocalAppBackground provides AppBackground(
+                        imageUri = bgUri.ifBlank { null },
+                        variantIndex = bgVariant,
+                    ),
                 ) {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .statusBarsPadding()
-                            .navigationBarsPadding(),
-                    ) {
-                        AppNavGraph()
+                    Box(Modifier.fillMaxSize()) {
+                        AppBackdrop(Modifier.fillMaxSize())
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .statusBarsPadding()
+                                .navigationBarsPadding(),
+                        ) {
+                            AppNavGraph()
+                        }
                     }
                 }
             }
