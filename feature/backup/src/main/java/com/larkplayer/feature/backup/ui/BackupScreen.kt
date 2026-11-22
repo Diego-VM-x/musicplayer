@@ -297,40 +297,7 @@ fun BackupScreen(
             }
         }
 
-        // Sección 1: Respaldos detectados automáticamente
-        if (availableBackups.isNotEmpty()) {
-            Text(
-                "RESPALDOS DETECTADOS",
-                color = accent,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp,
-                modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
-            )
-            LarkCard(Modifier.fillMaxWidth()) {
-                availableBackups.take(4).forEach { item ->
-                    BackupItemRow(
-                        icon = Icons.Rounded.Restore,
-                        title = item.displayName,
-                        subtitle = "${item.type} — Toca para importar automáticamente",
-                        accent = accent,
-                        onClick = {
-                            if (!isOperating) {
-                                scope.launch {
-                                    isOperating = true
-                                    statusMessage = "Importando ${item.displayName}..."
-                                    statusMessage = viewModel.importBackup(item.uri)
-                                    isOperating = false
-                                }
-                            }
-                        },
-                    )
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-
-        // Sección 2: Importación manual y carpetas de Drive
+        // Sección: Importación manual y carpetas de Drive
         Text(
             "IMPORTACIÓN MANUAL",
             color = ApplePalette.TextSecondary,

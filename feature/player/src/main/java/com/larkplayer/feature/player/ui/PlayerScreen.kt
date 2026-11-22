@@ -251,18 +251,16 @@ fun PlayerScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 2.dp, bottom = 104.dp),
-            verticalArrangement = Arrangement.spacedBy(11.dp),
+                .padding(top = 2.dp, bottom = 92.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // ---- Drag-down handle (the original player has no top bar) ----
-            // The gesture lives only on the handle so it never fights the scroll.
+            // ---- Drag-down handle ----
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(26.dp)
+                    .height(28.dp)
                     .pointerInput(Unit) {
                         detectVerticalDragGestures(
                             onDragEnd = {
@@ -287,9 +285,9 @@ fun PlayerScreen(
                 )
             }
 
-            // ---- Artwork ----
+            // ---- Artwork (Moderno, optimizado y sin exceder altura) ----
             val artworkScale by animateFloatAsState(
-                targetValue = if (state.isPlaying) 1.0f else 0.94f,
+                targetValue = if (state.isPlaying) 1.0f else 0.95f,
                 animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
                 label = "artwork_scale",
             )
@@ -297,7 +295,7 @@ fun PlayerScreen(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .widthIn(max = 224.dp)
+                    .heightIn(max = 240.dp)
                     .aspectRatio(1f)
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures(
@@ -329,16 +327,16 @@ fun PlayerScreen(
                         Modifier
                             .fillMaxSize()
                             .scale(artworkScale)
-                            .shadow(if (state.isPlaying) 18.dp else 10.dp, RoundedCornerShape(22.dp))
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(Color(0xFF242428)),
+                            .shadow(if (state.isPlaying) 20.dp else 10.dp, RoundedCornerShape(26.dp))
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(Color(0xFF222328)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             Icons.Rounded.MusicNote,
                             null,
                             tint = Color(0xFF5C5C64),
-                            modifier = Modifier.size(64.dp),
+                            modifier = Modifier.size(56.dp),
                         )
                         AsyncImage(
                             model = state.albumArt,
@@ -367,10 +365,10 @@ fun PlayerScreen(
                         Text(
                             titleText,
                             color = Color.White,
-                            fontSize = 21.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            lineHeight = 25.sp,
+                            maxLines = 1,
+                            lineHeight = 24.sp,
                             overflow = TextOverflow.Ellipsis,
                             letterSpacing = (-0.3).sp,
                         )
@@ -388,8 +386,8 @@ fun PlayerScreen(
                     if (state.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     if (state.isFavorite) "Quitar de favoritos" else "Favorito",
                     viewModel::toggleFavorite,
-                    size = 48.dp,
-                    iconSize = 26.dp,
+                    size = 46.dp,
+                    iconSize = 25.dp,
                     tint = if (state.isFavorite) accent else Color.White,
                     flat = true,
                 )
@@ -398,8 +396,8 @@ fun PlayerScreen(
                         Icons.Rounded.MoreVert,
                         "Más opciones",
                         { menuOpen = true },
-                        size = 44.dp,
-                        iconSize = 25.dp,
+                        size = 42.dp,
+                        iconSize = 24.dp,
                         tint = Color.White.copy(alpha = 0.78f),
                         flat = true,
                     )
@@ -447,92 +445,69 @@ fun PlayerScreen(
                 }
             }
 
-            if (state.visualizerEnabled) {
-                VisualizerWave(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(42.dp)
-                        .clickable { visualizerSheetOpen = true },
-                    accent = accent,
-                    isPlaying = state.isPlaying,
-                    style = state.visualizerStyle,
-                )
-            }
-
-            // Speed is only shown when it differs from 1x, like the original.
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                if (speedVisible) {
-                    GlassPill(modifier = Modifier.clickable { speedMenu = true }) {
-                        Text(
-                            formatSpeed(state.playbackSpeed),
-                            color = accent,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
-                GlassMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
-                    listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { speed ->
-                        GlassMenuItem(
-                            label = formatSpeed(speed),
-                            selected = abs(state.playbackSpeed - speed) < 0.01f,
-                            onClick = {
-                                viewModel.setPlaybackSpeed(speed)
-                                speedMenu = false
-                            },
-                        )
-                    }
-                }
-            }
-
-            Slider(
-                value = sliderValue.coerceIn(0f, state.duration.toFloat().coerceAtLeast(1f)),
-                onValueChange = {
-                    dragging = true
-                    sliderValue = it
-                },
-                onValueChangeFinished = {
-                    viewModel.seek(sliderValue.toLong())
-                    dragging = false
-                },
-                valueRange = 0f..state.duration.toFloat().coerceAtLeast(1f),
-                colors = SliderDefaults.colors(
-                    thumbColor = accent,
-                    activeTrackColor = accent,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.20f),
-                ),
-                modifier = Modifier.fillMaxWidth().height(22.dp),
+            // ---- Visualizador de música reactivo a bajos y agudos ----
+            VisualizerWave(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { visualizerSheetOpen = true },
+                accent = accent,
+                isPlaying = state.isPlaying,
+                style = if (state.visualizerEnabled) state.visualizerStyle else "armonia",
             )
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    formatTime(state.position),
-                    color = Color(0xFF8E8E95),
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(start = 2.dp),
+
+            // ---- Barra de progreso y tiempos ----
+            Column(Modifier.fillMaxWidth()) {
+                Slider(
+                    value = sliderValue.coerceIn(0f, state.duration.toFloat().coerceAtLeast(1f)),
+                    onValueChange = {
+                        dragging = true
+                        sliderValue = it
+                    },
+                    onValueChangeFinished = {
+                        viewModel.seek(sliderValue.toLong())
+                        dragging = false
+                    },
+                    valueRange = 0f..state.duration.toFloat().coerceAtLeast(1f),
+                    colors = SliderDefaults.colors(
+                        thumbColor = accent,
+                        activeTrackColor = accent,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.20f),
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(20.dp),
                 )
-                Text(
-                    formatTime(state.duration),
-                    color = Color(0xFF8E8E95),
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(end = 2.dp),
-                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        formatTime(state.position),
+                        color = Color(0xFF8E8E95),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(start = 2.dp),
+                    )
+                    Text(
+                        formatTime(state.duration),
+                        color = Color(0xFF8E8E95),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(end = 2.dp),
+                    )
+                }
             }
 
-            // ---- Transport: previous / play / next only ----
+            // ---- Transport: previous / play / next ----
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(34.dp, Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AnimatedTransportButton(
                     icon = Icons.Rounded.SkipPrevious,
                     description = "Anterior",
                     onClick = viewModel::skipPrevious,
-                    size = 68.dp,
-                    iconSize = 38.dp,
+                    size = 64.dp,
+                    iconSize = 36.dp,
                     tint = accent,
                 )
                 val playInteraction = remember { MutableInteractionSource() }
@@ -544,16 +519,16 @@ fun PlayerScreen(
                 )
                 Box(
                     Modifier
-                        .size(96.dp)
+                        .size(88.dp)
                         .scale(playButtonScale)
-                        .shadow(14.dp, CircleShape, clip = false)
+                        .shadow(16.dp, CircleShape, clip = false)
                         .clip(CircleShape)
                         .background(
                             Brush.verticalGradient(
-                                listOf(Color(0xFF32343B), Color(0xFF222328))
+                                listOf(Color(0xFF34363E), Color(0xFF1E1F24))
                             )
                         )
-                        .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape)
+                        .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape)
                         .clickable(
                             interactionSource = playInteraction,
                             indication = null,
@@ -566,7 +541,7 @@ fun PlayerScreen(
                             if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             if (playing) "Pausar" else "Reproducir",
                             tint = accent,
-                            modifier = Modifier.size(56.dp),
+                            modifier = Modifier.size(50.dp),
                         )
                     }
                 }
@@ -574,12 +549,13 @@ fun PlayerScreen(
                     icon = Icons.Rounded.SkipNext,
                     description = "Siguiente",
                     onClick = viewModel::skipNext,
-                    size = 68.dp,
-                    iconSize = 38.dp,
+                    size = 64.dp,
+                    iconSize = 36.dp,
                     tint = accent,
                 )
             }
 
+            Spacer(Modifier.height(4.dp))
         }
 
         // ---- EQ / Letras / queue -------------------------------------------
@@ -608,8 +584,48 @@ fun PlayerScreen(
                         flat = true,
                     )
                 }
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    PlayerBottomLabel("Letras", onClick = onLyrics)
+                Box(Modifier.weight(1.4f), contentAlignment = Alignment.Center) {
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(onClick = onLyrics)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        if (state.hasLyrics) {
+                            val albumArtUri = state.albumArt
+                            if (!albumArtUri.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = albumArtUri,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFF222226)),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "Letras",
+                                color = if (state.hasLyrics) accent else Color(0xFFE2E2E8),
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            if (state.hasLyrics && !state.currentLyricsLine.isNullOrBlank()) {
+                                Text(
+                                    state.currentLyricsLine.orEmpty(),
+                                    color = Color(0xFFB0B0BC),
+                                    fontSize = 10.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
                 }
                 Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
                     Box {

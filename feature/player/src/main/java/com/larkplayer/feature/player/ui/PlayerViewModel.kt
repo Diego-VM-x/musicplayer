@@ -44,10 +44,13 @@ data class PlayerUiState(
     val isFavorite: Boolean = false,
     val visualizerEnabled: Boolean = false,
     val visualizerStyle: String = "armonia",
+    val hasLyrics: Boolean = false,
+    val currentLyricsLine: String? = null,
 )
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
     private val repository: PlayerRepository,
     private val albumColors: AlbumColorRepository,
     private val settings: SettingsDataStore,
@@ -87,14 +90,17 @@ class PlayerViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(visualizerStyle = style)
             }
         }
-        // Progress ticker
+        // Progress ticker & lyrics sync
         viewModelScope.launch {
             while (isActive) {
                 observedController?.let { c ->
                     runCatching {
+                        val pos = c.currentPosition
+                        val currentLine = activeLyricsLines.lastOrNull { it.first <= pos }?.second
                         _uiState.value = _uiState.value.copy(
-                            position = c.currentPosition,
+                            position = pos,
                             duration = c.duration.takeIf { it > 0 } ?: _uiState.value.duration,
+                            currentLyricsLine = currentLine,
                         )
                     }
                 }
@@ -103,21 +109,41 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    private var activeLyricsLines: List<Pair<Long, String>> = emptyList()
+
     private fun attachListener(c: MediaController) {
         val l = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val meta = mediaItem?.mediaMetadata
                 val id = mediaItem?.mediaId?.toLongOrNull() ?: -1L
+                val title = meta?.title?.toString() ?: "Desconocido"
+                val artist = meta?.artist?.toString() ?: ""
+                val path = meta?.extras?.getString(PlayerRepository.EXTRA_SONG_PATH).orEmpty()
+
                 _uiState.value = _uiState.value.copy(
                     id = id,
-                    title = meta?.title?.toString() ?: "Desconocido",
-                    artist = meta?.artist?.toString() ?: "",
+                    title = title,
+                    artist = artist,
                     album = meta?.albumTitle?.toString() ?: "",
                     albumArt = meta?.artworkUri?.toString(),
-                    songPath = meta?.extras?.getString(PlayerRepository.EXTRA_SONG_PATH).orEmpty(),
+                    songPath = path,
+                    hasLyrics = false,
+                    currentLyricsLine = null,
                 )
                 viewModelScope.launch {
                     albumColors.load(meta?.artworkUri?.toString())
+                }
+                viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    val songObj = Song(id = id, title = title, artist = artist, path = path)
+                    val rawLrc = com.larkplayer.core.common.MediaFileUtils.findLyricsText(context, songObj)
+                    if (!rawLrc.isNullOrBlank()) {
+                        val parsed = parseSimpleLrc(rawLrc)
+                        activeLyricsLines = parsed
+                        _uiState.value = _uiState.value.copy(hasLyrics = parsed.isNotEmpty())
+                    } else {
+                        activeLyricsLines = emptyList()
+                        _uiState.value = _uiState.value.copy(hasLyrics = false)
+                    }
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -254,6 +280,21 @@ class PlayerViewModel @Inject constructor(
 
     fun setVisualizerStyle(style: String) {
         viewModelScope.launch { settings.setVisualizerStyle(style) }
+    }
+
+    private fun parseSimpleLrc(text: String): List<Pair<Long, String>> {
+        val pattern = Regex("""\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\](.*)""")
+        return text.lineSequence().mapNotNull { line ->
+            pattern.matchEntire(line.trim())?.let { match ->
+                val min = match.groupValues[1].toLongOrNull() ?: 0L
+                val sec = match.groupValues[2].toLongOrNull() ?: 0L
+                val msStr = match.groupValues[3].padEnd(3, '0').take(3)
+                val ms = msStr.toLongOrNull() ?: 0L
+                val totalMs = min * 60_000L + sec * 1_000L + ms
+                val lyricText = match.groupValues[4].trim()
+                if (lyricText.isNotBlank()) totalMs to lyricText else null
+            }
+        }.sortedBy { it.first }.toList()
     }
 
     override fun onCleared() {

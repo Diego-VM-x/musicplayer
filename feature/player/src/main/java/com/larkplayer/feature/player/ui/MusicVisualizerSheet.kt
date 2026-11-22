@@ -175,14 +175,38 @@ fun VisualizerWave(
     style: String = "armonia",
 ) {
     val transition = rememberInfiniteTransition(label = "wave_anim")
-    val phase by transition.animateFloat(
+    
+    // Frecuencia baja (bajos): movimiento rítmico amplio y pesado (~1.1 seg)
+    val bassPhase by transition.animateFloat(
         initialValue = 0f,
         targetValue = 2f * PI.toFloat(),
         animationSpec = infiniteRepeatable(
-            animation = tween(if (isPlaying) 2200 else 8000, easing = LinearEasing),
+            animation = tween(if (isPlaying) 1100 else 7000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
-        label = "phase",
+        label = "bass_phase",
+    )
+
+    // Frecuencia media (voces/melodía): oscilación armónica fluida (~1.7 seg)
+    val midPhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 2f * PI.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(if (isPlaying) 1700 else 8500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "mid_phase",
+    )
+
+    // Frecuencia alta (agudos/hi-hats): vibración rápida y precisa (~0.55 seg)
+    val treblePhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 2f * PI.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(if (isPlaying) 550 else 6000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "treble_phase",
     )
 
     Canvas(modifier = modifier) {
@@ -192,23 +216,47 @@ fun VisualizerWave(
 
         when (style) {
             "rebote", "ascenso" -> {
-                val barCount = 32
-                val barWidth = (width / (barCount * 1.5f)).coerceAtLeast(3f)
-                val spacing = barWidth * 0.5f
+                val barCount = 36
+                val barWidth = (width / (barCount * 1.55f)).coerceAtLeast(3f)
+                val spacing = barWidth * 0.55f
                 val totalWidth = barCount * (barWidth + spacing)
                 val startX = (width - totalWidth) / 2f
 
                 for (i in 0 until barCount) {
-                    val factor = if (style == "ascenso") (i.toFloat() / barCount) else 1f
-                    val waveAmp = if (isPlaying) {
-                        (sin((phase + i * 0.35f).toDouble()).toFloat() * 0.5f + 0.5f) * factor
-                    } else 0.15f
-                    val barHeight = (height * 0.85f * waveAmp).coerceAtLeast(4f)
+                    val progress = i.toFloat() / (barCount - 1)
+                    
+                    // Separación espectral real:
+                    // Primer tercio (0.0..0.33): Bajos intensos impulsados por bassPhase
+                    // Segundo tercio (0.33..0.66): Medios y voces impulsados por midPhase
+                    // Último tercio (0.66..1.0): Agudos rápidos impulsados por treblePhase
+                    val bandAmp = when {
+                        progress < 0.35f -> {
+                            val b = (sin((bassPhase + i * 0.6).toDouble()).toFloat() * 0.5f + 0.5f)
+                            b * 0.95f
+                        }
+                        progress < 0.70f -> {
+                            val m = (sin((midPhase + i * 0.8).toDouble()).toFloat() * 0.5f + 0.5f)
+                            m * 0.75f + (sin((bassPhase * 0.5 + i * 0.2).toDouble()).toFloat() * 0.2f)
+                        }
+                        else -> {
+                            val t = (sin((treblePhase + i * 1.2).toDouble()).toFloat() * 0.5f + 0.5f)
+                            t * 0.85f
+                        }
+                    }
+
+                    val factor = if (style == "ascenso") (0.3f + progress * 0.7f) else 1f
+                    val waveAmp = if (isPlaying) (bandAmp * factor).coerceIn(0.08f, 1f) else 0.12f
+                    val barHeight = (height * 0.92f * waveAmp).coerceAtLeast(4f)
                     val x = startX + i * (barWidth + spacing)
                     val y = height - barHeight
+                    
                     drawRoundRect(
                         brush = Brush.verticalGradient(
-                            listOf(accent.copy(alpha = 0.95f), accent.copy(alpha = 0.35f)),
+                            listOf(
+                                accent.copy(alpha = 0.95f),
+                                accent.copy(alpha = 0.5f),
+                                accent.copy(alpha = 0.2f),
+                            ),
                             startY = y,
                             endY = height,
                         ),
@@ -219,16 +267,21 @@ fun VisualizerWave(
                 }
             }
             else -> {
-                // "armonia" - Fluid wave
-                val path = Path()
-                val midY = height * 0.65f
-                val amp = if (isPlaying) height * 0.32f else height * 0.08f
+                // "armonia" - Espectro armónico multicapa (onda de bajos + detalle de agudos)
+                val midY = height * 0.62f
+                val bassAmp = if (isPlaying) height * 0.28f else height * 0.06f
+                val trebleAmp = if (isPlaying) height * 0.12f else height * 0.02f
 
+                // Capa 1: Relleno suave con efecto de bajos
+                val path = Path()
                 path.moveTo(0f, midY)
-                val steps = 40
+                val steps = 50
                 for (step in 0..steps) {
-                    val x = (step.toFloat() / steps) * width
-                    val y = midY + sin((phase + step * 0.28f).toDouble()).toFloat() * amp
+                    val p = step.toFloat() / steps
+                    val x = p * width
+                    val yBass = sin((bassPhase + p * 2.5 * PI).toDouble()).toFloat() * bassAmp
+                    val yTreble = sin((treblePhase + p * 6.0 * PI).toDouble()).toFloat() * trebleAmp
+                    val y = midY + yBass + yTreble
                     path.lineTo(x, y)
                 }
                 path.lineTo(width, height)
@@ -238,24 +291,27 @@ fun VisualizerWave(
                 drawPath(
                     path = path,
                     brush = Brush.verticalGradient(
-                        listOf(accent.copy(alpha = 0.38f), Color.Transparent),
-                        startY = midY - amp,
+                        listOf(accent.copy(alpha = 0.42f), accent.copy(alpha = 0.08f), Color.Transparent),
+                        startY = midY - bassAmp - trebleAmp,
                         endY = height,
                     ),
                 )
 
-                // Outline line for wave crest
+                // Capa 2: Línea vibrante nítida en la cresta
                 val linePath = Path()
                 linePath.moveTo(0f, midY)
                 for (step in 0..steps) {
-                    val x = (step.toFloat() / steps) * width
-                    val y = midY + sin((phase + step * 0.28f).toDouble()).toFloat() * amp
+                    val p = step.toFloat() / steps
+                    val x = p * width
+                    val yBass = sin((bassPhase + p * 2.5 * PI).toDouble()).toFloat() * bassAmp
+                    val yTreble = sin((treblePhase + p * 6.0 * PI).toDouble()).toFloat() * trebleAmp
+                    val y = midY + yBass + yTreble
                     linePath.lineTo(x, y)
                 }
                 drawPath(
                     path = linePath,
-                    color = accent.copy(alpha = 0.80f),
-                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round),
+                    color = accent.copy(alpha = 0.90f),
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
                 )
             }
         }
