@@ -12,10 +12,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.charset.StandardCharsets
-import java.util.zip.ZipInputStream
+import java.util.zip.ZipFile
 import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.spec.IvParameterSpec
@@ -66,13 +65,13 @@ class LpbkImporter @Inject constructor(
                 copy.outputStream().use { output -> input.copyTo(output) }
             } ?: error("No se pudo leer la copia local")
             val bytes = copy.readBytes()
-            val result = parse(bytes)
+            val result = parse(bytes, dir)
             runCatching { copy.delete() }
             result
         }
     }
 
-    private suspend fun parse(bytes: ByteArray): LpbkImportResult {
+    private suspend fun parse(bytes: ByteArray, workDir: File): LpbkImportResult {
         require(bytes.size >= 24 + 32) { "Archivo LPBK truncado" }
         require(bytes.copyOfRange(0, 4).toString(StandardCharsets.US_ASCII) == "LPBK") { "No es una copia LPBK" }
         val version = ((bytes[4].toInt() and 0xFF) shl 8) or (bytes[5].toInt() and 0xFF)
@@ -102,7 +101,9 @@ class LpbkImporter @Inject constructor(
         cipher.init(Cipher.DECRYPT_MODE, encKey, IvParameterSpec(iv16))
         val payload = cipher.doFinal(bytes, 24 + metaLen, signedLength - (24 + metaLen))
 
-        val sections = readSections(payload)
+        val payloadFile = File(workDir, "payload.zip")
+        payloadFile.writeBytes(payload)
+        val sections = readSections(payloadFile)
         val mediaById = sections.media.associateBy { it.id }
         val songs = songDao.observeAll().first()
         val byName = songs.associateBy { normalize(it.title) }
@@ -155,27 +156,34 @@ class LpbkImporter @Inject constructor(
         return LpbkImportResult(restored, linked, unmatched, deviceModel)
     }
 
-    private fun readSections(payload: ByteArray): Sections {
+    private fun readSections(payloadFile: File): Sections {
         var media = emptyList<LpbkMedia>()
         var playlists = emptyList<LpbkPlaylist>()
         val covers = HashMap<String, ByteArray>()
-        val isZip = payload.size >= 2 && payload[0] == 0x50.toByte() && payload[1] == 0x4B.toByte()
+        val header = payloadFile.readBytes().copyOfRange(0, 2)
+        val isZip = header[0] == 0x50.toByte() && header[1] == 0x4B.toByte()
         if (isZip) {
-            ZipInputStream(ByteArrayInputStream(payload)).use { zip ->
-                var entry = zip.nextEntry
-                while (entry != null) {
+            // ZipFile reads the central directory, which is tolerant of the
+            // data descriptors used by the original writer. ZipInputStream
+            // failed on some devices with "invalid stored block lengths".
+            ZipFile(payloadFile).use { zip ->
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
                     when {
-                        entry.name.endsWith("media.json") -> media = parseMedia(zip.readBytes())
-                        entry.name.endsWith("playlists.json") -> playlists = parsePlaylists(zip.readBytes())
+                        entry.name.endsWith("media.json") -> media = parseMedia(
+                            zip.getInputStream(entry).use { it.readBytes() },
+                        )
+                        entry.name.endsWith("playlists.json") -> playlists = parsePlaylists(
+                            zip.getInputStream(entry).use { it.readBytes() },
+                        )
                         entry.name.startsWith("files/") && !entry.isDirectory ->
-                            covers[entry.name] = zip.readBytes()
+                            covers[entry.name] = zip.getInputStream(entry).use { it.readBytes() }
                     }
-                    zip.closeEntry()
-                    entry = zip.nextEntry
                 }
             }
         } else {
-            val json = JSONObject(payload.toString(StandardCharsets.UTF_8))
+            val json = JSONObject(payloadFile.readBytes().toString(StandardCharsets.UTF_8))
             media = parseJsonMedia(json.optJSONArray("media"))
             playlists = parseJsonPlaylists(json.optJSONArray("playlists"))
         }

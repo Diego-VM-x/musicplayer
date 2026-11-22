@@ -1,15 +1,21 @@
 package com.larkplayer.feature.backup
 
+import android.content.ContentUris
+import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import com.larkplayer.feature.library.scanner.OriginalLibraryScanner
 import android.os.Environment
 import java.io.File
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 @HiltViewModel
 class BackupViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val manager: BackupManager,
     private val originalScanner: OriginalLibraryScanner,
     private val lpbkImporter: LpbkImporter,
@@ -59,6 +65,27 @@ class BackupViewModel @Inject constructor(
 
     /** Finds the newest `Backup_of_Lark_Player_*.lrc` for one-tap restore. */
     fun findLocalBackup(): Uri? {
+        // Professional detection: query MediaStore first (works without
+        // storage permission and finds files in any Downloads location),
+        // then fall back to well-known directories.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            runCatching {
+                context.contentResolver.query(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME),
+                    null, null,
+                    "${MediaStore.Downloads.DATE_ADDED} DESC",
+                )?.use { c ->
+                    while (c.moveToNext()) {
+                        val name = c.getString(c.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)).orEmpty()
+                        if (name.startsWith("Backup_of_Lark_Player_", true) && name.endsWith(".lrc", true)) {
+                            val id = c.getLong(c.getColumnIndexOrThrow(MediaStore.Downloads._ID))
+                            return ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+                        }
+                    }
+                }
+            }
+        }
         val dirs = listOfNotNull(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             File(Environment.getExternalStorageDirectory(), "Documents/Lark Player"),

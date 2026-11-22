@@ -4,6 +4,17 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-22 — Fase 40: lectura ZIP robusta y detección MediaStore (v27)
+
+- El payload descifrado se escribe a un archivo temporal y se abre con `java.util.zip.ZipFile`
+  (directorio central) en vez de `ZipInputStream`; Android lanzaba *invalid stored block lengths* con los
+  descriptores de datos del escritor original. Validado con Java sobre el archivo real: 7 playlists,
+  377 canciones y portada.
+- Detección mejorada: `BackupViewModel.findLocalBackup()` consulta primero `MediaStore.Downloads`
+  (sin permisos de almacenamiento) y después las carpetas conocidas.
+- `versionCode` 27 / `1.0.26-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.26` con `musicplayer-27.apk` (3.422.815 bytes, SHA-256 `2D8C6D694E73EABCB3102B7B36289E4CF6CCF7FFC88E4973C7E91E1BC2A2E971`), verificada con `aapt` (`versionCode=27`).
+
 ## 2026-11-22 — Fase 39: corrección del importador LPBK en release (v26)
 
 - `LpbkImporter` ya no usa Gson: parsea `manifest.json`, `media.json` y `playlists.json` con `org.json`,
