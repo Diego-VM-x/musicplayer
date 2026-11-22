@@ -14,14 +14,23 @@ android {
         applicationId = "com.larkplayer.clean"
         minSdk = 24
         targetSdk = 35
-        versionCode = 20
-        versionName = "1.0.19-clean"
+        versionCode = 21
+        versionName = "1.0.20-clean"
+    }
+
+    lint {
+        // False positive: MediaSessionService extends Service, but lintVital
+        // cannot resolve the Kotlin superclass through the library module.
+        disable += "Instantiatable"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Signed with the debug key so the release APK can be installed by
+            // the in-app updater while still getting R8/dead-code elimination.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -62,6 +71,7 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.work.hilt)
+    implementation(libs.coil.compose)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.timber)

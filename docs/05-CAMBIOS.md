@@ -4,6 +4,30 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 34: bootstrap en segundo plano, caché de carátulas y estado de reproducción (v21)
+
+- **WorkManager fuera del arranque**: se eliminó su `ContentProvider` inicializador del manifest y
+  `LarkApp` ya no implementa `Configuration.Provider`. WorkManager se inicializa manualmente 1,5 s después,
+  en cuanto la interfaz ya está visible; las reglas de actualización siguen funcionando.
+- **Caché de carátulas**: `LarkApp` implementa `ImageLoaderFactory` de Coil con caché en disco
+  (`lark_image_cache`, 64 MB) y memoria (25 %). El `ImageLoader` se crea solo ante la primera imagen, es
+  decir, después del primer frame. Las carátulas y el `AlbumColorRepository` se sirven desde caché en
+  arranques posteriores.
+- **Caché del estado de reproducción** (`PlayerRepository.kt`): la cola, el índice, la posición y si sonaba
+  se guardan en `SharedPreferences` mediante un snapshot tomado siempre en el hilo principal y serializado
+  en IO. Al conectar el `MediaController`, si el servicio no tiene ítems, se restaura la cola y la posición,
+  reanudando solo si estaba reproduciéndose. La X y "vaciar cola" borran la caché. Mantiene la reproducción
+  aunque el proceso del servicio muera con la app cerrada.
+- **Paridad con el servicio original** (analizado en `jadx_full`): canal de notificación `player_service_v2`
+  (importancia por defecto, sin sonido ni badge, id 3) mediante `DefaultMediaNotificationProvider`, igual que
+  el APK original. Se confirma que el original NO usa `START_STICKY`, alarmas ni `BOOT_COMPLETED` para
+  reproducir: se apoya en FGS + `stopWithTask=false` + `PARTIAL_WAKE_LOCK`, que ya tenemos. No se replican
+  el proceso `:playback`, iJKPlayer, MMKV ni los servicios de retención de anuncios.
+- **APK de release**: el `buildType` release se firma con la clave debug para poder instalarlo desde el
+  actualizador y publicar una APK ofuscada por R8 (menos DEX, arranque más rápido).
+- `versionCode` 21 / `1.0.20-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.20` con **`musicplayer-21.apk` de release** (3.373.659 bytes, SHA-256 `1C7919993697B3AD0B9E9E392B45012B2D1D7501B29A500186166A6C7C4114D9`), frente a los 23.101.828 bytes de la APK debug. Verificada con `aapt`: `versionCode=21`, `versionName=1.0.20-clean`, actividad `com.larkplayer.app.MainActivity`. Detalle en [`16-REPRODUCCION-FONDO-Y-CACHE.md`](16-REPRODUCCION-FONDO-Y-CACHE.md).
+
 ## 2026-11-21 — Fase 33: apertura instantánea sin splash (v20)
 
 - **Sin pantalla de carga**: `themes.xml` usa un fondo sólido igual al de la app (`app_background`,

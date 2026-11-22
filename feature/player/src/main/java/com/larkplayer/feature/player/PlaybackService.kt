@@ -9,12 +9,16 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ShuffleOrder
 import androidx.media3.session.CommandButton
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
@@ -91,6 +95,32 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        // Same channel id/semantics as the original app: a silent, non-badged
+        // media channel keeps the foreground service alive reliably.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching {
+                val manager = getSystemService(NotificationManager::class.java)
+                if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+                    manager.createNotificationChannel(
+                        NotificationChannel(
+                            CHANNEL_ID,
+                            "Reproducción",
+                            NotificationManager.IMPORTANCE_DEFAULT,
+                        ).apply {
+                            setSound(null, null)
+                            setShowBadge(false)
+                            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                        },
+                    )
+                }
+            }
+        }
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this)
+                .setChannelId(CHANNEL_ID)
+                .setNotificationId(NOTIFICATION_ID)
+                .build(),
+        )
         val closeCommand = SessionCommand(COMMAND_STOP_ALL, Bundle.EMPTY)
         session = MediaSession.Builder(this, player)
             .setId("lark_player_session")
@@ -403,6 +433,8 @@ class PlaybackService : MediaSessionService() {
     }
 
     companion object {
+        const val CHANNEL_ID = "player_service_v2"
+        const val NOTIFICATION_ID = 3
         const val COMMAND_SET_SHUFFLE_ORDER = "com.larkplayer.command.SET_SHUFFLE_ORDER"
         const val EXTRA_SHUFFLE_ORDER = "lark_shuffle_order"
         const val ACTION_PLAY = "com.larkplayer.action.PLAY"

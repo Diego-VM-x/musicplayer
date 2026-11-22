@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,6 +44,8 @@ class PlayerRepository @Inject constructor(
 ) {
     private val appContext: Context = context.applicationContext
     private val widgetPrefs = appContext.getSharedPreferences("lark_widget", Context.MODE_PRIVATE)
+    private val statePrefs = appContext.getSharedPreferences("lark_playback_state", Context.MODE_PRIVATE)
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var widgetListener: Player.Listener? = null
     private val sessionToken = SessionToken(
         context,
@@ -145,6 +149,9 @@ class PlayerRepository @Inject constructor(
                         )
                     }
                     _controller.value = controller
+                    // Recover the last queue/position if the service process was
+                    // killed while the app was closed.
+                    restoreQueueIfEmpty(controller)
                     if (desiredShuffle) {
                         rebuildShuffleOrder()
                         sendShuffleOrder(controller, enabled = true)
@@ -220,6 +227,19 @@ class PlayerRepository @Inject constructor(
         }
         runCatching { controller.addListener(shuffleSyncListener) }
 
+        // Keep the on-disk playback cache in sync with the real session.
+        val stateCacheListener = object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (mediaItem == null) clearPersistedQueue()
+                else persistQueue(controller, 0L, controller.isPlaying)
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                persistQueue(controller, controller.currentPosition, isPlaying)
+            }
+        }
+        runCatching { controller.addListener(stateCacheListener) }
+
         writeWidgetState(
             title = controller.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty(),
             artist = controller.currentMediaItem?.mediaMetadata?.artist?.toString().orEmpty(),
@@ -250,6 +270,100 @@ class PlayerRepository @Inject constructor(
         }
     }
 
+    // ---- Playback state cache -----------------------------------------------
+
+    /**
+     * Writes the queue to disk so playback can be reconstructed if the service
+     * process dies while the app is in the background. Runs on IO and never on
+     * the startup path.
+     */
+    private data class CachedTrack(
+        val id: Long,
+        val title: String,
+        val artist: String,
+        val album: String,
+        val albumId: Long,
+        val duration: Long,
+        val path: String,
+    )
+
+    private fun persistQueue(c: MediaController, position: Long, playing: Boolean) {
+        // MediaController must only be touched on the main thread: take the
+        // snapshot here, serialize and write on IO.
+        val tracks = runCatching {
+            (0 until c.mediaItemCount).mapNotNull { i ->
+                val item = c.getMediaItemAt(i)
+                val meta = item.mediaMetadata
+                CachedTrack(
+                    id = item.mediaId?.toLongOrNull() ?: 0L,
+                    title = meta.title?.toString().orEmpty(),
+                    artist = meta.artist?.toString().orEmpty(),
+                    album = meta.albumTitle?.toString().orEmpty(),
+                    albumId = meta.artworkUri?.toString()?.substringAfterLast('/')?.toLongOrNull() ?: -1L,
+                    duration = meta.extras?.getLong(EXTRA_SONG_DURATION) ?: 0L,
+                    path = meta.extras?.getString(EXTRA_SONG_PATH).orEmpty(),
+                )
+            }
+        }.getOrNull() ?: return
+        val index = runCatching { c.currentMediaItemIndex }.getOrDefault(0).coerceAtLeast(0)
+        ioScope.launch {
+            runCatching {
+                val array = JSONArray()
+                tracks.forEach { t ->
+                    array.put(
+                        JSONObject().apply {
+                            put("id", t.id)
+                            put("title", t.title)
+                            put("artist", t.artist)
+                            put("album", t.album)
+                            put("albumId", t.albumId)
+                            put("duration", t.duration)
+                            put("path", t.path)
+                        }
+                    )
+                }
+                statePrefs.edit()
+                    .putString("queue", array.toString())
+                    .putInt("index", index)
+                    .putLong("position", position)
+                    .putBoolean("playing", playing)
+                    .apply()
+            }.onFailure { Timber.e(it, "Failed to cache playback state") }
+        }
+    }
+
+    private fun restoreQueueIfEmpty(c: MediaController) {
+        if (c.mediaItemCount != 0) return
+        val json = statePrefs.getString("queue", null) ?: return
+        val songs = runCatching {
+            val array = JSONArray(json)
+            (0 until array.length()).mapNotNull { i ->
+                val o = array.getJSONObject(i)
+                val id = o.optLong("id", 0L)
+                if (id <= 0L) null else Song(
+                    id = id,
+                    title = o.optString("title"),
+                    artist = o.optString("artist"),
+                    album = o.optString("album"),
+                    albumId = o.optLong("albumId", -1L),
+                    duration = o.optLong("duration", 0L),
+                    path = o.optString("path"),
+                )
+            }
+        }.getOrNull().orEmpty()
+        if (songs.isEmpty()) return
+
+        val index = statePrefs.getInt("index", 0).coerceIn(0, songs.lastIndex)
+        val position = statePrefs.getLong("position", 0L)
+        val shouldPlay = statePrefs.getBoolean("playing", false)
+        c.setMediaItems(songs.map { it.toMediaItem() }, index, position)
+        c.prepare()
+        if (shouldPlay) c.play()
+        Timber.d("Restored cached queue: %d tracks", songs.size)
+    }
+
+    private fun clearPersistedQueue() = statePrefs.edit().clear().apply()
+
     // ---- Playback -----------------------------------------------------------
 
     fun playSongs(songs: List<Song>, startIndex: Int = 0) {
@@ -264,6 +378,7 @@ class PlayerRepository @Inject constructor(
             }
             c.prepare()
             c.play()
+            persistQueue(c, 0L, playing = true)
         }
     }
 
@@ -277,6 +392,7 @@ class PlayerRepository @Inject constructor(
             else if (item.mediaId !in visibleOrder) visibleOrder = visibleOrder + item.mediaId
             sendShuffleOrder(c, enabled = true)
         }
+        persistQueue(c, c.currentPosition, c.isPlaying)
     }
 
     fun play(song: Song) = playSongs(listOf(song))
@@ -512,6 +628,7 @@ class PlayerRepository @Inject constructor(
         c.stop()
         c.clearMediaItems()
         visibleOrder = emptyList()
+        clearPersistedQueue()
     }
 
     // ---- Sleep timer ----
@@ -595,6 +712,7 @@ class PlayerRepository @Inject constructor(
                 settings.addPlayTime(pendingPlayMs)
                 pendingPlayMs = 0
             }
+            _controller.value?.let { c -> persistQueue(c, c.currentPosition, c.isPlaying) }
         }
     }
 
@@ -609,13 +727,17 @@ class PlayerRepository @Inject constructor(
                 .setArtworkUri(android.net.Uri.parse(
                     "content://media/external/audio/albumart/$albumId"
                 ))
-                .setExtras(Bundle().apply { putString(EXTRA_SONG_PATH, path) })
+                .setExtras(Bundle().apply {
+                    putString(EXTRA_SONG_PATH, path)
+                    putLong(EXTRA_SONG_DURATION, duration)
+                })
                 .build()
         )
         .build()
 
     companion object {
         const val EXTRA_SONG_PATH = "lark_song_path"
+        const val EXTRA_SONG_DURATION = "lark_song_duration"
         private const val KEY_WIDGET_TITLE = "widget_title"
         private const val KEY_WIDGET_ARTIST = "widget_artist"
         private const val KEY_WIDGET_PLAYING = "widget_playing"
