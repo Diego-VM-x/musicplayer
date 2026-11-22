@@ -184,6 +184,17 @@ class BackupManager @Inject constructor(
     }
 
     private fun readLpbkZip(payloadFile: File): List<ParsedPlaylist> {
+        // Intento 1: ZipFile (lee el directorio central, tolera data descriptors normales)
+        runCatching {
+            return readLpbkZipFile(payloadFile)
+        }.onFailure { e ->
+            Timber.w(e, "ZipFile falló para LPBK payload, intentando ZipInputStream")
+        }
+        // Intento 2: ZipInputStream (stream secuencial, tolera otros formatos de data descriptor)
+        return readLpbkZipStream(payloadFile.readBytes())
+    }
+
+    private fun readLpbkZipFile(payloadFile: File): List<ParsedPlaylist> {
         var mediaJson = ""
         var playlistsJson = ""
         val covers = HashMap<String, ByteArray>()
@@ -204,7 +215,39 @@ class BackupManager @Inject constructor(
         }
 
         require(playlistsJson.isNotBlank()) { "La copia no contiene playlists.json" }
+        return parseLpbkSections(mediaJson, playlistsJson, covers)
+    }
 
+    private fun readLpbkZipStream(bytes: ByteArray): List<ParsedPlaylist> {
+        var mediaJson = ""
+        var playlistsJson = ""
+        val covers = HashMap<String, ByteArray>()
+
+        ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                when {
+                    entry.name.endsWith("media.json") ->
+                        mediaJson = zip.readBytes().toString(StandardCharsets.UTF_8)
+                    entry.name.endsWith("playlists.json") ->
+                        playlistsJson = zip.readBytes().toString(StandardCharsets.UTF_8)
+                    entry.name.startsWith("files/") && !entry.isDirectory ->
+                        covers[entry.name] = zip.readBytes()
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+
+        require(playlistsJson.isNotBlank()) { "La copia no contiene playlists.json (stream)" }
+        return parseLpbkSections(mediaJson, playlistsJson, covers)
+    }
+
+    private fun parseLpbkSections(
+        mediaJson: String,
+        playlistsJson: String,
+        covers: Map<String, ByteArray>,
+    ): List<ParsedPlaylist> {
         val mediaArray = if (mediaJson.isNotBlank()) JSONArray(mediaJson) else JSONArray()
         val mediaMap = mutableMapOf<Int, NormalizedMedia>()
         for (i in 0 until mediaArray.length()) {
@@ -230,10 +273,10 @@ class BackupManager @Inject constructor(
             val createTime = o.optLong("create_time", System.currentTimeMillis())
             val coverKey = o.optString("cover").takeIf { it.isNotBlank() && it != "null" }
             val coverUri = coverKey?.let { key ->
-                covers[key]?.let { bytes ->
+                covers[key]?.let { coverBytes ->
                     runCatching {
                         val file = File(context.filesDir, "lark_cover_${System.currentTimeMillis()}_$i.png")
-                        file.writeBytes(bytes)
+                        file.writeBytes(coverBytes)
                         Uri.fromFile(file).toString()
                     }.getOrNull()
                 }
@@ -242,7 +285,7 @@ class BackupManager @Inject constructor(
             val membersArray = o.optJSONArray("members")
             val songRefs = mutableListOf<NormalizedMedia>()
             if (membersArray != null) {
-                val memberList = mutableListOf<Pair<Int, Int>>() // order to mediaId
+                val memberList = mutableListOf<Pair<Int, Int>>()
                 for (j in 0 until membersArray.length()) {
                     val m = membersArray.optJSONObject(j) ?: continue
                     val mId = m.optInt("media_id", -1)
