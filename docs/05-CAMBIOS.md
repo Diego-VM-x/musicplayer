@@ -18,6 +18,7 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
   - `PlayerRepository` pospone la conexión del servicio 900 ms y el escaneo espera la señal posterior al frame.
   - `allowBackup=false`: se eliminan las reglas de backup/restauración del arranque.
 - `versionCode` 20 / `1.0.19-clean`; `assembleDebug` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.19` con `musicplayer-20.apk` (23.101.828 bytes, SHA-256 `0FF741BEBC7CE5410FA8EA8F8766080769AE94AD330F4E4271DE2B27BABA4D15`). Verificada como última release, sin draft/pre-release y con el asset `uploaded`.
 
 ## 2026-11-21 — Fase 32: reproductor con pie anclado y controles grandes (v19)
 
