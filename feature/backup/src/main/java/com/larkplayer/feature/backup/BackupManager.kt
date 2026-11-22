@@ -576,6 +576,55 @@ class BackupManager @Inject constructor(
         }
     }
 
+    /**
+     * Exports only the original encrypted Drive backup format (.info file).
+     * Exact format compatible with Lark Player official Google Drive backup.
+     */
+    suspend fun exportOriginalDriveInfo(uri: Uri): Result<UniversalImportResult> = withContext(Dispatchers.IO) {
+        runCatching {
+            val songs = songDao.observeAll().first()
+            val playlists = playlistDao.observePlaylists().first()
+            val playlistSongs = playlistDao.observeAllPlaylistSongs().first()
+            val playCounts = historyDao.observePlayCounts().first().associate { it.songId to it.count }
+            val byId = songs.associateBy { it.id }
+            val items = playlistSongs.groupBy { it.playlistId }
+
+            val originalPlaylists = playlists.map { playlist ->
+                DrivePlaylistBean(
+                    playlistName = playlist.name,
+                    playlistId = if (playlist.name.equals("Favoritos", true)) {
+                        "playlist_id_favorite"
+                    } else playlist.id.toString(),
+                    createTime = playlist.createdAt,
+                    cover = playlist.coverUri.orEmpty(),
+                    items = (items[playlist.id].orEmpty())
+                        .sortedBy { it.position }
+                        .mapNotNull { ref ->
+                            val song = byId[ref.songId] ?: return@mapNotNull null
+                            LarkMediaItem(
+                                songsName = File(song.path).name,
+                                size = runCatching { File(song.path).length() }.getOrDefault(0L),
+                                playCount = (playCounts[song.id] ?: 0).toLong(),
+                            )
+                        },
+                )
+            }
+
+            val json = gson.toJson(PlaylistInfos(originalPlaylists))
+            val encrypted = LarkBackupCrypto.encrypt(json)
+
+            context.contentResolver.openOutputStream(uri)?.use { out ->
+                out.write(encrypted.toByteArray(Charsets.UTF_8))
+            } ?: error("No se pudo escribir en el archivo de destino")
+
+            UniversalImportResult(
+                message = "Respaldo formato Drive exportado: ${playlists.size} playlists guardadas",
+                restoredPlaylists = playlists.size,
+                linkedSongs = songs.size,
+            )
+        }
+    }
+
     private fun normalize(value: String?): String = value.orEmpty()
         .substringAfterLast('/')
         .substringBeforeLast('.')

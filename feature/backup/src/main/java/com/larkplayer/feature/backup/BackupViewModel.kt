@@ -65,6 +65,18 @@ class BackupViewModel @Inject constructor(
         )
     }
 
+    suspend fun exportDriveInfo(uri: Uri): String {
+        _lastErrorLog.value = null
+        return manager.exportOriginalDriveInfo(uri).fold(
+            onSuccess = { it.message },
+            onFailure = { err ->
+                val simplified = simplifyError(err)
+                _lastErrorLog.value = simplified
+                "Error al exportar: ${err.message ?: "Error desconocido"}"
+            }
+        )
+    }
+
     private fun simplifyError(throwable: Throwable): String {
         val root = getRootCause(throwable)
         val stackLine = root.stackTrace.firstOrNull { it.className.startsWith("com.larkplayer") }
@@ -88,31 +100,39 @@ class BackupViewModel @Inject constructor(
     fun findAvailableBackups(): List<DetectedBackup> {
         val list = mutableListOf<DetectedBackup>()
 
-        // 1. MediaStore query on Android Q+
+        // 1. MediaStore Downloads & Files query on Android Q+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            runCatching {
-                context.contentResolver.query(
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                    arrayOf(
-                        MediaStore.Downloads._ID,
-                        MediaStore.Downloads.DISPLAY_NAME,
-                        MediaStore.Downloads.DATE_MODIFIED
-                    ),
-                    null, null,
-                    "${MediaStore.Downloads.DATE_MODIFIED} DESC"
-                )?.use { c ->
-                    val idCol = c.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-                    val nameCol = c.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)
-                    val modCol = c.getColumnIndexOrThrow(MediaStore.Downloads.DATE_MODIFIED)
-                    while (c.moveToNext()) {
-                        val name = c.getString(nameCol).orEmpty()
-                        val id = c.getLong(idCol)
-                        val mod = c.getLong(modCol) * 1000L
-                        val uri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+            val collections = listOf(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                MediaStore.Files.getContentUri("external"),
+            )
+            collections.forEach { collectionUri ->
+                runCatching {
+                    context.contentResolver.query(
+                        collectionUri,
+                        arrayOf(
+                            MediaStore.MediaColumns._ID,
+                            MediaStore.MediaColumns.DISPLAY_NAME,
+                            MediaStore.MediaColumns.DATE_MODIFIED
+                        ),
+                        null, null,
+                        "${MediaStore.MediaColumns.DATE_MODIFIED} DESC"
+                    )?.use { c ->
+                        val idCol = c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                        val nameCol = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+                        val modCol = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED)
+                        while (c.moveToNext()) {
+                            val name = c.getString(nameCol).orEmpty()
+                            val id = c.getLong(idCol)
+                            val mod = c.getLong(modCol) * 1000L
+                            val uri = ContentUris.withAppendedId(collectionUri, id)
 
-                        val type = classifyFileName(name)
-                        if (type != null) {
-                            list.add(DetectedBackup(uri, name, type, mod))
+                            val type = classifyFileName(name)
+                            if (type != null) {
+                                if (list.none { it.displayName.equals(name, ignoreCase = true) }) {
+                                    list.add(DetectedBackup(uri, name, type, mod))
+                                }
+                            }
                         }
                     }
                 }
@@ -120,11 +140,19 @@ class BackupViewModel @Inject constructor(
         }
 
         // 2. Direct directory scan fallback
+        val rootDir = Environment.getExternalStorageDirectory()
         val dirs = listOfNotNull(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            File(Environment.getExternalStorageDirectory(), "Documents/Lark Player"),
-            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Lark Player"),
+            File(rootDir, "Download"),
+            File(rootDir, "Downloads"),
+            File(rootDir, "Documents"),
+            File(rootDir, "Documents/Lark Player"),
+            File(rootDir, "Lark Player"),
+            File(rootDir, "Android/data/com.dywx.larkplayer/files"),
+            File(rootDir, "Android/data/com.dywx.larkplayer/files/backup"),
+            File(rootDir, "Android/data/com.dywx.larkplayer/files/Lark Player"),
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Lark Player"),
             context.getExternalFilesDir(null),
             File(context.filesDir, "backups"),
         )
@@ -132,11 +160,11 @@ class BackupViewModel @Inject constructor(
         dirs.forEach { dir ->
             if (dir.exists() && dir.isDirectory) {
                 runCatching {
-                    dir.walkTopDown().maxDepth(3).filter { it.isFile }.forEach { file ->
+                    dir.walkTopDown().maxDepth(4).filter { it.isFile }.forEach { file ->
                         val type = classifyFileName(file.name)
                         if (type != null) {
                             val uri = Uri.fromFile(file)
-                            if (list.none { it.displayName == file.name }) {
+                            if (list.none { it.displayName.equals(file.name, ignoreCase = true) }) {
                                 list.add(DetectedBackup(uri, file.name, type, file.lastModified()))
                             }
                         }
@@ -149,15 +177,15 @@ class BackupViewModel @Inject constructor(
     }
 
     private fun classifyFileName(name: String): String? {
-        val lower = name.lowercase()
+        val lower = name.lowercase().trim()
         return when {
-            lower.startsWith("backup_of_lark_player_") && lower.endsWith(".lrc") -> "Copia local Lark (.lrc)"
-            lower.contains("playlists you backed up in lark player") && (lower.endsWith(".info") || lower.endsWith(".json")) ->
-                "Respaldo Drive Lark (.info)"
+            lower.endsWith(".lrc") -> "Copia local Lark (.lrc)"
+            lower.contains("playlists you backed up in lark player") -> "Respaldo Drive Lark (.info)"
+            lower.endsWith(".info") -> "Respaldo Drive Lark (.info)"
+            lower.endsWith(".json") && (lower.contains("playlist") || lower.contains("lark") || lower.contains("backup")) ->
+                "Respaldo Drive / JSON (.json)"
             lower.contains("lark-backup") && lower.endsWith(".zip") -> "Copia LarkClean (.zip)"
             lower == "vlc_database" || lower.startsWith("vlc_database") -> "Base de datos Lark"
-            lower.endsWith(".lrc") && lower.contains("lark") -> "Copia local Lark (.lrc)"
-            lower.endsWith(".info") && lower.contains("playlist") -> "Respaldo Drive Lark (.info)"
             lower.endsWith(".zip") && (lower.contains("lark") || lower.contains("backup")) -> "Copia de respaldo (.zip)"
             else -> null
         }

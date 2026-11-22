@@ -18,10 +18,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,6 +68,7 @@ fun BackupScreen(
     val lastErrorLog by viewModel.lastErrorLog.collectAsState()
     val accent = MaterialTheme.colorScheme.primary
 
+    var showTutorial by remember { mutableStateOf(false) }
     val availableBackups by remember { mutableStateOf(viewModel.findAvailableBackups()) }
 
     val openBackupLauncher = rememberLauncherForActivityResult(
@@ -87,6 +92,19 @@ fun BackupScreen(
                 isOperating = true
                 statusMessage = "Exportando respaldo..."
                 statusMessage = viewModel.exportZip(uri, includeSongsInExport)
+                isOperating = false
+            }
+        }
+    }
+
+    val exportDriveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                isOperating = true
+                statusMessage = "Exportando respaldo de Drive..."
+                statusMessage = viewModel.exportDriveInfo(uri)
                 isOperating = false
             }
         }
@@ -117,8 +135,82 @@ fun BackupScreen(
             color = ApplePalette.TextSecondary,
             fontSize = 11.5.sp,
             lineHeight = 16.sp,
-            modifier = Modifier.padding(start = 4.dp, bottom = 20.dp),
+            modifier = Modifier.padding(start = 4.dp, bottom = 12.dp),
         )
+
+        // Tarjeta de Tutorial / Instrucciones desplegable
+        LarkCard(
+            Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Column(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { showTutorial = !showTutorial }
+                        .padding(horizontal = 16.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(accent.copy(alpha = 0.15f)),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(Icons.Rounded.HelpOutline, null, tint = accent, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.size(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Tutorial: ¿Cómo transferir desde Lark Player?",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            if (showTutorial) "Toca para ocultar instrucciones" else "Toca para ver el paso a paso detallado",
+                            color = ApplePalette.TextSecondary,
+                            fontSize = 11.sp,
+                        )
+                    }
+                    Icon(
+                        if (showTutorial) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        null,
+                        tint = ApplePalette.TextSecondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+
+                if (showTutorial) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    ) {
+                        TutorialStep(
+                            number = "1",
+                            title = "En Lark Player original:",
+                            desc = "Ve a 'Yo' > 'Copia de seguridad' y selecciona 'Copia de seguridad en Google Drive' o 'Copia local'.",
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        TutorialStep(
+                            number = "2",
+                            title = "Si usaste Google Drive:",
+                            desc = "Abre tu Google Drive, busca el archivo que empiece por '(Don’t delete) Playlists...' o con extensión '.info' y descárgalo a tu teléfono (quedará en la carpeta Descargas / Download).",
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        TutorialStep(
+                            number = "3",
+                            title = "Detección o selección:",
+                            desc = "Al entrar aquí, la app lo detectará automáticamente arriba en 'RESPALDOS DETECTADOS'. Solo tócalo para importar. O usa 'Seleccionar archivo' si lo guardaste en otra carpeta.",
+                        )
+                    }
+                }
+            }
+        }
 
         // Estado y mensajes
         if (isOperating) {
@@ -288,6 +380,17 @@ fun BackupScreen(
                     }
                 },
             )
+            BackupItemRow(
+                icon = Icons.Rounded.CloudDownload,
+                title = "Exportar formato Google Drive (.info)",
+                subtitle = "Genera el archivo cifrado exacto de Lark Player para subir a Drive",
+                accent = accent,
+                onClick = {
+                    if (!isOperating) {
+                        exportDriveLauncher.launch("(Don’t delete) Playlists you backed up in Lark Player.info")
+                    }
+                },
+            )
         }
 
         Spacer(Modifier.height(20.dp))
@@ -305,6 +408,32 @@ fun BackupScreen(
             )
         }
         Spacer(Modifier.height(28.dp))
+    }
+}
+
+@Composable
+private fun TutorialStep(
+    number: String,
+    title: String,
+    desc: String,
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Column(
+            Modifier
+                .size(20.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF33333E)),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(number, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.size(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(2.dp))
+            Text(desc, color = ApplePalette.TextSecondary, fontSize = 11.sp, lineHeight = 15.sp)
+        }
     }
 }
 
