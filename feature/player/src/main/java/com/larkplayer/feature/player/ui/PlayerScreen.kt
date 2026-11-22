@@ -97,6 +97,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.painterResource
+import com.larkplayer.core.designsystem.R as DesignR
 import com.larkplayer.core.common.MediaFileUtils
 import com.larkplayer.core.common.RingtoneHelper
 import com.larkplayer.core.designsystem.component.GlassIconButton
@@ -246,13 +248,19 @@ fun PlayerScreen(
     val currentMode = viewModel.currentPlaybackMode()
     val speedVisible = abs(state.playbackSpeed - 1f) > 0.01f
 
-    LarkGradientBackground(accent = accent, strength = 0.34f) {
-        Box(Modifier.fillMaxSize()) {
+    // Lark Player Original matte background
+    val darkMatteBg = Color(0xFF262626)
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(darkMatteBg)
+    ) {
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .padding(top = 2.dp, bottom = 92.dp),
+                .padding(horizontal = 24.dp)
+                .padding(top = 10.dp, bottom = 80.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -274,28 +282,14 @@ fun PlayerScreen(
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    Icons.Rounded.KeyboardArrowDown,
-                    contentDescription = "Cerrar reproductor",
-                    tint = Color.White.copy(alpha = 0.55f),
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .clickable(onClick = onBack),
-                )
+                // Invisible touch area or subtle indicator if needed
             }
 
-            // ---- Artwork (Moderno, optimizado y sin exceder altura) ----
-            val artworkScale by animateFloatAsState(
-                targetValue = if (state.isPlaying) 1.0f else 0.95f,
-                animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
-                label = "artwork_scale",
-            )
+            // ---- Artwork (Lark Player original: rounded square, pure matte) ----
             var dragDistance by remember { mutableFloatStateOf(0f) }
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 240.dp)
                     .aspectRatio(1f)
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures(
@@ -326,17 +320,15 @@ fun PlayerScreen(
                     Box(
                         Modifier
                             .fillMaxSize()
-                            .scale(artworkScale)
-                            .shadow(if (state.isPlaying) 20.dp else 10.dp, RoundedCornerShape(26.dp))
-                            .clip(RoundedCornerShape(26.dp))
-                            .background(Color(0xFF222328)),
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(Color(0xFF1E1E1E)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             Icons.Rounded.MusicNote,
                             null,
-                            tint = Color(0xFF5C5C64),
-                            modifier = Modifier.size(56.dp),
+                            tint = Color(0xFF4A4A4A),
+                            modifier = Modifier.size(64.dp),
                         )
                         AsyncImage(
                             model = state.albumArt,
@@ -348,7 +340,9 @@ fun PlayerScreen(
                 }
             }
 
-            // ---- Title + artist, with favourite and overflow on the right ----
+            Spacer(Modifier.height(12.dp))
+
+            // ---- Title + artist, with favourite and overflow on the right (Lark exact match) ----
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -363,96 +357,117 @@ fun PlayerScreen(
                         label = "title_transition",
                     ) { titleText ->
                         Text(
-                            titleText,
+                            titleText.uppercase(Locale.getDefault()),
                             color = Color.White,
-                            fontSize = 20.sp,
+                            fontSize = 21.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
-                            lineHeight = 24.sp,
                             overflow = TextOverflow.Ellipsis,
-                            letterSpacing = (-0.3).sp,
+                            letterSpacing = 0.sp,
                         )
                     }
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(3.dp))
                     Text(
-                        state.artist.ifBlank { "Artista desconocido" },
-                        color = Color(0xFFB9B9C0),
-                        fontSize = 13.sp,
+                        (state.artist.ifBlank { "Desconocido" }).uppercase(Locale.getDefault()),
+                        color = Color(0xFF8E8E93),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                GlassIconButton(
-                    if (state.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    if (state.isFavorite) "Quitar de favoritos" else "Favorito",
-                    viewModel::toggleFavorite,
-                    size = 46.dp,
-                    iconSize = 25.dp,
-                    tint = if (state.isFavorite) accent else Color.White,
-                    flat = true,
-                )
-                Box {
-                    GlassIconButton(
-                        Icons.Rounded.MoreVert,
-                        "Más opciones",
-                        { menuOpen = true },
-                        size = 42.dp,
-                        iconSize = 24.dp,
-                        tint = Color.White.copy(alpha = 0.78f),
-                        flat = true,
+
+                Spacer(Modifier.width(8.dp))
+
+                // Favorite heart icon (Lark exact outline/filled)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = viewModel::toggleFavorite),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            if (state.isFavorite) DesignR.drawable.ic_lark_heart_filled
+                            else DesignR.drawable.ic_lark_heart_outline
+                        ),
+                        contentDescription = if (state.isFavorite) "Quitar de favoritos" else "Favorito",
+                        tint = if (state.isFavorite) Color(0xFFFF4D67) else Color(0xFFE0E0E0),
+                        modifier = Modifier.size(24.dp),
                     )
-                    if (menuOpen) {
-                        PlayerMoreSheet(
-                            title = state.title,
-                            artist = state.artist,
-                            albumArt = state.albumArt,
-                            onAddToPlaylist = {
-                                menuOpen = false
-                                playlistPickerOpen = true
-                            },
-                            onShare = {
-                                menuOpen = false
-                                shareCurrent()
-                            },
-                            onVisualizer = {
-                                menuOpen = false
-                                visualizerSheetOpen = true
-                            },
-                            onSpeed = {
-                                menuOpen = false
-                                speedMenu = true
-                            },
-                            onSetRingtone = {
-                                menuOpen = false
-                                requestRingtone()
-                            },
-                            onSleepTimer = {
-                                menuOpen = false
-                                onSleepTimer()
-                            },
-                            onHide = {
-                                menuOpen = false
-                                viewModel.hideCurrent()
-                                Toast.makeText(context, "Canción oculta de la biblioteca", Toast.LENGTH_SHORT).show()
-                            },
-                            onDelete = {
-                                menuOpen = false
-                                confirmDelete = true
-                            },
-                            onDismissRequest = { menuOpen = false },
-                        )
-                    }
+                }
+
+                Spacer(Modifier.width(4.dp))
+
+                // More 3-dots icon (Lark exact)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable { menuOpen = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(DesignR.drawable.ic_lark_more),
+                        contentDescription = "Más opciones",
+                        tint = Color(0xFFE0E0E0),
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+
+                if (menuOpen) {
+                    PlayerMoreSheet(
+                        title = state.title,
+                        artist = state.artist,
+                        albumArt = state.albumArt,
+                        onAddToPlaylist = {
+                            menuOpen = false
+                            playlistPickerOpen = true
+                        },
+                        onShare = {
+                            menuOpen = false
+                            shareCurrent()
+                        },
+                        onVisualizer = {
+                            menuOpen = false
+                            visualizerSheetOpen = true
+                        },
+                        onSpeed = {
+                            menuOpen = false
+                            speedMenu = true
+                        },
+                        onSetRingtone = {
+                            menuOpen = false
+                            requestRingtone()
+                        },
+                        onSleepTimer = {
+                            menuOpen = false
+                            onSleepTimer()
+                        },
+                        onHide = {
+                            menuOpen = false
+                            viewModel.hideCurrent()
+                            Toast.makeText(context, "Canción oculta de la biblioteca", Toast.LENGTH_SHORT).show()
+                        },
+                        onDelete = {
+                            menuOpen = false
+                            confirmDelete = true
+                        },
+                        onDismissRequest = { menuOpen = false },
+                    )
                 }
             }
 
-            // ---- Visualizador de música reactivo a bajos y agudos ----
+            Spacer(Modifier.height(16.dp))
+
+            // ---- Visualizador de música (monochrome subtle wave above progress) ----
             VisualizerWave(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .height(34.dp)
                     .clickable { visualizerSheetOpen = true },
-                accent = accent,
+                accent = Color(0xFFE0E0E0),
                 isPlaying = state.isPlaying,
                 style = if (state.visualizerEnabled) state.visualizerStyle else "armonia",
             )
@@ -471,182 +486,155 @@ fun PlayerScreen(
                     },
                     valueRange = 0f..state.duration.toFloat().coerceAtLeast(1f),
                     colors = SliderDefaults.colors(
-                        thumbColor = accent,
-                        activeTrackColor = accent,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.20f),
+                        thumbColor = Color.White,
+                        activeTrackColor = Color(0xFFE0E0E0),
+                        inactiveTrackColor = Color(0xFF444444),
                     ),
-                    modifier = Modifier.fillMaxWidth().height(20.dp),
+                    modifier = Modifier.fillMaxWidth().height(16.dp),
                 )
                 Row(
-                    Modifier.fillMaxWidth(),
+                    Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
                         formatTime(state.position),
-                        color = Color(0xFF8E8E95),
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(start = 2.dp),
+                        color = Color(0xFF8E8E93),
+                        fontSize = 11.5.sp,
                     )
                     Text(
                         formatTime(state.duration),
-                        color = Color(0xFF8E8E95),
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(end = 2.dp),
+                        color = Color(0xFF8E8E93),
+                        fontSize = 11.5.sp,
                     )
                 }
             }
 
-            // ---- Transport: previous / play / next ----
+            Spacer(Modifier.height(10.dp))
+
+            // ---- Transport: previous / play / next (Lark exact match: flat white icons, no circles) ----
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AnimatedTransportButton(
-                    icon = Icons.Rounded.SkipPrevious,
-                    description = "Anterior",
-                    onClick = viewModel::skipPrevious,
-                    size = 64.dp,
-                    iconSize = 36.dp,
-                    tint = accent,
-                )
-                val playInteraction = remember { MutableInteractionSource() }
-                val playPressed by playInteraction.collectIsPressedAsState()
-                val playButtonScale by animateFloatAsState(
-                    targetValue = (if (state.isPlaying) 1.05f else 1.0f) * if (playPressed) 0.93f else 1f,
-                    animationSpec = spring(dampingRatio = 0.6f, stiffness = 420f),
-                    label = "play_button_scale",
-                )
+                // Previous button
                 Box(
-                    Modifier
-                        .size(88.dp)
-                        .scale(playButtonScale)
-                        .shadow(16.dp, CircleShape, clip = false)
+                    modifier = Modifier
+                        .size(56.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(Color(0xFF34363E), Color(0xFF1E1F24))
-                            )
-                        )
-                        .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape)
-                        .clickable(
-                            interactionSource = playInteraction,
-                            indication = null,
-                            onClick = viewModel::togglePlayPause,
-                        ),
+                        .clickable(onClick = viewModel::skipPrevious),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Crossfade(targetState = state.isPlaying, animationSpec = tween(220), label = "play_pause_crossfade") { playing ->
-                        Icon(
-                            if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            if (playing) "Pausar" else "Reproducir",
-                            tint = accent,
-                            modifier = Modifier.size(50.dp),
-                        )
-                    }
+                    Icon(
+                        painter = painterResource(DesignR.drawable.ic_lark_prev),
+                        contentDescription = "Anterior",
+                        tint = Color(0xFFE6E6E6),
+                        modifier = Modifier.size(46.dp),
+                    )
                 }
-                AnimatedTransportButton(
-                    icon = Icons.Rounded.SkipNext,
-                    description = "Siguiente",
-                    onClick = viewModel::skipNext,
-                    size = 64.dp,
-                    iconSize = 36.dp,
-                    tint = accent,
-                )
+
+                // Play / Pause button (Lark iconic: flat double pill pause or single play triangle)
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = viewModel::togglePlayPause),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            if (state.isPlaying) DesignR.drawable.ic_lark_pause
+                            else DesignR.drawable.ic_lark_play
+                        ),
+                        contentDescription = if (state.isPlaying) "Pausar" else "Reproducir",
+                        tint = Color(0xFFE6E6E6),
+                        modifier = Modifier.size(62.dp),
+                    )
+                }
+
+                // Next button
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = viewModel::skipNext),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(DesignR.drawable.ic_lark_next),
+                        contentDescription = "Siguiente",
+                        tint = Color(0xFFE6E6E6),
+                        modifier = Modifier.size(46.dp),
+                    )
+                }
             }
 
             Spacer(Modifier.height(4.dp))
         }
 
-        // ---- EQ / Letras / queue -------------------------------------------
-        // Pinned to the bottom edge (including the navigation bar inset) so the
-        // screen never ends in an empty dark rectangle.
+        // ---- EQ / Letras / queue (Lark Player original bottom row) ----
         Box(
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .background(Color(0xFF16171B))
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+                .background(darkMatteBg)
+                .padding(horizontal = 24.dp, vertical = 14.dp),
         ) {
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    GlassIconButton(
-                        Icons.Rounded.Equalizer,
-                        "Ecualizador",
-                        onEqualizer,
-                        size = 52.dp,
-                        iconSize = 27.dp,
-                        tint = ApplePalette.TextSecondary,
-                        flat = true,
+                // Left: Equalizer / Tune sliders
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onEqualizer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(DesignR.drawable.ic_lark_equalizer),
+                        contentDescription = "Ecualizador",
+                        tint = Color(0xFF8E8E93),
+                        modifier = Modifier.size(24.dp),
                     )
                 }
-                Box(Modifier.weight(1.4f), contentAlignment = Alignment.Center) {
-                    Row(
-                        Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable(onClick = onLyrics)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        if (state.hasLyrics) {
-                            val albumArtUri = state.albumArt
-                            if (!albumArtUri.isNullOrBlank()) {
-                                AsyncImage(
-                                    model = albumArtUri,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFF222226)),
-                                )
-                                Spacer(Modifier.width(8.dp))
-                            }
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                "Letras",
-                                color = if (state.hasLyrics) accent else Color(0xFFE2E2E8),
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            if (state.hasLyrics && !state.currentLyricsLine.isNullOrBlank()) {
-                                Text(
-                                    state.currentLyricsLine.orEmpty(),
-                                    color = Color(0xFFB0B0BC),
-                                    fontSize = 10.5.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
+
+                // Center: "Letras" plain text
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onLyrics)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Letras",
+                        color = Color(0xFF8E8E93),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
                 }
-                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                    Box {
-                        GlassIconButton(
-                            Icons.Rounded.QueueMusic,
-                            "A continuación",
-                            onQueue,
-                            size = 52.dp,
-                            iconSize = 27.dp,
-                            tint = ApplePalette.TextSecondary,
-                            flat = true,
-                        )
-                        PlayerModeBadge(
-                            mode = currentMode,
-                            accent = accent,
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 5.dp, y = (-4).dp),
-                            onClick = { viewModel.setPlaybackMode(nextMode(currentMode)) },
-                        )
-                    }
+
+                // Right: Queue with mode indicator (ic_lark_queue / ic_lark_queue_shuffle)
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onQueue),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            if (currentMode == PlayerRepository.MODE_SHUFFLE) DesignR.drawable.ic_lark_queue_shuffle
+                            else DesignR.drawable.ic_lark_queue
+                        ),
+                        contentDescription = "Cola de reproducción",
+                        tint = Color(0xFF8E8E93),
+                        modifier = Modifier.size(24.dp),
+                    )
                 }
             }
         }
@@ -660,7 +648,6 @@ fun PlayerScreen(
                 accent = accent,
                 onDismissRequest = { visualizerSheetOpen = false },
             )
-        }
         }
     }
 

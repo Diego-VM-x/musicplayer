@@ -267,51 +267,54 @@ fun VisualizerWave(
                 }
             }
             else -> {
-                // "armonia" - Espectro armónico multicapa (onda de bajos + detalle de agudos)
-                val midY = height * 0.62f
-                val bassAmp = if (isPlaying) height * 0.28f else height * 0.06f
-                val trebleAmp = if (isPlaying) height * 0.12f else height * 0.02f
+                // "armonia" - Soft fluid wave matching Lark Player exact aesthetics
+                val midY = height * 0.70f
+                val bassAmp = if (isPlaying) height * 0.35f else height * 0.08f
+                val trebleAmp = if (isPlaying) height * 0.15f else height * 0.03f
 
-                // Capa 1: Relleno suave con efecto de bajos
-                val path = Path()
-                path.moveTo(0f, midY)
-                val steps = 50
+                // Layer 1: Soft translucent filled background wave
+                val path1 = Path()
+                path1.moveTo(0f, midY)
+                val steps = 40
                 for (step in 0..steps) {
                     val p = step.toFloat() / steps
                     val x = p * width
-                    val yBass = sin((bassPhase + p * 2.5 * PI).toDouble()).toFloat() * bassAmp
-                    val yTreble = sin((treblePhase + p * 6.0 * PI).toDouble()).toFloat() * trebleAmp
-                    val y = midY + yBass + yTreble
-                    path.lineTo(x, y)
+                    val y = midY - (sin((bassPhase + p * 2.2 * PI).toDouble()).toFloat() * bassAmp * (0.4f + 0.6f * sin((p * PI).toDouble()).toFloat()))
+                    path1.lineTo(x, y)
                 }
-                path.lineTo(width, height)
-                path.lineTo(0f, height)
-                path.close()
+                path1.lineTo(width, height)
+                path1.lineTo(0f, height)
+                path1.close()
 
                 drawPath(
-                    path = path,
+                    path = path1,
                     brush = Brush.verticalGradient(
-                        listOf(accent.copy(alpha = 0.42f), accent.copy(alpha = 0.08f), Color.Transparent),
-                        startY = midY - bassAmp - trebleAmp,
+                        listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.04f), Color.Transparent),
+                        startY = midY - bassAmp,
                         endY = height,
                     ),
                 )
 
-                // Capa 2: Línea vibrante nítida en la cresta
-                val linePath = Path()
-                linePath.moveTo(0f, midY)
+                // Layer 2: Secondary wave overlapping with mid phase
+                val path2 = Path()
+                path2.moveTo(0f, midY)
                 for (step in 0..steps) {
                     val p = step.toFloat() / steps
                     val x = p * width
-                    val yBass = sin((bassPhase + p * 2.5 * PI).toDouble()).toFloat() * bassAmp
-                    val yTreble = sin((treblePhase + p * 6.0 * PI).toDouble()).toFloat() * trebleAmp
-                    val y = midY + yBass + yTreble
-                    linePath.lineTo(x, y)
+                    val y = midY - (sin((midPhase + p * 2.8 * PI).toDouble()).toFloat() * (bassAmp * 0.75f) * (0.3f + 0.7f * sin((p * PI).toDouble()).toFloat()))
+                    path2.lineTo(x, y)
                 }
+                path2.lineTo(width, height)
+                path2.lineTo(0f, height)
+                path2.close()
+
                 drawPath(
-                    path = linePath,
-                    color = accent.copy(alpha = 0.90f),
-                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
+                    path = path2,
+                    brush = Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.02f), Color.Transparent),
+                        startY = midY - bassAmp * 0.8f,
+                        endY = height,
+                    ),
                 )
             }
         }
