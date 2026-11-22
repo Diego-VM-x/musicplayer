@@ -58,6 +58,23 @@ En **Respaldar y guardar** hay una tarjeta **Importar playlists de Lark Player**
 Si el original no permite copiar esos archivos desde la interfaz, el usuario puede obtenerlos desde su copia
 de Drive o con un gestor de archivos con acceso a `Android/data`.
 
+## Importar desde `vlc_database` (v24)
+
+El original guarda su biblioteca en `/data/data/com.dywx.larkplayer/databases/vlc_database` (SQLite v75):
+
+- `playlist_table(name, create_time, playlist_cover, playlist_order, playlist_drive_id, …)`
+- `playlist_media_table(playlist_name, media_location = media_table._id, playlist_order)`
+- `media_table(_id = URI en texto, title, artist, album, length, file_name, parent_file_path, …)`
+
+`OriginalLibraryScanner` copia el archivo seleccionado por SAF a almacenamiento privado, ejecuta el mismo
+JOIN que el original y empareja cada canción por ruta → nombre de archivo → título contra la biblioteca ya
+escaneada por `MediaScanner`.
+
+**No se puede leer directamente**: los 16 `ContentProvider` del original tienen `exported="false"`. Hay que
+cerrar Lark Player y copiar `vlc_database` (y `-wal`/`-shm` si existen) con un gestor con acceso a
+`Android/data` o con `adb pull` en dispositivo rooteado. Las entradas online (`http…`) y las playlists
+virtuales `INVALID_*` se omiten.
+
 ## Limitación
 
 El APK original **no puede importar un archivo local**: solo restaura desde su propia cuenta de Drive. Por eso

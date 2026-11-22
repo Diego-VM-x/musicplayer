@@ -72,6 +72,9 @@ fun BackupScreen(
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) scope.launch { status = viewModel.importOriginalFiles(uris) }
     }
+    val dbLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? -> uri?.let { scope.launch { status = viewModel.importOriginalDatabase(it) } } }
     val originalFiles by remember { mutableStateOf(viewModel.findOriginalFiles()) }
 
     Column(
@@ -151,6 +154,13 @@ fun BackupScreen(
 
         Spacer(Modifier.height(12.dp))
         LarkCard(Modifier.fillMaxWidth()) {
+            BackupAction(
+                icon = Icons.Rounded.Folder,
+                title = "Importar vlc_database del original",
+                subtitle = "Selecciona la base de datos copiada; cierra Lark Player antes",
+                accent = accent,
+                onClick = { dbLauncher.launch(arrayOf("*/*")) },
+            )
             BackupAction(
                 icon = Icons.Rounded.Unarchive,
                 title = "Importar playlists de Lark Player",

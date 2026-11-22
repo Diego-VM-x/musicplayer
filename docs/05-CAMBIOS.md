@@ -4,6 +4,21 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-22 — Fase 37: importación desde `vlc_database` (v24)
+
+- `OriginalLibraryScanner.kt`: lee una **copia** de `vlc_database` del original (SQLite v75) con el mismo
+  JOIN que usa la app (`playlist_table` + `playlist_media_table` + `media_table`), ignora playlists
+  `INVALID_*` y recrea las playlists en Room conservando `playlist_order`.
+- Emparejamiento de canciones: ruta (`file:`/`content:` → MediaStore) → nombre de archivo → título, con
+  normalización de acentos, reutilizando la biblioteca ya escaneada.
+- **No es posible sin la copia del archivo**: los 16 providers del original son `exported=false`, así que
+  `ContentResolver` no puede leer su BD. La UI indica que hay que cerrar el original y seleccionar el archivo
+  por SAF (o extraerlo con `adb pull` en dispositivos rooteados).
+- `BackupScreen` añade la tarjeta **Importar vlc_database del original**, con contadores de canciones
+  vinculadas/sin archivo local.
+- `versionCode` 24 / `1.0.23-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.23` con `musicplayer-24.apk` (3.406.427 bytes, SHA-256 `52932853E16DD758F4A6C130D9C40C8E7A384267A3162F86B0D53192FB60A316`), verificada con `aapt` (`versionCode=24`).
+
 ## 2026-11-22 — Fase 36: transiciones, controles grandes y fondo personalizable (v23)
 
 - **Transiciones fluidas** (`AppNavGraph.kt`): entradas/salidas con `tween` y `FastOutSlowInEasing`; el
