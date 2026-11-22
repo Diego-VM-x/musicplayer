@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -233,13 +234,14 @@ fun PlayerScreen(
     val speedVisible = abs(state.playbackSpeed - 1f) > 0.01f
 
     LarkGradientBackground(accent = accent, strength = 0.34f) {
+        Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 2.dp, bottom = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(top = 2.dp, bottom = 104.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // ---- Drag-down handle (the original player has no top bar) ----
@@ -352,10 +354,10 @@ fun PlayerScreen(
                         Text(
                             titleText,
                             color = Color.White,
-                            fontSize = 20.sp,
+                            fontSize = 21.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 2,
-                            lineHeight = 24.sp,
+                            lineHeight = 25.sp,
                             overflow = TextOverflow.Ellipsis,
                             letterSpacing = (-0.3).sp,
                         )
@@ -373,8 +375,8 @@ fun PlayerScreen(
                     if (state.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     if (state.isFavorite) "Quitar de favoritos" else "Favorito",
                     viewModel::toggleFavorite,
-                    size = 44.dp,
-                    iconSize = 23.dp,
+                    size = 48.dp,
+                    iconSize = 26.dp,
                     tint = if (state.isFavorite) accent else Color.White,
                     flat = true,
                 )
@@ -383,8 +385,8 @@ fun PlayerScreen(
                         Icons.Rounded.MoreVert,
                         "Más opciones",
                         { menuOpen = true },
-                        size = 40.dp,
-                        iconSize = 23.dp,
+                        size = 44.dp,
+                        iconSize = 25.dp,
                         tint = Color.White.copy(alpha = 0.78f),
                         flat = true,
                     )
@@ -486,7 +488,7 @@ fun PlayerScreen(
                     activeTrackColor = accent,
                     inactiveTrackColor = Color.White.copy(alpha = 0.20f),
                 ),
-                modifier = Modifier.fillMaxWidth().height(20.dp),
+                modifier = Modifier.fillMaxWidth().height(22.dp),
             )
             Row(
                 Modifier.fillMaxWidth(),
@@ -509,15 +511,15 @@ fun PlayerScreen(
             // ---- Transport: previous / play / next only ----
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(26.dp, Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.spacedBy(34.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 GlassIconButton(
                     Icons.Rounded.SkipPrevious,
                     "Anterior",
                     viewModel::skipPrevious,
-                    size = 52.dp,
-                    iconSize = 31.dp,
+                    size = 62.dp,
+                    iconSize = 36.dp,
                     tint = accent,
                     flat = true,
                 )
@@ -528,9 +530,9 @@ fun PlayerScreen(
                 )
                 Box(
                     Modifier
-                        .size(72.dp)
+                        .size(86.dp)
                         .scale(playButtonScale)
-                        .shadow(12.dp, CircleShape, clip = false)
+                        .shadow(14.dp, CircleShape, clip = false)
                         .clip(CircleShape)
                         .background(
                             Brush.verticalGradient(
@@ -546,7 +548,7 @@ fun PlayerScreen(
                             if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             if (playing) "Pausar" else "Reproducir",
                             tint = accent,
-                            modifier = Modifier.size(42.dp),
+                            modifier = Modifier.size(52.dp),
                         )
                     }
                 }
@@ -554,62 +556,63 @@ fun PlayerScreen(
                     Icons.Rounded.SkipNext,
                     "Siguiente",
                     viewModel::skipNext,
-                    size = 52.dp,
-                    iconSize = 31.dp,
+                    size = 62.dp,
+                    iconSize = 36.dp,
                     tint = accent,
                     flat = true,
                 )
             }
 
-            // ---- EQ / Letras / queue (mode badge lives on the queue icon) ----
-            // A subtle solid footer keeps the bottom of the screen from reading
-            // as an empty black rectangle when the content is shorter than the
-            // viewport.
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1A1B20).copy(alpha = 0.72f))
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
+        }
+
+        // ---- EQ / Letras / queue -------------------------------------------
+        // Pinned to the bottom edge (including the navigation bar inset) so the
+        // screen never ends in an empty dark rectangle.
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .background(Color(0xFF16171B))
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    GlassIconButton(
+                        Icons.Rounded.Equalizer,
+                        "Ecualizador",
+                        onEqualizer,
+                        size = 52.dp,
+                        iconSize = 27.dp,
+                        tint = ApplePalette.TextSecondary,
+                        flat = true,
+                    )
+                }
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    PlayerBottomLabel("Letras", onClick = onLyrics)
+                }
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                    Box {
                         GlassIconButton(
-                            Icons.Rounded.Equalizer,
-                            "Ecualizador",
-                            onEqualizer,
-                            size = 44.dp,
-                            iconSize = 23.dp,
+                            Icons.Rounded.QueueMusic,
+                            "A continuación",
+                            onQueue,
+                            size = 52.dp,
+                            iconSize = 27.dp,
                             tint = ApplePalette.TextSecondary,
                             flat = true,
                         )
-                    }
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        PlayerBottomLabel("Letras", onClick = onLyrics)
-                    }
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                        Box {
-                            GlassIconButton(
-                                Icons.Rounded.QueueMusic,
-                                "A continuación",
-                                onQueue,
-                                size = 44.dp,
-                                iconSize = 23.dp,
-                                tint = ApplePalette.TextSecondary,
-                                flat = true,
-                            )
-                            PlayerModeBadge(
-                                mode = currentMode,
-                                accent = accent,
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 5.dp, y = (-4).dp),
-                                onClick = { viewModel.setPlaybackMode(nextMode(currentMode)) },
-                            )
-                        }
+                        PlayerModeBadge(
+                            mode = currentMode,
+                            accent = accent,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 5.dp, y = (-4).dp),
+                            onClick = { viewModel.setPlaybackMode(nextMode(currentMode)) },
+                        )
                     }
                 }
             }
@@ -624,6 +627,7 @@ fun PlayerScreen(
                 accent = accent,
                 onDismissRequest = { visualizerSheetOpen = false },
             )
+        }
         }
     }
 
@@ -832,9 +836,9 @@ private fun PlayerBottomLabel(text: String, onClick: () -> Unit) {
     ) {
         Text(
             text,
-            color = Color(0xFFD6D6DA),
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
+            color = Color(0xFFE2E2E8),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
     }

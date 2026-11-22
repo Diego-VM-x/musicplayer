@@ -4,6 +4,15 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 32: reproductor con pie anclado y controles grandes (v19)
+
+- `PlayerScreen.kt`: el reproductor ampliado usa ahora un `Box` con la columna desplazable y un **pie fijo
+  anclado al borde inferior** (incluido el inset de la barra de navegación). El contenido tiene 104 dp de
+  padding inferior para no quedar tapado, así que desaparece el rectángulo negro bajo los controles.
+- Controles ampliados y más separados: anterior/siguiente **62 dp** (icono 36), play **86 dp** (icono 52),
+  separación **34 dp**; favorito 48 dp, más opciones 44 dp; EQ/cola **52 dp** (icono 27) y "Letras" 16 sp.
+- `versionCode` 19 / `1.0.18-clean`; `assembleDebug` → BUILD SUCCESSFUL.
+
 ## 2026-11-21 — Fase 31: arranque, pie del reproductor y crossfade real (v18)
 
 - **Arranque más rápido**:
