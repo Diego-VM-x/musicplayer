@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.provider.Settings
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -69,6 +70,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -128,6 +130,15 @@ fun PlayerScreen(
     val accent = Color(accentInt)
     val context = LocalContext.current
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+
+    // Keep the screen on while a track plays (was previously created at app start).
+    DisposableEffect(state.isPlaying) {
+        val activity = context as? Activity
+        val flag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        if (state.isPlaying) activity?.window?.addFlags(flag)
+        else activity?.window?.clearFlags(flag)
+        onDispose { activity?.window?.clearFlags(flag) }
+    }
 
     var sliderValue by remember(state.id) { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Same colour as the app background so the pre-draw window and the
+         Android 12+ splash surface are visually identical to the first frame. -->
+    <color name="app_background">#0A0A0B</color>
+</resources>

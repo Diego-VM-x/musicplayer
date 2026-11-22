@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- No splash icon, no preview, no extra surface: the window is already
+         painted with the app background, so the first Compose frame is the
+         first thing the user sees. -->
     <style name="Theme.LarkClean" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
-        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowBackground">@color/app_background</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@null</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+        <item name="android:windowSplashScreenBackground">@color/app_background</item>
     </style>
 </resources>

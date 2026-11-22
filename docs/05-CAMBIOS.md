@@ -4,6 +4,21 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 33: apertura instantánea sin splash (v20)
+
+- **Sin pantalla de carga**: `themes.xml` usa un fondo sólido igual al de la app (`app_background`,
+  `#0A0A0B`), `windowSplashScreenAnimatedIcon=@null`, icono de splash transparente y
+  `windowContentOverlay=@null`. La ventana ya está pintada con el color final antes del primer frame.
+- **Nada de diálogos en el arranque**: los permisos se piden a los 1,2 s y el aviso de batería a los 4 s;
+  la biblioteca se pinta de inmediato desde la caché de Room.
+- **Menos trabajo en el primer frame**:
+  - `AppNavGraph` ya no crea `PlayerViewModel` ni el efecto de mantener pantalla encendida al iniciar; ese
+    efecto vive ahora en `PlayerScreen`.
+  - La mini-reproductora (y su grafo Hilt) se compone 1 s después del primer frame.
+  - `PlayerRepository` pospone la conexión del servicio 900 ms y el escaneo espera la señal posterior al frame.
+  - `allowBackup=false`: se eliminan las reglas de backup/restauración del arranque.
+- `versionCode` 20 / `1.0.19-clean`; `assembleDebug` → BUILD SUCCESSFUL.
+
 ## 2026-11-21 — Fase 32: reproductor con pie anclado y controles grandes (v19)
 
 - `PlayerScreen.kt`: el reproductor ampliado usa ahora un `Box` con la columna desplazable y un **pie fijo

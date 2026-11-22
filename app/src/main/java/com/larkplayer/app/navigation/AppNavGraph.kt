@@ -29,9 +29,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -55,14 +58,11 @@ import com.larkplayer.feature.library.ui.LibraryScreen
 import com.larkplayer.feature.library.ui.MemoriesScreen
 import com.larkplayer.feature.library.ui.PlaylistDetailScreen
 import com.larkplayer.feature.lyrics.ui.LyricsScreen
-import android.app.Activity
-import android.view.WindowManager
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larkplayer.feature.player.ui.MiniPlayer
 import com.larkplayer.feature.player.ui.MiniPlayerOverlay
 import com.larkplayer.feature.player.ui.PlayerScreen
-import com.larkplayer.feature.player.ui.PlayerViewModel
 import com.larkplayer.feature.player.ui.QueueScreen
 import com.larkplayer.feature.player.ui.SleepTimerScreen
 import com.larkplayer.feature.settings.ui.AboutScreen
@@ -75,6 +75,7 @@ import com.larkplayer.feature.settings.ui.RecentlyDeletedScreen
 import com.larkplayer.feature.settings.ui.SettingsScreen
 import com.larkplayer.feature.settings.ui.ThemeScreen
 import com.larkplayer.feature.settings.ui.UpdateSettingsScreen
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private object Routes {
@@ -141,21 +142,18 @@ private val FLAT_ROUTES = setOf(
 fun AppNavGraph() {
     val navController = rememberNavController()
 
-    // Keep the screen on while a track is playing, like the original app.
-    val playerViewModel: PlayerViewModel = hiltViewModel()
-    val playerState by playerViewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    DisposableEffect(playerState.isPlaying) {
-        val activity = context as? Activity
-        val flag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-        if (playerState.isPlaying) activity?.window?.addFlags(flag)
-        else activity?.window?.clearFlags(flag)
-        onDispose { activity?.window?.clearFlags(flag) }
-    }
-
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val miniAllowed = MiniPlayerOverlay.visible.collectAsStateWithLifecycle().value &&
+
+    // Delay the floating mini-player (and its PlayerViewModel/Hilt graph) until
+    // after the first composed frame. Nothing playback-related runs at launch.
+    var miniReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(1_000)
+        miniReady = true
+    }
+    val miniAllowed = miniReady &&
+        MiniPlayerOverlay.visible.collectAsStateWithLifecycle().value &&
         currentRoute !in MINI_PLAYER_HIDDEN_ROUTES
 
     Box(Modifier.fillMaxSize()) {

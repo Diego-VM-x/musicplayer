@@ -54,11 +54,10 @@ class MainActivity : ComponentActivity() {
 
         // Run permission check and battery optimization prompt after initial UI frame setup
         // so the app window paints immediately without waiting.
-        window.decorView.post {
-            requestMediaPermissions()
-            // The battery dialog can steal focus and stall early interaction.
-            window.decorView.postDelayed({ requestBatteryOptimizationExemption() }, 2_500L)
-        }
+        // Nothing that can show a dialog or steal focus runs during the first
+        // frames. The library is already painted from the Room cache.
+        window.decorView.postDelayed({ requestMediaPermissions() }, 1_200L)
+        window.decorView.postDelayed({ requestBatteryOptimizationExemption() }, 4_000L)
 
         setContent {
             val config by settingsDataStore.themeConfig.collectAsStateWithLifecycle(ThemeConfig())
