@@ -12,6 +12,7 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 - Controles ampliados y más separados: anterior/siguiente **62 dp** (icono 36), play **86 dp** (icono 52),
   separación **34 dp**; favorito 48 dp, más opciones 44 dp; EQ/cola **52 dp** (icono 27) y "Letras" 16 sp.
 - `versionCode` 19 / `1.0.18-clean`; `assembleDebug` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.18` con `musicplayer-19.apk` (23.101.436 bytes, SHA-256 `B76B1098B02F817C9A04374095752D79B91E87F1BD6923FCD08D87C35FF335B1`). Verificada como última release, sin draft/pre-release y con el asset `uploaded`.
 
 ## 2026-11-21 — Fase 31: arranque, pie del reproductor y crossfade real (v18)
 
