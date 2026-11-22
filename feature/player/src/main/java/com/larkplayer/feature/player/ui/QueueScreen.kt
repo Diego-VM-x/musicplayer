@@ -173,24 +173,35 @@ fun QueueScreen(
                         var dragY by remember(item.mediaId) { mutableFloatStateOf(0f) }
                         val lifted = draggingId == item.mediaId
                         val liftScale by animateFloatAsState(
-                            targetValue = if (lifted) 1.035f else 1f,
+                            targetValue = if (lifted) 1.06f else 1f,
                             animationSpec = spring(dampingRatio = 0.7f, stiffness = 420f),
                             label = "queue_row_lift",
                         )
                         val animatedY by animateFloatAsState(
                             targetValue = if (lifted) dragY else 0f,
-                            animationSpec = spring(dampingRatio = 0.65f, stiffness = 520f),
+                            animationSpec = spring(dampingRatio = 0.9f, stiffness = 900f),
                             label = "queue_row_drag",
                         )
-                        val elevationPx = with(density) { if (lifted) 18.dp.toPx() else 0f }
+                        val elevationPx = with(density) { if (lifted) 24.dp.toPx() else 0f }
                         Row(
                             Modifier
+                                // The rest of the list glides to its new place like
+                                // Android launcher icons; the dragged row keeps its
+                                // own spring so it never fights this animation.
+                                .then(
+                                    if (!lifted) {
+                                        Modifier.animateItemPlacement(
+                                            spring(dampingRatio = 0.8f, stiffness = 500f),
+                                        )
+                                    } else Modifier
+                                )
                                 .fillMaxWidth()
                                 .graphicsLayer {
                                     translationY = animatedY
                                     scaleX = liftScale
                                     scaleY = liftScale
                                     shadowElevation = elevationPx
+                                    rotationZ = if (lifted) 1.2f else 0f
                                 }
                                 .padding(horizontal = 12.dp, vertical = 3.dp)
                                 .clip(RoundedCornerShape(14.dp))

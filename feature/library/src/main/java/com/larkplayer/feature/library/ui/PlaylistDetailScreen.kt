@@ -101,6 +101,7 @@ import kotlinx.coroutines.withContext
  * Lark-style playlist detail: floating glass controls, borderless song list,
  * multi-selection and an inline name/cover editor.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PlaylistDetailScreen(
     onBack: () -> Unit,
@@ -209,6 +210,16 @@ fun PlaylistDetailScreen(
                         )
                     }
                     itemsIndexed(displayOrder, key = { _, song -> song.id }) { index, song ->
+                        val rowLifted = draggingId == song.id
+                        Box(
+                            Modifier.then(
+                                if (!rowLifted) {
+                                    Modifier.animateItemPlacement(
+                                        spring(dampingRatio = 0.8f, stiffness = 500f),
+                                    )
+                                } else Modifier
+                            )
+                        ) {
                         DetailSongRow(
                             song = song,
                             accent = accent,
@@ -252,6 +263,7 @@ fun PlaylistDetailScreen(
                                 displayOrder = state.songs
                             },
                         )
+                        }
                     }
                     if (state.playlist != null && state.songs.isEmpty()) {
                         item {
@@ -647,17 +659,17 @@ private fun DetailSongRow(
     // Spring-driven lift: the row grows slightly, gains a shadow and follows
     // the finger with a smooth spring instead of jumping between positions.
     val liftScale by animateFloatAsState(
-        targetValue = if (lifted) 1.035f else 1f,
+        targetValue = if (lifted) 1.06f else 1f,
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 420f),
         label = "playlist_row_lift",
     )
     val animatedY by animateFloatAsState(
         targetValue = if (lifted) dragOffsetY else 0f,
-        animationSpec = spring(dampingRatio = 0.65f, stiffness = 520f),
+        animationSpec = spring(dampingRatio = 0.9f, stiffness = 900f),
         label = "playlist_row_drag",
     )
     val elevation = with(LocalDensity.current) {
-        if (lifted) 18.dp.toPx() else 0f
+        if (lifted) 24.dp.toPx() else 0f
     }
 
     Row(

@@ -4,6 +4,22 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-21 — Fase 35: arrastre tipo launcher y crossfade sin tirones (v22)
+
+- **Cola y playlist**: las filas que no se están arrastrando usan `Modifier.animateItemPlacement()` con un
+  `spring`, de modo que la lista **se desplaza suavemente** al reordenar, sin saltos. La fila levantada se
+  mantiene aparte (escala 1.06, sombra 24 dp, ligera rotación y seguimiento con `spring` rígido), como un
+  icono del escritorio de Android.
+- **Crossfade** (`PlaybackService.kt`):
+  - La duración del fundido es ahora el tiempo real que queda en la pista (mínimo 400 ms, máximo el ajuste),
+    no siempre el valor completo: evita que al cambiar de reproductor se salten segundos de la canción.
+  - El `seekTo` de traspaso usa esa misma duración, para que el punto de entrega coincida con lo que sonaría
+    ya en el segundo reproductor.
+  - El pause interno provocado por `pauseAtEndOfMediaItems` ya no cancela el crossfade; solo cancela una
+    pausa real del usuario lejos del final. Resultado: transición curva, sin pausa ni bloqueo.
+- `versionCode` 22 / `1.0.21-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.21` con `musicplayer-22.apk` (3.390.047 bytes, SHA-256 `05017DD4AD67440F69B2223C5A7436ADB471AE79F105DE641B3715B604964717`), verificada con `aapt` (`versionCode=22`).
+
 ## 2026-11-21 — Fase 34: bootstrap en segundo plano, caché de carátulas y estado de reproducción (v21)
 
 - **WorkManager fuera del arranque**: se eliminó su `ContentProvider` inicializador del manifest y

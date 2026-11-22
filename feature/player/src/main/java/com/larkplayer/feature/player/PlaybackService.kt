@@ -87,9 +87,15 @@ class PlaybackService : MediaSessionService() {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (isPlaying) {
                 shuttingDown = false
-            } else {
-                cancelCrossfade()
+                return
             }
+            // pauseAtEndOfMediaItems pauses the outgoing track right when the
+            // mix ends. That internal pause must not abort the crossfade; only
+            // a real user pause (well before the end) should cancel it.
+            val atEndOfTrack = runCatching {
+                player.duration > 0L && player.currentPosition >= player.duration - 800L
+            }.getOrDefault(false)
+            if (!crossfadeInProgress || !atEndOfTrack) cancelCrossfade()
         }
     }
 
@@ -231,6 +237,9 @@ class PlaybackService : MediaSessionService() {
         val currentId = player.currentMediaItem?.mediaId
         if (currentId != null && currentId == lastCrossfadeId) return
         lastCrossfadeId = currentId
+        // Fade only over the time that is actually left. Using the full setting
+        // would start the incoming track early but land 4s into it on handover.
+        val fadeDuration = remaining.coerceIn(400L, crossfadeMs)
 
         crossfadeInProgress = true
         crossfadeCancelled = false
@@ -252,7 +261,7 @@ class PlaybackService : MediaSessionService() {
 
         val targetIndex = nextIndex
         crossfadeAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            this.duration = crossfadeMs
+            this.duration = fadeDuration
             addUpdateListener { animation ->
                 val value = animation.animatedValue as Float
                 incoming.volume = value
@@ -264,7 +273,7 @@ class PlaybackService : MediaSessionService() {
                         crossfadeCancelled = false
                         return
                     }
-                    finishCrossfade(targetIndex)
+                    finishCrossfade(targetIndex, fadeDuration)
                 }
             })
             start()
@@ -272,7 +281,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     /** Hands audio back to the primary player at the point the mix reached. */
-    private fun finishCrossfade(targetIndex: Int) {
+    private fun finishCrossfade(targetIndex: Int, offsetMs: Long) {
         mixPlayer?.let { mix ->
             runCatching { mix.stop() }
             runCatching { mix.release() }
@@ -281,7 +290,7 @@ class PlaybackService : MediaSessionService() {
         crossfadeAnimator = null
         @Suppress("DEPRECATION")
         player.pauseAtEndOfMediaItems = false
-        runCatching { player.seekTo(targetIndex, crossfadeMs) }
+        runCatching { player.seekTo(targetIndex, offsetMs) }
         player.volume = 1f
         player.play()
         crossfadeInProgress = false
