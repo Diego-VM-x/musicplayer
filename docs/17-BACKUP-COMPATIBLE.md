@@ -75,6 +75,26 @@ cerrar Lark Player y copiar `vlc_database` (y `-wal`/`-shm` si existen) con un g
 `Android/data` o con `adb pull` en dispositivo rooteado. Las entradas online (`http…`) y las playlists
 virtuales `INVALID_*` se omiten.
 
+## Copia local LPBK (2027.3.x)
+
+Archivo: `Backup_of_Lark_Player_<fecha>.lrc` en `Documents/Lark Player` o Descargas.
+
+Formato invertido del APK `2027.3.6 (2027030609)`:
+
+```
+"LPBK" | version(uint16 BE) | 14 bytes | IV(12) | metaLen(uint32 BE)
+meta JSON | AES-CTR payload | HMAC-SHA256(header+meta+payload)
+```
+
+- `encKey = HMAC-SHA256(clave histórica, "lpbk-enc")`, `macKey = HMAC-SHA256(clave histórica, "lpbk-mac")`.
+- Cifrado `AES/CTR/NoPadding` con el IV de 12 bytes ampliado a 16.
+- El payload descifrado es un ZIP con `manifest.json`, `sections/media.json`, `sections/playlists.json`, etc.
+- `PlaylistEntry.members[].media_id` referencia `MediaEntry.id`; `MediaEntry.name/location/rel` permite
+  emparejar con la biblioteca escaneada. `order` 0..n-1 es el orden real.
+- Las portadas están en `files/covers/` y se restauran.
+
+`LpbkImporter` hace todo esto automáticamente y `BackupScreen` detecta el archivo más reciente.
+
 ## Limitación
 
 El APK original **no puede importar un archivo local**: solo restaura desde su propia cuenta de Drive. Por eso

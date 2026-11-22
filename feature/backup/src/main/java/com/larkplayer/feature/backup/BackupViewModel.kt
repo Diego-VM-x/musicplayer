@@ -3,6 +3,8 @@ package com.larkplayer.feature.backup
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import com.larkplayer.feature.library.scanner.OriginalLibraryScanner
+import android.os.Environment
+import java.io.File
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
@@ -10,6 +12,7 @@ import javax.inject.Inject
 class BackupViewModel @Inject constructor(
     private val manager: BackupManager,
     private val originalScanner: OriginalLibraryScanner,
+    private val lpbkImporter: LpbkImporter,
 ) : ViewModel() {
     suspend fun export(uri: Uri, includeSongs: Boolean): String =
         manager.export(uri, includeSongs).fold(
@@ -43,6 +46,32 @@ class BackupViewModel @Inject constructor(
             "Importadas $playlists playlists y vinculadas $songs canciones" +
                 if (errors.isNotEmpty()) " (${errors.size} archivos omitidos)" else ""
         }
+    }
+
+    suspend fun importLocalBackup(uri: Uri): String =
+        lpbkImporter.import(uri).fold(
+            onSuccess = {
+                "Copia local importada: ${it.playlists} playlists, " +
+                    "${it.linked} canciones vinculadas, ${it.unmatched} sin archivo local"
+            },
+            onFailure = { "Error al importar la copia local: ${it.message.orEmpty()}" },
+        )
+
+    /** Finds the newest `Backup_of_Lark_Player_*.lrc` for one-tap restore. */
+    fun findLocalBackup(): Uri? {
+        val dirs = listOfNotNull(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            File(Environment.getExternalStorageDirectory(), "Documents/Lark Player"),
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Lark Player"),
+        )
+        return dirs.flatMap { dir ->
+            runCatching {
+                dir.listFiles()?.filter {
+                    it.isFile && it.name.startsWith("Backup_of_Lark_Player_", true) &&
+                        it.name.endsWith(".lrc", true)
+                }.orEmpty()
+            }.getOrDefault(emptyList())
+        }.maxByOrNull { it.lastModified() }?.let { Uri.fromFile(it) }
     }
 
     suspend fun importOriginalDatabase(uri: Uri): String =

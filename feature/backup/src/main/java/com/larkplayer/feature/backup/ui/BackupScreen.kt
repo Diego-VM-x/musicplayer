@@ -75,7 +75,11 @@ fun BackupScreen(
     val dbLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? -> uri?.let { scope.launch { status = viewModel.importOriginalDatabase(it) } } }
+    val localLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? -> uri?.let { scope.launch { status = viewModel.importLocalBackup(it) } } }
     val originalFiles by remember { mutableStateOf(viewModel.findOriginalFiles()) }
+    val localBackup by remember { mutableStateOf(viewModel.findLocalBackup()) }
 
     Column(
         Modifier
@@ -105,6 +109,24 @@ fun BackupScreen(
         )
 
         LarkCard(Modifier.fillMaxWidth()) {
+            if (localBackup != null) {
+                BackupAction(
+                    icon = Icons.Rounded.Unarchive,
+                    title = "Restaurar copia local detectada",
+                    subtitle = "Copia de Lark Player encontrada en Descargas/Documentos — toca para importar",
+                    accent = accent,
+                    onClick = {
+                        localBackup?.let { uri -> scope.launch { status = viewModel.importLocalBackup(uri) } }
+                    },
+                )
+            }
+            BackupAction(
+                icon = Icons.Rounded.Folder,
+                title = "Importar copia local (.lrc)",
+                subtitle = "Selecciona Backup_of_Lark_Player_*.lrc",
+                accent = accent,
+                onClick = { localLauncher.launch(arrayOf("*/*")) },
+            )
             Row(
                 Modifier
                     .fillMaxWidth()

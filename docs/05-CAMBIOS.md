@@ -4,6 +4,21 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-22 — Fase 38: importador de copia local LPBK (v25)
+
+- Descargado y descompilado el APK original `2027.3.6 (2027030609)` para inversión del formato local.
+- `LpbkImporter.kt`: lee los archivos `Backup_of_Lark_Player_*.lrc` (magic `LPBK`):
+  - deriva las claves con `HMAC-SHA256` de la clave histórica y las etiquetas `lpbk-enc`/`lpbk-mac`;
+  - verifica el HMAC de 32 bytes y descifra con `AES/CTR/NoPadding` usando el IV de la cabecera;
+  - interpreta el payload ZIP (`manifest.json`, `sections/media.json`, `sections/playlists.json`);
+  - ignora playlists virtuales `INVALID_*`, respeta `order`, empareja canciones por nombre/ruta y restaura
+    también la carátula desde `files/covers/`.
+- `BackupScreen` detecta automáticamente la copia más reciente en Descargas/Documentos y ofrece
+  **Restaurar copia local detectada** con un toque, además del selector manual.
+- Los tres `.info` de Drive y la opción de `vlc_database` siguen disponibles en la misma pantalla.
+- `versionCode` 25 / `1.0.24-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.24` con `musicplayer-25.apk` (3.406.427 bytes, SHA-256 `935441D4E5EE21E0B48C44F61B1DA5A50F744F97FDCB428293A546590B8E1BD2`), verificada con `aapt` (`versionCode=25`).
+
 ## 2026-11-22 — Fase 37: importación desde `vlc_database` (v24)
 
 - `OriginalLibraryScanner.kt`: lee una **copia** de `vlc_database` del original (SQLite v75) con el mismo
