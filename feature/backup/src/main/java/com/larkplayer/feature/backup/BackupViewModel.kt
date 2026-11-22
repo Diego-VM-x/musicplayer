@@ -4,147 +4,162 @@ import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
-import com.larkplayer.feature.library.scanner.OriginalLibraryScanner
-import android.os.Environment
-import java.io.File
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
 import javax.inject.Inject
+
+data class DetectedBackup(
+    val uri: Uri,
+    val displayName: String,
+    val type: String, // "Copia local (.lrc)", "Respaldo Drive (.info/.json)", "Copia ZIP (.zip)"
+    val dateModified: Long,
+)
 
 @HiltViewModel
 class BackupViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val manager: BackupManager,
-    private val originalScanner: OriginalLibraryScanner,
-    private val lpbkImporter: LpbkImporter,
 ) : ViewModel() {
-    suspend fun export(uri: Uri, includeSongs: Boolean): String =
-        manager.export(uri, includeSongs).fold(
-            onSuccess = { it.message },
-            onFailure = { "Error al exportar: ${it.message.orEmpty()}" },
-        )
 
-    suspend fun import(uri: Uri): String =
-        manager.import(uri).fold(
-            onSuccess = { it.message },
-            onFailure = { "Error al importar: ${it.message.orEmpty()}" },
-        )
+    private val _lastErrorLog = MutableStateFlow<String?>(null)
+    val lastErrorLog: StateFlow<String?> = _lastErrorLog.asStateFlow()
 
-    /** Import one or more `.info` files from the original app. */
-    suspend fun importOriginalFiles(uris: List<Uri>): String {
-        var playlists = 0
-        var songs = 0
-        val errors = mutableListOf<String>()
-        uris.forEach { uri ->
-            manager.importOriginalInfo(uri).fold(
-                onSuccess = {
-                    playlists += it.restoredPlaylists
-                    songs += it.restoredSongs
-                },
-                onFailure = { errors += it.message.orEmpty() },
-            )
-        }
-        return if (playlists == 0) {
-            "No se pudieron importar playlists: ${errors.firstOrNull().orEmpty()}"
-        } else {
-            "Importadas $playlists playlists y vinculadas $songs canciones" +
-                if (errors.isNotEmpty()) " (${errors.size} archivos omitidos)" else ""
-        }
+    fun clearErrorLog() {
+        _lastErrorLog.value = null
     }
 
-    suspend fun importLocalBackup(uri: Uri): String =
-        lpbkImporter.import(uri).fold(
-            onSuccess = {
-                "Copia local importada: ${it.playlists} playlists, " +
-                    "${it.linked} canciones vinculadas, ${it.unmatched} sin archivo local"
+    suspend fun importBackup(uri: Uri): String {
+        _lastErrorLog.value = null
+        val result = manager.importUniversal(uri)
+        return result.fold(
+            onSuccess = { res ->
+                val errorDetails = if (res.errors.isNotEmpty()) {
+                    "\n\nAvisos:\n" + res.errors.joinToString("\n")
+                } else ""
+                res.message + errorDetails
             },
-            onFailure = { "Error al importar la copia local: ${it.message.orEmpty()}" },
-        )
-
-    /** Finds the newest `Backup_of_Lark_Player_*.lrc` for one-tap restore. */
-    /** Finds a copied `vlc_database` in Downloads/Documents or app folders. */
-    fun findOriginalDatabase(): Uri? {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            runCatching {
-                context.contentResolver.query(
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                    arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME),
-                    null, null,
-                    "${MediaStore.Downloads.DATE_ADDED} DESC",
-                )?.use { c ->
-                    while (c.moveToNext()) {
-                        val name = c.getString(c.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)).orEmpty()
-                        if (name.equals("vlc_database", true) || name.startsWith("vlc_database")) {
-                            val id = c.getLong(c.getColumnIndexOrThrow(MediaStore.Downloads._ID))
-                            return ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
-                        }
-                    }
-                }
+            onFailure = { err ->
+                val simplified = simplifyError(err)
+                _lastErrorLog.value = simplified
+                "Error al importar: ${err.message ?: "Formato no compatible"}"
             }
-        }
-        val dirs = listOfNotNull(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-            context.getExternalFilesDir(null),
         )
-        return dirs.flatMap { dir ->
-            runCatching {
-                dir.walkTopDown().maxDepth(3).filter {
-                    it.isFile && it.name.equals("vlc_database", true)
-                }.toList()
-            }.getOrDefault(emptyList())
-        }.maxByOrNull { it.lastModified() }?.let { Uri.fromFile(it) }
     }
 
-    fun findLocalBackup(): Uri? {
-        // Professional detection: query MediaStore first (works without
-        // storage permission and finds files in any Downloads location),
-        // then fall back to well-known directories.
+    suspend fun exportZip(uri: Uri, includeSongs: Boolean): String {
+        _lastErrorLog.value = null
+        return manager.export(uri, includeSongs).fold(
+            onSuccess = { it.message },
+            onFailure = { err ->
+                val simplified = simplifyError(err)
+                _lastErrorLog.value = simplified
+                "Error al exportar: ${err.message ?: "Error desconocido"}"
+            }
+        )
+    }
+
+    private fun simplifyError(throwable: Throwable): String {
+        val root = getRootCause(throwable)
+        val stackLine = root.stackTrace.firstOrNull { it.className.startsWith("com.larkplayer") }
+            ?: root.stackTrace.firstOrNull()
+        val loc = if (stackLine != null) " en ${stackLine.fileName}:${stackLine.lineNumber}" else ""
+        return "${root.javaClass.simpleName}: ${root.message.orEmpty()}$loc"
+    }
+
+    private fun getRootCause(throwable: Throwable): Throwable {
+        var cause: Throwable = throwable
+        while (cause.cause != null && cause.cause !== cause) {
+            cause = cause.cause!!
+        }
+        return cause
+    }
+
+    /**
+     * Finds the most relevant backup files automatically across Downloads, Documents and app storage.
+     * Detects LPBK (.lrc), Google Drive (.info / .json) and standard backups (.zip).
+     */
+    fun findAvailableBackups(): List<DetectedBackup> {
+        val list = mutableListOf<DetectedBackup>()
+
+        // 1. MediaStore query on Android Q+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             runCatching {
                 context.contentResolver.query(
                     MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                    arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME),
+                    arrayOf(
+                        MediaStore.Downloads._ID,
+                        MediaStore.Downloads.DISPLAY_NAME,
+                        MediaStore.Downloads.DATE_MODIFIED
+                    ),
                     null, null,
-                    "${MediaStore.Downloads.DATE_ADDED} DESC",
+                    "${MediaStore.Downloads.DATE_MODIFIED} DESC"
                 )?.use { c ->
+                    val idCol = c.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+                    val nameCol = c.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)
+                    val modCol = c.getColumnIndexOrThrow(MediaStore.Downloads.DATE_MODIFIED)
                     while (c.moveToNext()) {
-                        val name = c.getString(c.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)).orEmpty()
-                        if (name.startsWith("Backup_of_Lark_Player_", true) && name.endsWith(".lrc", true)) {
-                            val id = c.getLong(c.getColumnIndexOrThrow(MediaStore.Downloads._ID))
-                            return ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+                        val name = c.getString(nameCol).orEmpty()
+                        val id = c.getLong(idCol)
+                        val mod = c.getLong(modCol) * 1000L
+                        val uri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+
+                        val type = classifyFileName(name)
+                        if (type != null) {
+                            list.add(DetectedBackup(uri, name, type, mod))
                         }
                     }
                 }
             }
         }
+
+        // 2. Direct directory scan fallback
         val dirs = listOfNotNull(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             File(Environment.getExternalStorageDirectory(), "Documents/Lark Player"),
             File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Lark Player"),
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+            context.getExternalFilesDir(null),
+            File(context.filesDir, "backups"),
         )
-        return dirs.flatMap { dir ->
-            runCatching {
-                dir.listFiles()?.filter {
-                    it.isFile && it.name.startsWith("Backup_of_Lark_Player_", true) &&
-                        it.name.endsWith(".lrc", true)
-                }.orEmpty()
-            }.getOrDefault(emptyList())
-        }.maxByOrNull { it.lastModified() }?.let { Uri.fromFile(it) }
+
+        dirs.forEach { dir ->
+            if (dir.exists() && dir.isDirectory) {
+                runCatching {
+                    dir.walkTopDown().maxDepth(3).filter { it.isFile }.forEach { file ->
+                        val type = classifyFileName(file.name)
+                        if (type != null) {
+                            val uri = Uri.fromFile(file)
+                            if (list.none { it.displayName == file.name }) {
+                                list.add(DetectedBackup(uri, file.name, type, file.lastModified()))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return list.sortedByDescending { it.dateModified }
     }
 
-    suspend fun importOriginalDatabase(uri: Uri): String =
-        originalScanner.importFromSaf(uri).fold(
-            onSuccess = {
-                "Importadas ${it.playlists} playlists desde vlc_database: " +
-                    "${it.linked} canciones vinculadas, ${it.unmatched} sin archivo local"
-            },
-            onFailure = { "Error al importar vlc_database: ${it.message.orEmpty()}" },
-        )
-
-    fun findOriginalFiles(): List<Uri> = manager.findOriginalInfoFiles()
-
-    fun findAutoBackup(): Uri? = manager.findAutoBackup()
+    private fun classifyFileName(name: String): String? {
+        val lower = name.lowercase()
+        return when {
+            lower.startsWith("backup_of_lark_player_") && lower.endsWith(".lrc") -> "Copia local Lark (.lrc)"
+            lower.contains("playlists you backed up in lark player") && (lower.endsWith(".info") || lower.endsWith(".json")) ->
+                "Respaldo Drive Lark (.info)"
+            lower.contains("lark-backup") && lower.endsWith(".zip") -> "Copia LarkClean (.zip)"
+            lower == "vlc_database" || lower.startsWith("vlc_database") -> "Base de datos Lark"
+            lower.endsWith(".lrc") && lower.contains("lark") -> "Copia local Lark (.lrc)"
+            lower.endsWith(".info") && lower.contains("playlist") -> "Respaldo Drive Lark (.info)"
+            lower.endsWith(".zip") && (lower.contains("lark") || lower.contains("backup")) -> "Copia de respaldo (.zip)"
+            else -> null
+        }
+    }
 }
