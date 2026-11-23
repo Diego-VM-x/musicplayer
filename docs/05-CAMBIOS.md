@@ -4,6 +4,13 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 55: visualizador con productor unico y notificacion que abre el reproductor (v48)
+
+- **Visualizador**: con PCM confirmado como activo, se eliminó el doble bucle de suavizado (`LaunchedEffect` + `withFrameNanos`). Ahora un único `produceState` muestrea, suaviza y publica el estado; el `Canvas` solo lo lee, garantizando recomposición en cada cuadro. Se añade contador de cuadros en el diagnóstico.
+- **Notificación**: se reactiva el layout Lark (validando el `RemoteViews` en proceso antes de publicarlo, con fallback al layout de Media3 si falla). Tocar la tarjeta abre ahora el reproductor completo mediante `lark_open_player`, tanto con la app cerrada como en segundo plano (`onNewIntent`).
+- `versionCode` 48 / `1.0.47-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.47` con `musicplayer-48.apk` (3.485.180 bytes, SHA-256 `58D4504DACE09BCCA686F2E4BBC0197020DAE0E6D7BDA9A86AADE335B8E00749`), verificada con `aapt` (`versionCode=48`).
+
 ## 2026-11-23 - Fase 54: corrección de crash al reproducir y visualizador reactivo (v47)
 
 - **Crash al reproducir**: el provider de notificación con `RemoteViews` personalizadas era rechazado por `startForeground` en algunos dispositivos. Se restaura `DefaultMediaNotificationProvider` (estable en v1.0.44). El código del layout Lark se conserva pero no se instala.

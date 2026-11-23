@@ -83,6 +83,7 @@ import com.larkplayer.feature.settings.ui.SettingsScreen
 import com.larkplayer.feature.settings.ui.ThemeScreen
 import com.larkplayer.feature.settings.ui.UpdateSettingsScreen
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 private object Routes {
@@ -146,8 +147,19 @@ private val FLAT_ROUTES = setOf(
 )
 
 @Composable
-fun AppNavGraph() {
+fun AppNavGraph(
+    openPlayerOnStart: Boolean = false,
+    openPlayerRequests: Flow<Unit>? = null,
+) {
     val navController = rememberNavController()
+
+    if (openPlayerRequests != null) {
+        LaunchedEffect(openPlayerRequests) {
+            openPlayerRequests.collect {
+                navController.navigate(Routes.PLAYER) { launchSingleTop = true }
+            }
+        }
+    }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -176,7 +188,7 @@ fun AppNavGraph() {
     ) {
     NavHost(
         navController = navController,
-        startDestination = Routes.LIBRARY,
+        startDestination = if (openPlayerOnStart) Routes.PLAYER else Routes.LIBRARY,
         enterTransition = {
             if (targetState.destination.route == Routes.PLAYER) {
                 slideInVertically(tween(380, easing = FastOutSlowInEasing)) { it / 4 } +

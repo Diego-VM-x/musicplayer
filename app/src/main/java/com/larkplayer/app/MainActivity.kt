@@ -34,6 +34,8 @@ import com.larkplayer.core.designsystem.theme.LarkTheme
 import com.larkplayer.core.model.ThemeConfig
 import com.larkplayer.core.update.UpdateManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -42,12 +44,24 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var settingsDataStore: SettingsDataStore
     @Inject lateinit var scanBus: MediaScanBus
 
+    /** Tapping the media notification asks the graph to open the full player. */
+    private val openPlayerRequests = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    private var openPlayerOnStart = false
+
+    companion object {
+        const val EXTRA_OPEN_PLAYER = "lark_open_player"
+    }
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { scanBus.requestScan() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        openPlayerOnStart = intent?.getBooleanExtra(EXTRA_OPEN_PLAYER, false) == true
 
         // Draw behind the status bar but keep the UI below it: the gradient shows
         // through the transparent bar without shifting the whole interface up.
@@ -82,11 +96,21 @@ class MainActivity : ComponentActivity() {
                                 .statusBarsPadding()
                                 .navigationBarsPadding(),
                         ) {
-                            AppNavGraph()
+                            AppNavGraph(
+                                openPlayerOnStart = openPlayerOnStart,
+                                openPlayerRequests = openPlayerRequests,
+                            )
                         }
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_PLAYER, false)) {
+            openPlayerRequests.tryEmit(Unit)
         }
     }
 

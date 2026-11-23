@@ -50,6 +50,7 @@ class PlaybackService : MediaSessionService() {
 
     private var session: MediaSession? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private lateinit var notificationProvider: LarkMediaNotificationProvider
 
     /** Mirrors the "Notificación de reproducción" preference. */
     @Volatile private var showNotification = true
@@ -123,15 +124,23 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         }
-        // The custom RemoteViews provider crashed on playback start on some
-        // devices (startForeground rejects the view). Keep the stable Media3
-        // layout until a safer custom implementation is available.
-        setMediaNotificationProvider(
-            DefaultMediaNotificationProvider.Builder(this)
-                .setChannelId(CHANNEL_ID)
-                .setNotificationId(NOTIFICATION_ID)
-                .build(),
-        )
+        // Custom Lark shade card. It validates its RemoteViews in-process and
+        // falls back to Media3's layout if the device cannot render it.
+        notificationProvider = LarkMediaNotificationProvider(context = this)
+        runCatching { setMediaNotificationProvider(notificationProvider) }.onFailure {
+            setMediaNotificationProvider(
+                DefaultMediaNotificationProvider.Builder(this)
+                    .setChannelId(CHANNEL_ID)
+                    .setNotificationId(NOTIFICATION_ID)
+                    .build(),
+            )
+        }
+        scope.launch {
+            while (isActive) {
+                delay(1_000L)
+                if (player.isPlaying) notificationProvider.tick()
+            }
+        }
         val closeCommand = SessionCommand(COMMAND_STOP_ALL, Bundle.EMPTY)
         session = MediaSession.Builder(this, player)
             .setId("lark_player_session")

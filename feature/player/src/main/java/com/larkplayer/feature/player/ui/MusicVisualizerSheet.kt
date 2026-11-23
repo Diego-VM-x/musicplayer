@@ -25,9 +25,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,10 +46,8 @@ import androidx.compose.ui.unit.sp
 import com.larkplayer.core.designsystem.component.LarkSheet
 import com.larkplayer.feature.player.AudioBands
 import com.larkplayer.feature.player.AudioSpectrumSource
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
@@ -69,45 +68,43 @@ fun rememberVisualizerBands(
     enabled: Boolean,
     isPlaying: Boolean,
 ): androidx.compose.runtime.State<AudioBands> {
-    val bands = remember { mutableStateOf(AudioBands()) }
-    // isPlaying must be a key: launching while paused used to capture 0f forever,
-    // so pressing play never woke the visualizer up.
-    LaunchedEffect(enabled, isPlaying) {
+    // Remembered so a play/pause change does not cancel and restart the loop.
+    val playing by rememberUpdatedState(isPlaying)
+    // produceState is the canonical Compose bridge from a coroutine to a State:
+    // every write invalidates every composition that reads the returned state.
+    return produceState(initialValue = AudioBands(), enabled) {
         if (!enabled) {
-            bands.value = AudioBands()
-            return@LaunchedEffect
+            value = AudioBands()
+            return@produceState
         }
         var smooth = FloatArray(AudioSpectrumSource.BAND_COUNT)
         var peaks = FloatArray(AudioSpectrumSource.BAND_COUNT)
-        var waveform = FloatArray(64)
         var phase = 0f
+        var frames = 0L
         while (isActive) {
-            val spectrum = withContext(Dispatchers.Default) {
-                AudioSpectrumSource.currentBands()
-            }
-            val wave = AudioSpectrumSource.currentWaveform()
-            val targetGain = if (isPlaying) 1f else 0f
+            val raw = AudioSpectrumSource.currentBands()
+            val gain = if (playing) 1f else 0f
             for (i in smooth.indices) {
-                val target = spectrum.getOrElse(i) { 0f } * targetGain
-                smooth[i] += (target - smooth[i]) * if (target > smooth[i]) 0.38f else 0.12f
-                peaks[i] = maxOf(smooth[i], peaks[i] - 0.02f)
+                val target = (raw.getOrElse(i) { 0f }) * gain
+                smooth[i] += (target - smooth[i]) * if (target > smooth[i]) 0.5f else 0.18f
+                peaks[i] = maxOf(smooth[i], peaks[i] - 0.03f)
             }
-            waveform = wave
-            val energy = (spectrum.average().toFloat()).coerceIn(0f, 1f)
-            phase = (phase + 0.05f + 0.12f * energy) % (2f * PI.toFloat())
-            bands.value = AudioBands(
-                bass = (smooth.take(4).average().toFloat()).coerceIn(0f, 1f),
-                mid = (smooth.drop(4).take(8).average().toFloat()).coerceIn(0f, 1f),
-                treble = (smooth.drop(12).average().toFloat()).coerceIn(0f, 1f),
+            val energy = smooth.average().toFloat().coerceIn(0f, 1f)
+            phase = (phase + 0.04f + 0.16f * energy) % (2f * PI.toFloat())
+            frames++
+            value = AudioBands(
+                bass = smooth.take(4).average().toFloat().coerceIn(0f, 1f),
+                mid = smooth.drop(4).take(8).average().toFloat().coerceIn(0f, 1f),
+                treble = smooth.drop(12).average().toFloat().coerceIn(0f, 1f),
                 spectrum = smooth.copyOf(),
                 peaks = peaks.copyOf(),
-                waveform = waveform.copyOf(),
+                waveform = AudioSpectrumSource.currentWaveform(),
                 phase = phase,
+                frames = frames,
             )
             delay(16L)
         }
     }
-    return bands
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -117,8 +114,8 @@ fun rememberVisualizerBands(
 /**
  * Audio-reactive canvas placed directly above the progress bar.
  *
- * Rendering runs on `withFrameNanos` (60 fps) and interpolates the capture
- * data with damping + peak decay so bars never jump between frames.
+ * A single `produceState` producer samples the real PCM tap at ~60 fps and
+ * applies damping + peak decay; reading its state here redraws the Canvas.
  */
 @Composable
 fun VisualizerCanvas(
@@ -128,49 +125,14 @@ fun VisualizerCanvas(
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
-    // Read the state in the composition body so every capture/frame write
-    // actually invalidates the Canvas (reads inside the draw lambda do not).
-    val targetState = rememberVisualizerBands(enabled, isPlaying)
-    val targetSnapshot = targetState.value
-    val displayState = remember { mutableStateOf(AudioBands()) }
-    val displaySnapshot = displayState.value
-
-    LaunchedEffect(enabled) {
-        if (!enabled) {
-            displayState.value = AudioBands()
-            return@LaunchedEffect
-        }
-        var lastFrame = 0L
-        withFrameNanos { now ->
-            val dt = if (lastFrame == 0L) 16_000_000L else (now - lastFrame).coerceAtMost(50_000_000L)
-            lastFrame = now
-            val k = 1f - kotlin.math.exp(-dt / 70_000_000f)
-            val target = targetState.value
-            val d = displayState.value
-            val spectrum = FloatArray(d.spectrum.size) { i ->
-                d.spectrum[i] + (target.spectrum[i] - d.spectrum[i]) * k
-            }
-            val peaks = FloatArray(d.peaks.size) { i ->
-                maxOf(spectrum[i], d.peaks[i] - 0.012f * (dt / 16_000_000f))
-            }
-            displayState.value = d.copy(
-                spectrum = spectrum,
-                peaks = peaks,
-                waveform = target.waveform,
-                bass = d.bass + (target.bass - d.bass) * k,
-                mid = d.mid + (target.mid - d.mid) * k,
-                treble = d.treble + (target.treble - d.treble) * k,
-                phase = target.phase,
-                fallback = target.fallback,
-            )
-        }
-    }
+    // A single producer owns all smoothing. Reading its state here makes the
+    // Canvas recompose on every captured frame; no second draw-loop is needed.
+    val bands = rememberVisualizerBands(enabled, isPlaying).value
 
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
         if (w <= 0 || h <= 0 || !enabled) return@Canvas
-        val bands = displaySnapshot
         val alphaFade = if (isPlaying) 1f else 0.55f
 
         when (style) {
@@ -311,16 +273,17 @@ private val MODES = listOf(
 /** Small diagnostic: confirms whether the real PCM tap is delivering samples. */
 @Composable
 private fun AudioSignalLabel() {
-    var level by remember { mutableStateOf(0f) }
-    LaunchedEffect(Unit) {
-        while (isActive) {
-            level = AudioSpectrumSource.level()
-            delay(400L)
-        }
-    }
-    val hasSignal = level > 0.002f
+    // Uses the very same producer as the canvas: if `frames` advances, the
+    // capture loop and the state propagation are both working.
+    val captured = rememberVisualizerBands(enabled = true, isPlaying = true).value
+    val level = AudioSpectrumSource.level()
+    val hasSignal = level > 0.002f && captured.frames > 0L
     Text(
-        if (hasSignal) "Señal PCM: activa" else "Señal PCM: sin datos (¿en pausa?)",
+        if (hasSignal) {
+            "Señal PCM: activa · ${captured.frames} cuadros · nivel ${(level * 100).toInt()}%"
+        } else {
+            "Señal PCM: sin datos · ${captured.frames} cuadros"
+        },
         color = if (hasSignal) Color(0xFF4CD964) else Color(0xFF8E8E93),
         fontSize = 11.sp,
     )

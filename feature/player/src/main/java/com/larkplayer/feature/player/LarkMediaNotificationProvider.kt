@@ -127,6 +127,11 @@ class LarkMediaNotificationProvider(
         views.setOnClickPendingIntent(R.id.notif_art, contentIntent(flags))
         views.setOnClickPendingIntent(R.id.notif_title, contentIntent(flags))
 
+        // Inflate once in-process: if the OEM cannot render this RemoteViews,
+        // fail here so createNotification() can fall back to the safe layout
+        // instead of letting startForeground reject it later.
+        views.apply(context, android.widget.FrameLayout(context))
+
         val notification = NotificationCompat.Builder(context, PlaybackService.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_lark)
             .setContentTitle(title)
@@ -175,7 +180,10 @@ class LarkMediaNotificationProvider(
     private fun contentIntent(flags: Int): PendingIntent {
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
             ?: Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        return PendingIntent.getActivity(context, 0, launch, flags)
+        // Tapping the notification opens the full player, not just the library.
+        launch.putExtra("lark_open_player", true)
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        return PendingIntent.getActivity(context, 0, launch, flags or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     private fun loadArtwork(metadata: MediaMetadata): Bitmap? {

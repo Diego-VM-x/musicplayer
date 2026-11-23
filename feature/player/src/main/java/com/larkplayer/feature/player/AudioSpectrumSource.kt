@@ -16,6 +16,8 @@ data class AudioBands(
     /** Slowly advancing phase for the wave styles, so they flow even on a
      *  steady note. Amplitude still comes exclusively from the real PCM. */
     val phase: Float = 0f,
+    /** Number of captured frames, exposed for on-screen diagnostics. */
+    val frames: Long = 0L,
     val fallback: Boolean = false,
 )
 
