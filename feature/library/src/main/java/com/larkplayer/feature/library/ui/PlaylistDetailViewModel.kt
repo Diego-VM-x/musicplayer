@@ -106,6 +106,13 @@ class PlaylistDetailViewModel @Inject constructor(
                 publish()
             }
         }
+        // The detail sort (including the manual order after a drag) is per playlist.
+        viewModelScope.launch {
+            dataStore.playlistDetailSortMode(playlistId).collect { mode ->
+                sortMode = mode
+                publish()
+            }
+        }
     }
 
     private fun publish() {
@@ -135,6 +142,7 @@ class PlaylistDetailViewModel @Inject constructor(
     fun setSort(mode: Int) {
         sortMode = mode
         publish()
+        viewModelScope.launch { runCatching { dataStore.setPlaylistDetailSortMode(playlistId, mode) } }
     }
 
     fun enterSelection(songId: Long? = null) {
@@ -231,7 +239,10 @@ class PlaylistDetailViewModel @Inject constructor(
         rawSongs = list
         publish()
         viewModelScope.launch {
-            runCatching { playlistRepository.reorder(playlistId, list.map { it.id }) }
+            runCatching {
+                playlistRepository.reorder(playlistId, list.map { it.id })
+                dataStore.setPlaylistDetailSortMode(playlistId, 3)
+            }
         }
     }
 

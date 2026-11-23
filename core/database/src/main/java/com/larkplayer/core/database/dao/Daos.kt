@@ -38,7 +38,8 @@ interface SongDao {
 
 @Dao
 interface PlaylistDao {
-    @Query("SELECT * FROM playlists ORDER BY updatedAt DESC")
+    /** Manual order first; updatedAt is only a tie-breaker for legacy rows. */
+    @Query("SELECT * FROM playlists ORDER BY position ASC, updatedAt DESC")
     fun observePlaylists(): Flow<List<PlaylistEntity>>
 
     @Query(
@@ -52,7 +53,7 @@ interface PlaylistDao {
                 -1
             ) AS coverAlbumId
         FROM playlists p
-        ORDER BY p.updatedAt DESC
+        ORDER BY p.position ASC, p.updatedAt DESC
         """
     )
     fun observePlaylistsWithCovers(): Flow<List<PlaylistWithCover>>
@@ -62,6 +63,18 @@ interface PlaylistDao {
 
     @Query("SELECT * FROM playlists WHERE id = :id")
     fun observePlaylist(id: Long): Flow<PlaylistEntity?>
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM playlists")
+    suspend fun maxPlaylistPosition(): Int
+
+    @Query("UPDATE playlists SET position = :position WHERE id = :playlistId")
+    suspend fun setPlaylistPosition(playlistId: Long, position: Int)
+
+    /** Persists the manual order of the whole Playlists tab as 0..n-1. */
+    @Transaction
+    suspend fun reorderPlaylists(orderedIds: List<Long>) {
+        orderedIds.forEachIndexed { index, id -> setPlaylistPosition(id, index) }
+    }
 
     @Query("UPDATE playlists SET name = :name, updatedAt = :now WHERE id = :id")
     suspend fun rename(id: Long, name: String, now: Long = System.currentTimeMillis())
@@ -147,4 +160,11 @@ interface QueueDao {
 
     @Query("DELETE FROM queue")
     suspend fun clear()
+
+    /** Replaces the persisted playback order in one transaction. */
+    @Transaction
+    suspend fun replace(items: List<QueueEntity>) {
+        clear()
+        if (items.isNotEmpty()) save(items)
+    }
 }

@@ -122,12 +122,16 @@ fun VisualizerCanvas(
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
-    val target by rememberVisualizerBands(enabled, isPlaying)
-    val display = remember { mutableStateOf(AudioBands()) }
+    // Read the state in the composition body so every capture/frame write
+    // actually invalidates the Canvas (reads inside the draw lambda do not).
+    val targetState = rememberVisualizerBands(enabled, isPlaying)
+    val targetSnapshot = targetState.value
+    val displayState = remember { mutableStateOf(AudioBands()) }
+    val displaySnapshot = displayState.value
 
     LaunchedEffect(enabled) {
         if (!enabled) {
-            display.value = AudioBands()
+            displayState.value = AudioBands()
             return@LaunchedEffect
         }
         var lastFrame = 0L
@@ -135,14 +139,15 @@ fun VisualizerCanvas(
             val dt = if (lastFrame == 0L) 16_000_000L else (now - lastFrame).coerceAtMost(50_000_000L)
             lastFrame = now
             val k = 1f - kotlin.math.exp(-dt / 70_000_000f)
-            val d = display.value
+            val target = targetState.value
+            val d = displayState.value
             val spectrum = FloatArray(d.spectrum.size) { i ->
                 d.spectrum[i] + (target.spectrum[i] - d.spectrum[i]) * k
             }
             val peaks = FloatArray(d.peaks.size) { i ->
                 maxOf(spectrum[i], d.peaks[i] - 0.012f * (dt / 16_000_000f))
             }
-            display.value = d.copy(
+            displayState.value = d.copy(
                 spectrum = spectrum,
                 peaks = peaks,
                 waveform = target.waveform,
@@ -158,7 +163,7 @@ fun VisualizerCanvas(
         val w = size.width
         val h = size.height
         if (w <= 0 || h <= 0 || !enabled) return@Canvas
-        val bands = display.value
+        val bands = displaySnapshot
         val alphaFade = if (isPlaying) 1f else 0.55f
 
         when (style) {

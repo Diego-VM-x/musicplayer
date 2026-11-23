@@ -4,6 +4,55 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 52: redibujo del visualizador, icono de cola y letras animadas (v45)
+
+- `VisualizerCanvas`: el estado de captura se lee ahora en el cuerpo del composable, de modo que las
+  escrituras de `withFrameNanos` invalidan realmente el `Canvas` (antes se leía solo dentro del draw
+  lambda y parecía estático). Sigue usando el PCM real sin micrófono.
+- Icono de «A continuación»: se usa el glifo de cola simple y un punto de modo separado, evitando la
+  fusión visual con el icono de aleatorio.
+- Letras: línea activa con escala/color/alpha/sombra animados; cuando la letra no tiene timestamps se
+  distribuye proporcionalmente a la duración para que también siga la reproducción.
+- Persistencia de todos los órdenes (apartado siguiente).
+- `versionCode` 45 / `1.0.44-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.44` con `musicplayer-45.apk` (3.481.812 bytes, SHA-256 `04A8AEE943B5FA6F71FF43D9627B79573592870459E00A548CA91AFA62871922`), verificada con `aapt` (`versionCode=45`).
+
+## 2026-11-23 - Persistencia de todos los órdenes visibles tras cierre completo de la app
+
+**Qué no sobrevivía al cierre**
+
+- `LibraryViewModel.sortMode` y `tab` eran `MutableStateFlow` en memoria: al reabrir siempre
+  volvían a «Recientes» y a la pestaña Canciones.
+- La pestaña Playlists no tenía selector de orden ni posición guardada: la lista salía siempre
+  en `updatedAt DESC` (cambiar el nombre de una playlist alteraba su orden).
+- `PlaylistDetailViewModel.sortMode` era un `var` en memoria: una playlist reordenada a mano
+  se mostraba otra vez como «Más recientes» al volver a entrar, aunque `playlist_songs.position`
+  sí estuviera guardado en Room.
+- El shuffle se guardaba en SharedPreferences, pero durante el arranque se recalculaba con la
+  cola todavía vacía y se sobrescribía con una cadena vacía: al reabrir se generaba un orden
+  nuevo. La cola solo se cacheaba en SharedPreferences y una reordenación manual no se escribía.
+
+**Corrección**
+
+- `SettingsDataStore` añade `library_sort_mode`, `library_tab`, `playlist_sort_mode`,
+  `playlist_detail_sort_<id>` y `shuffle_order` (con migración única desde la clave legacy de
+  SharedPreferences). `shuffle`/`repeatMode` siguen siendo la fuente del modo de reproducción y
+  ahora `PlayerViewModel` los lee desde DataStore nada más iniciar.
+- Room: nueva columna `playlists.position` (migración 3→4, preserva el orden anterior) y DAOs
+  para persistir el orden de las playlists. La pestaña Playlists ofrece Manual / Por nombre /
+  Por creación y «Subir/Bajar en la lista» en el menú de la playlist; las nuevas playlists se
+  añaden al final. `playlist_songs.position` se sigue usando y ahora el modo manual de cada
+  playlist también se restaura.
+- `PlayerRepository`: el orden aleatorio se lee de DataStore antes de conectar, no se pisa con
+  una cola vacía y se reutiliza al reabrir; solo se regenera cuando se pulsa shuffle estando ya
+  activo. La cola se refleja además en la tabla Room `queue` (`QueueDao.replace`) y se persiste
+  tras añadir, quitar o mover canciones. El tamaño de tema ya se persistía vía `themeConfig`.
+
+Archivos: `core/datastore/SettingsDataStore.kt`, `core/database/{LarkDatabase.kt,entity/Entities.kt,dao/Daos.kt,di/DatabaseModule.kt}`,
+`feature/library/{PlaylistRepository.kt,ui/LibraryViewModel.kt,ui/PlaylistDetailViewModel.kt,ui/LibraryScreen.kt}`,
+`feature/player/{PlayerRepository.kt,ui/PlayerViewModel.kt}`, `feature/backup/BackupManager.kt`.
+Verificación: `./gradlew.bat :app:compileDebugKotlin --no-daemon` → BUILD SUCCESSFUL (2 m 22 s; solo warnings de iconos/API deprecados, sin errores).
+
 ## 2026-11-23 - Fase 51: visualizador PCM real sin micrófono (v44)
 
 - Verificado en el APK original: **no usa `android.media.audiofx.Visualizer` ni declara `RECORD_AUDIO`**;

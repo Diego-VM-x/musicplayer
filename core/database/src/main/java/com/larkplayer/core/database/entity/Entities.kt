@@ -26,6 +26,8 @@ data class PlaylistEntity(
     val updatedAt: Long = System.currentTimeMillis(),
     /** Custom cover picked by the user (SAF content uri), null = first song's art. */
     val coverUri: String? = null,
+    /** Manual position in the Playlists tab (0..n-1); independent of updatedAt. */
+    val position: Int = 0,
 )
 
 /** Projection used by the Playlists tab (cover art + song count). */

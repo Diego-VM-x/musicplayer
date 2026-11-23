@@ -31,7 +31,10 @@ class PlaylistRepository @Inject constructor(
 
     suspend fun songsOnce(playlistId: Long): List<SongEntity> = songs(playlistId).first()
 
-    suspend fun create(name: String): Long = dao.insert(PlaylistEntity(name = name))
+    /** New playlists go to the end of the manual order. */
+    suspend fun create(name: String): Long = dao.insert(
+        PlaylistEntity(name = name, position = dao.maxPlaylistPosition() + 1),
+    )
 
     suspend fun rename(id: Long, name: String) = dao.rename(id, name)
 
@@ -72,4 +75,7 @@ class PlaylistRepository @Inject constructor(
     }
 
     suspend fun setSongs(playlistId: Long, songIds: List<Long>) = reorder(playlistId, songIds)
+
+    /** Persists the order of the playlists themselves (Playlists tab, manual mode). */
+    suspend fun reorderPlaylists(orderedIds: List<Long>) = dao.reorderPlaylists(orderedIds)
 }

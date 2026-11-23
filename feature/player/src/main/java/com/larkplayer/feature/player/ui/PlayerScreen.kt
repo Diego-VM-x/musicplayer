@@ -625,7 +625,9 @@ fun PlayerScreen(
                     )
                 }
 
-                // Right: Queue with mode indicator (ic_lark_queue / ic_lark_queue_shuffle)
+                // Right: plain queue icon with a small separate mode dot.
+                // (Using ic_lark_queue_shuffle as the main glyph made the two
+                // icons look fused/bugged.)
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -634,14 +636,21 @@ fun PlayerScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        painter = painterResource(
-                            if (currentMode == PlayerRepository.MODE_SHUFFLE) DesignR.drawable.ic_lark_queue_shuffle
-                            else DesignR.drawable.ic_lark_queue
-                        ),
-                        contentDescription = "Cola de reproducción",
+                        painter = painterResource(DesignR.drawable.ic_lark_queue),
+                        contentDescription = "A continuación",
                         tint = Color(0xFF8E8E93),
                         modifier = Modifier.size(24.dp),
                     )
+                    if (currentMode != PlayerRepository.MODE_REPEAT_ALL) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 4.dp, end = 4.dp)
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(accent),
+                        )
+                    }
                 }
             }
         }

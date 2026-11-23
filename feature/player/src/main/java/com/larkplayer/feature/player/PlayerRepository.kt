@@ -11,6 +11,8 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
+import com.larkplayer.core.database.dao.QueueDao
+import com.larkplayer.core.database.entity.QueueEntity
 import com.larkplayer.core.datastore.SettingsDataStore
 import com.larkplayer.core.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -21,6 +23,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -41,6 +44,7 @@ import javax.inject.Singleton
 class PlayerRepository @Inject constructor(
     @ApplicationContext context: Context,
     private val settings: SettingsDataStore,
+    private val queueDao: QueueDao,
 ) {
     private val appContext: Context = context.applicationContext
     private val widgetPrefs = appContext.getSharedPreferences("lark_widget", Context.MODE_PRIVATE)
@@ -75,6 +79,8 @@ class PlayerRepository @Inject constructor(
     private var lastMediaId: String? = null
     private var lastPosition = 0L
     @Volatile private var visibleOrder: List<String> = emptyList()
+    /** Last shuffle order persisted in DataStore (legacy SharedPreferences on upgrade). */
+    @Volatile private var savedShuffleOrder: String? = null
     private var pendingPlayMs = 0L
 
     private var connecting = false
@@ -100,8 +106,24 @@ class PlayerRepository @Inject constructor(
             settings.gapless.collect { enabled -> gaplessEnabled = enabled }
         }
         scope.launch {
+            // Load the order before connect() runs (it is delayed in the same scope).
+            // One-time migration from the old SharedPreferences key.
+            val stored = runCatching { settings.shuffleOrder.first() }.getOrDefault("")
+            val legacy = runCatching { statePrefs.getString(LEGACY_KEY_SHUFFLE_ORDER, null) }.getOrDefault(null)
+            val initial = stored.takeIf { it.isNotBlank() } ?: legacy.orEmpty()
+            if (initial.isNotBlank() && stored.isBlank()) {
+                runCatching { settings.setShuffleOrder(initial) }
+            }
+            savedShuffleOrder = initial.takeIf { it.isNotBlank() }
+            settings.shuffleOrder.collect { order ->
+                savedShuffleOrder = order.takeIf { it.isNotBlank() }
+            }
+        }
+        scope.launch {
             settings.shuffle.collect { enabled ->
                 desiredShuffle = enabled
+                // Do not rebuild while the controller is still connecting: an
+                // empty queue would overwrite the saved order with an empty value.
                 if (enabled) rebuildShuffleOrder() else visibleOrder = emptyList()
                 // Applied when the controller connects (see connect() onSuccess).
             }
@@ -349,6 +371,11 @@ class PlayerRepository @Inject constructor(
                     .putLong("position", position)
                     .putBoolean("playing", playing)
                     .apply()
+                // Room owns the durable queue order (SharedPreferences keeps the
+                // full track metadata used to rebuild the session).
+                queueDao.replace(tracks.filter { it.id > 0 }.mapIndexed { i, t ->
+                    QueueEntity(songId = t.id, position = i)
+                })
             }.onFailure { Timber.e(it, "Failed to cache playback state") }
         }
     }
@@ -383,7 +410,10 @@ class PlayerRepository @Inject constructor(
         Timber.d("Restored cached queue: %d tracks", songs.size)
     }
 
-    private fun clearPersistedQueue() = statePrefs.edit().clear().apply()
+    private fun clearPersistedQueue() {
+        statePrefs.edit().clear().apply()
+        ioScope.launch { runCatching { queueDao.clear() } }
+    }
 
     // ---- Playback -----------------------------------------------------------
 
@@ -488,16 +518,13 @@ class PlayerRepository @Inject constructor(
      */
     private fun rebuildShuffleOrder(force: Boolean = false) {
         val items = currentQueue()
-        if (items.isEmpty()) {
-            visibleOrder = emptyList()
-            return
-        }
+        // The controller may not be connected yet on startup; keep the saved
+        // order intact instead of replacing it with an empty one.
+        if (items.isEmpty()) return
         val currentId = runCatching { _controller.value?.currentMediaItem?.mediaId }.getOrNull()
         val ids = items.mapNotNull { it.mediaId }.toSet()
         if (!force) {
-            val saved = statePrefs.getString(KEY_SHUFFLE_ORDER, null)
-                ?.split(',')
-                ?.filter { it.isNotBlank() }
+            val saved = savedShuffleOrder?.split(',')?.filter { it.isNotBlank() }
             if (saved != null && saved.toSet() == ids) {
                 visibleOrder = listOfNotNull(currentId) + saved.filter { it != currentId }
                 persistShuffleOrder()
@@ -511,11 +538,9 @@ class PlayerRepository @Inject constructor(
     }
 
     private fun persistShuffleOrder() {
-        ioScope.launch {
-            runCatching {
-                statePrefs.edit().putString(KEY_SHUFFLE_ORDER, visibleOrder.joinToString(",")).apply()
-            }
-        }
+        val order = visibleOrder.joinToString(",")
+        savedShuffleOrder = order.takeIf { it.isNotBlank() }
+        scope.launch { runCatching { settings.setShuffleOrder(order) } }
     }
 
     /** Sends the visible order to the service; the service owns Media3's shuffle state. */
@@ -640,6 +665,7 @@ class PlayerRepository @Inject constructor(
             if (removedId != null) visibleOrder = visibleOrder - removedId
             sendShuffleOrder(c, enabled = true)
         }
+        persistQueue(c, c.currentPosition, c.isPlaying)
     }
 
     /** Reorders two items in the real timeline (used by the queue drag handles). */
@@ -663,6 +689,7 @@ class PlayerRepository @Inject constructor(
             }
             sendShuffleOrder(c, enabled = true)
         }
+        persistQueue(c, c.currentPosition, c.isPlaying)
     }
 
     /**
@@ -687,6 +714,7 @@ class PlayerRepository @Inject constructor(
             }
             sendShuffleOrder(c, enabled = true)
         }
+        persistQueue(c, c.currentPosition, c.isPlaying)
     }
 
     /** Stops playback and empties the queue (the "clear queue" action). */
@@ -804,7 +832,7 @@ class PlayerRepository @Inject constructor(
     companion object {
         const val EXTRA_SONG_PATH = "lark_song_path"
         const val EXTRA_SONG_DURATION = "lark_song_duration"
-        private const val KEY_SHUFFLE_ORDER = "shuffle_order"
+        private const val LEGACY_KEY_SHUFFLE_ORDER = "shuffle_order"
         private const val KEY_WIDGET_TITLE = "widget_title"
         private const val KEY_WIDGET_ARTIST = "widget_artist"
         private const val KEY_WIDGET_PLAYING = "widget_playing"

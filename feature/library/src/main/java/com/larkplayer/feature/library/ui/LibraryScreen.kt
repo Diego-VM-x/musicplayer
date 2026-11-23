@@ -350,6 +350,8 @@ fun LibraryScreen(
                         )
                         2 -> PlaylistsTab(
                             playlists = state.playlists,
+                            sortMode = state.playlistSortMode,
+                            onSort = viewModel::setPlaylistSort,
                             onCreate = { createDialog = true },
                             onOpen = { playlist -> onOpenPlaylist(playlist.playlist.id) },
                             onLongPress = { playlistToDelete = it },
@@ -623,6 +625,33 @@ fun LibraryScreen(
     playlistToDelete?.let { playlist ->
         LarkSheet(onDismissRequest = { playlistToDelete = null }) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
+                // Manual order is stored in Room; these actions change the saved position.
+                if (state.playlistSortMode == 0) {
+                    Text(
+                        "Subir en la lista",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        modifier = Modifier
+                            .clickable {
+                                viewModel.movePlaylist(playlist.playlist.id, -1)
+                                playlistToDelete = null
+                            }
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                    )
+                    Text(
+                        "Bajar en la lista",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        modifier = Modifier
+                            .clickable {
+                                viewModel.movePlaylist(playlist.playlist.id, 1)
+                                playlistToDelete = null
+                            }
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                    )
+                }
                 Text(
                     "Eliminar lista de reproducción",
                     color = Color(0xFFFF6B6B),
@@ -891,11 +920,52 @@ fun SongArtwork(
 @Composable
 private fun PlaylistsTab(
     playlists: List<PlaylistWithCover>,
+    sortMode: Int,
+    onSort: (Int) -> Unit,
     onCreate: () -> Unit,
     onOpen: (PlaylistWithCover) -> Unit,
     onLongPress: (PlaylistWithCover) -> Unit,
 ) {
+    var sortMenu by remember { mutableStateOf(false) }
     LazyColumn(contentPadding = PaddingValues(top = 2.dp, bottom = 110.dp)) {
+        item {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val sortLabel = when (sortMode) {
+                    1 -> "Por nombre"
+                    2 -> "Por creación"
+                    else -> "Manual"
+                }
+                Text("Orden: $sortLabel", color = ApplePalette.TextSecondary, fontSize = 12.sp)
+                Spacer(Modifier.weight(1f))
+                Box {
+                    GlassIconButton(
+                        Icons.Rounded.SwapVert,
+                        "Ordenar playlists",
+                        onClick = { sortMenu = true },
+                        size = 36.dp,
+                        iconSize = 18.dp,
+                        flat = true,
+                    )
+                    GlassMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                        listOf("Manual", "Por nombre", "Por creación").forEachIndexed { index, label ->
+                            GlassMenuItem(
+                                label,
+                                selected = sortMode == index,
+                                onClick = {
+                                    onSort(index)
+                                    sortMenu = false
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
         item {
             Row(
                 Modifier

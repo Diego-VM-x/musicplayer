@@ -99,6 +99,17 @@ class PlayerViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(visualizerStyle = style)
             }
         }
+        // Playback mode is restored from DataStore even before the controller connects.
+        viewModelScope.launch {
+            settings.shuffle.collect { enabled ->
+                _uiState.value = _uiState.value.copy(shuffle = enabled)
+            }
+        }
+        viewModelScope.launch {
+            settings.repeatMode.collect { mode ->
+                _uiState.value = _uiState.value.copy(repeatMode = mode)
+            }
+        }
         // Progress ticker & lyrics sync
         viewModelScope.launch {
             while (isActive) {

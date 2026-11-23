@@ -69,6 +69,8 @@ private data class ParsedPlaylist(
     val createdAt: Long,
     val coverUri: String?,
     val songReferences: List<NormalizedMedia>,
+    /** Manual playlist position from a LarkClean backup; -1 = unknown. */
+    val position: Int = -1,
 )
 
 @Singleton
@@ -334,7 +336,7 @@ class BackupManager @Inject constructor(
                                 NormalizedMedia(title = s.title, fileName = File(s.path).name, path = s.path)
                             } else null
                         }
-                    ParsedPlaylist(pl.name, pl.createdAt, pl.coverUri, refs)
+                    ParsedPlaylist(pl.name, pl.createdAt, pl.coverUri, refs, pl.position)
                 }
                 return storePlaylistsWithoutDuplicates(parsedPlaylists, "Copia de respaldo LarkClean")
             }
@@ -424,9 +426,9 @@ class BackupManager @Inject constructor(
 
         val existingPlaylists = playlistDao.observePlaylists().first()
 
-        playlists.forEach { source ->
+        playlists.forEachIndexed { index, source ->
             val cleanName = source.name.trim()
-            if (cleanName.isBlank()) return@forEach
+            if (cleanName.isBlank()) return@forEachIndexed
 
             val existing = existingPlaylists.firstOrNull { it.name.equals(cleanName, ignoreCase = true) }
             val playlistId = existing?.id ?: playlistDao.insert(
@@ -434,6 +436,8 @@ class BackupManager @Inject constructor(
                     name = cleanName,
                     createdAt = source.createdAt.takeIf { it > 0 } ?: System.currentTimeMillis(),
                     coverUri = source.coverUri,
+                    // Keep the exported manual position; older backups fall back to file order.
+                    position = source.position.takeIf { it >= 0 } ?: index,
                 ),
             )
 

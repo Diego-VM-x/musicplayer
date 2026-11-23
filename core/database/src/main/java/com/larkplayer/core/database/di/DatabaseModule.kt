@@ -33,11 +33,23 @@ object DatabaseModule {
         }
     }
 
+    /** v4 stores the manual playlist order in Room instead of deriving it from updatedAt. */
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE playlists ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+            // Preserve the previous display order (newest first) as the initial manual order.
+            db.execSQL(
+                "UPDATE playlists SET position = " +
+                    "(SELECT COUNT(*) FROM playlists p WHERE p.updatedAt >= playlists.updatedAt)",
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LarkDatabase =
         Room.databaseBuilder(context, LarkDatabase::class.java, "lark.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .build()
 

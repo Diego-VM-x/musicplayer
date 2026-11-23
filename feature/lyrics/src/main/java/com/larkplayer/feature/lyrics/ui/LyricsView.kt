@@ -58,12 +58,19 @@ fun LyricsScreen(
         }
     }
 
-    val active = if (lyrics.isSynced) LrcParser.activeIndex(lyrics, playerState.position) else -1
+    // Synced lyrics use real timestamps. Plain lyrics (no [mm:ss] tags) are
+    // distributed evenly across the track so they still follow the song.
+    val active = if (lyrics.isSynced) {
+        LrcParser.activeIndex(lyrics, playerState.position)
+    } else if (lyrics.lines.isNotEmpty() && playerState.duration > 0L) {
+        ((playerState.position.toFloat() / playerState.duration) * lyrics.lines.size)
+            .toInt()
+            .coerceIn(0, lyrics.lines.lastIndex)
+    } else -1
     val listState = rememberLazyListState()
 
-    // Smooth auto-scroll only for synchronized lyrics; plain text is user-driven.
     LaunchedEffect(active, lyrics.songId) {
-        if (lyrics.isSynced && active >= 0) {
+        if (active >= 0) {
             runCatching { listState.animateScrollToItem(active, -180) }
         }
     }
@@ -77,7 +84,7 @@ fun LyricsScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 itemsIndexed(lyrics.lines) { index, line ->
-                    val isActive = lyrics.isSynced && index == active
+                    val isActive = active >= 0 && index == active
                     // Animated highlight: the active line grows, brightens and
                     // keeps a subtle glow while the others fade into the background.
                     val scale by animateFloatAsState(
@@ -86,7 +93,7 @@ fun LyricsScreen(
                         label = "lyric_scale",
                     )
                     val lineAlpha by animateFloatAsState(
-                        targetValue = if (isActive) 1f else if (lyrics.isSynced) 0.38f else 0.85f,
+                        targetValue = if (isActive) 1f else 0.42f,
                         animationSpec = spring(dampingRatio = 0.75f, stiffness = 260f),
                         label = "lyric_alpha",
                     )

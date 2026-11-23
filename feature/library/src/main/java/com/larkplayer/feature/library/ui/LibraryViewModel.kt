@@ -29,6 +29,8 @@ data class LibraryUiState(
     val query: String = "",
     val tab: Int = 0,
     val sortMode: Int = 0,
+    /** Playlists tab: 0 = manual (Room position), 1 = nombre, 2 = creación. */
+    val playlistSortMode: Int = 0,
     val themeSize: Int = 1,
     val isScanning: Boolean = false,
     val scanMessage: String? = null,
@@ -42,7 +44,11 @@ private data class Controls(
     val message: String?,
 )
 
-private data class Prefs(val hidden: Set<Long>, val themeSize: Int)
+private data class Prefs(
+    val hidden: Set<Long>,
+    val themeSize: Int,
+    val playlistSortMode: Int,
+)
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
@@ -56,6 +62,7 @@ class LibraryViewModel @Inject constructor(
     private val query = MutableStateFlow("")
     private val tab = MutableStateFlow(1) // 1 = Canciones, same as Lark
     private val sortMode = MutableStateFlow(0)
+    private val playlistSortMode = MutableStateFlow(0)
     private val isScanning = MutableStateFlow(false)
     private val scanMessage = MutableStateFlow<String?>(null)
 
@@ -63,8 +70,10 @@ class LibraryViewModel @Inject constructor(
         Controls(q, t, s, scanning, msg)
     }
 
-    private val prefs = combine(dataStore.hiddenSongIds, dataStore.themeConfig) { hidden, theme ->
-        Prefs(hidden, theme.themeSize)
+    private val prefs = combine(
+        dataStore.hiddenSongIds, dataStore.themeConfig, playlistSortMode,
+    ) { hidden, theme, playlistSort ->
+        Prefs(hidden, theme.themeSize, playlistSort)
     }
 
     val uiState: StateFlow<LibraryUiState> = combine(
@@ -77,10 +86,11 @@ class LibraryViewModel @Inject constructor(
         LibraryUiState(
             songs = sort(repository.search(visible, c.query), c.sortMode),
             hiddenSongs = allSongs.filter { it.id in p.hidden },
-            playlists = playlists,
+            playlists = sortPlaylists(playlists, p.playlistSortMode),
             query = c.query,
             tab = c.tab,
             sortMode = c.sortMode,
+            playlistSortMode = p.playlistSortMode,
             themeSize = p.themeSize,
             isScanning = c.scanning,
             scanMessage = c.message,
@@ -88,6 +98,16 @@ class LibraryViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
     init {
+        // UI order/state comes from DataStore, so it survives a full app close.
+        viewModelScope.launch {
+            dataStore.librarySortMode.collect { sortMode.value = it }
+        }
+        viewModelScope.launch {
+            dataStore.libraryTab.collect { tab.value = it.coerceIn(0, TAB_COUNT - 1) }
+        }
+        viewModelScope.launch {
+            dataStore.playlistSortMode.collect { playlistSortMode.value = it.coerceIn(0, 2) }
+        }
         // MainActivity emits a scan request after the first frame (and after
         // permissions). Waiting for it avoids a MediaStore query competing with
         // the first composition; the delayed fallback covers other entry points.
@@ -105,9 +125,34 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun onQueryChange(value: String) { query.value = value }
-    fun onTabChange(index: Int) { tab.value = index }
-    fun cycleSort() { sortMode.value = (sortMode.value + 1) % 3 }
-    fun setSort(mode: Int) { sortMode.value = mode }
+    fun onTabChange(index: Int) {
+        tab.value = index
+        viewModelScope.launch { runCatching { dataStore.setLibraryTab(index) } }
+    }
+    fun cycleSort() { setSort((sortMode.value + 1) % 3) }
+    fun setSort(mode: Int) {
+        sortMode.value = mode
+        viewModelScope.launch { runCatching { dataStore.setLibrarySortMode(mode) } }
+    }
+
+    /** Playlists tab sort: 0 = manual (Room position), 1 = nombre, 2 = creación. */
+    fun setPlaylistSort(mode: Int) {
+        playlistSortMode.value = mode
+        viewModelScope.launch { runCatching { dataStore.setPlaylistSortMode(mode) } }
+    }
+
+    /** Moves a playlist one slot up/down in the manual order persisted by Room. */
+    fun movePlaylist(playlistId: Long, delta: Int) = viewModelScope.launch {
+        val ordered = runCatching { playlistRepository.playlists.first().map { it.id } }
+            .getOrDefault(emptyList()).toMutableList()
+        val from = ordered.indexOf(playlistId)
+        if (from < 0) return@launch
+        val to = (from + delta).coerceIn(0, ordered.lastIndex)
+        if (from == to) return@launch
+        ordered.add(to, ordered.removeAt(from))
+        runCatching { playlistRepository.reorderPlaylists(ordered) }
+    }
+
     /**
      * Uses the Room cache on startup: a full MediaStore scan only runs when the
      * database is empty, ten minutes have elapsed, or the caller forces it.
@@ -172,6 +217,17 @@ class LibraryViewModel @Inject constructor(
         1 -> list.sortedBy { it.title.lowercase() }
         2 -> list.sortedBy { it.artist.lowercase() }
         else -> list.sortedByDescending { it.dateAdded }
+    }
+
+    private fun sortPlaylists(list: List<PlaylistWithCover>, mode: Int): List<PlaylistWithCover> =
+        when (mode) {
+            1 -> list.sortedBy { it.playlist.name.lowercase() }
+            2 -> list.sortedBy { it.playlist.createdAt }
+            else -> list.sortedBy { it.playlist.position }
+        }
+
+    companion object {
+        private const val TAB_COUNT = 6
     }
 
     private fun SongEntity.toDomain() = Song(

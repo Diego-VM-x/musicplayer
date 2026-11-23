@@ -50,7 +50,16 @@ class SettingsDataStore @Inject constructor(
         val VISUALIZER_STYLE = stringPreferencesKey("visualizer_style") // "armonia", "rebote", "ascenso"
         val APP_BACKGROUND_URI = stringPreferencesKey("app_background_uri")
         val BACKGROUND_VARIANT = intPreferencesKey("background_variant")
+        // Orders and other UI state that must survive a full app restart.
+        val LIBRARY_SORT_MODE = intPreferencesKey("library_sort_mode")
+        val LIBRARY_TAB = intPreferencesKey("library_tab")
+        val PLAYLIST_SORT_MODE = intPreferencesKey("playlist_sort_mode")
+        val SHUFFLE_ORDER = stringPreferencesKey("shuffle_order")
     }
+
+    /** One sort mode per playlist detail screen (0 = recientes, 3 = manual). */
+    private fun playlistSortKey(playlistId: Long) =
+        intPreferencesKey("playlist_detail_sort_$playlistId")
 
     val themeConfig: Flow<ThemeConfig> = context.settingsDataStore.data.map { p ->
         ThemeConfig(
@@ -83,6 +92,19 @@ class SettingsDataStore @Inject constructor(
     val visualizerStyle: Flow<String> = context.settingsDataStore.data.map { p -> p[Keys.VISUALIZER_STYLE] ?: "armonia" }
     val appBackgroundUri: Flow<String> = context.settingsDataStore.data.map { p -> p[Keys.APP_BACKGROUND_URI].orEmpty() }
     val backgroundVariant: Flow<Int> = context.settingsDataStore.data.map { p -> p[Keys.BACKGROUND_VARIANT] ?: 0 }
+
+    // ---- Persisted UI order/state -------------------------------------------
+    /** General songs list: 0 = recientes, 1 = título, 2 = artista. */
+    val librarySortMode: Flow<Int> = context.settingsDataStore.data.map { p -> p[Keys.LIBRARY_SORT_MODE] ?: 0 }
+    /** Last selected library tab (1 = Canciones by default). */
+    val libraryTab: Flow<Int> = context.settingsDataStore.data.map { p -> p[Keys.LIBRARY_TAB] ?: 1 }
+    /** Playlists tab: 0 = manual (Room position), 1 = nombre, 2 = creación. */
+    val playlistSortMode: Flow<Int> = context.settingsDataStore.data.map { p -> p[Keys.PLAYLIST_SORT_MODE] ?: 0 }
+    /** Shuffled playback order as a comma-separated list of media ids. */
+    val shuffleOrder: Flow<String> = context.settingsDataStore.data.map { p -> p[Keys.SHUFFLE_ORDER].orEmpty() }
+
+    fun playlistDetailSortMode(playlistId: Long): Flow<Int> =
+        context.settingsDataStore.data.map { p -> p[playlistSortKey(playlistId)] ?: 0 }
 
     suspend fun setDynamicColor(enabled: Boolean) = edit { it[Keys.DYNAMIC_COLOR] = enabled }
     suspend fun setVisualizerEnabled(enabled: Boolean) = edit { it[Keys.VISUALIZER_ENABLED] = enabled }
@@ -127,6 +149,13 @@ class SettingsDataStore @Inject constructor(
             p[Keys.HIDDEN] = next.joinToString(",")
         }
     }
+
+    suspend fun setLibrarySortMode(mode: Int) = edit { it[Keys.LIBRARY_SORT_MODE] = mode }
+    suspend fun setLibraryTab(tab: Int) = edit { it[Keys.LIBRARY_TAB] = tab }
+    suspend fun setPlaylistSortMode(mode: Int) = edit { it[Keys.PLAYLIST_SORT_MODE] = mode }
+    suspend fun setShuffleOrder(order: String) = edit { it[Keys.SHUFFLE_ORDER] = order }
+    suspend fun setPlaylistDetailSortMode(playlistId: Long, mode: Int) =
+        edit { it[playlistSortKey(playlistId)] = mode }
 
     suspend fun setLastScanAt(ms: Long) = edit { it[Keys.LAST_SCAN_AT] = ms }
 
