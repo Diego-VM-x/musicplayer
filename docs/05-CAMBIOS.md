@@ -4,6 +4,16 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 49: lyrics cacheadas y espectro con AGC (v42)
+
+- `EmbeddedLyricsReader` lee USLT/ULT del archivo de audio directamente en el reproductor y guarda el
+  resultado en Room (`songs.lyricsText`, migración 2→3), de modo que la pantalla de letras lo reutiliza
+  sin volver a escanear el archivo.
+- `AudioSpectrumSource` añade control automático de ganancia y normalización exponencial lineal: el
+  espectro sigue la intensidad real del PCM (RMS) sin saturarse ni quedarse quieto en canciones suaves.
+- `versionCode` 42 / `1.0.41-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.41` con `musicplayer-42.apk` (3.466.164 bytes, SHA-256 `8E265262EA0C45A6B14F4326E41DAB626F3829673843235D58D93CD9D3855965`), verificada con `aapt` (`versionCode=42`).
+
 ## 2026-11-23 - Fase 48: lyrics incrustadas y barra de navegación teñida (v41)
 
 - `EmbeddedLyrics`: lector de ID3v2 USLT/SYLT sin dependencias, para canciones que traen la letra dentro

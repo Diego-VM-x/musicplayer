@@ -6,6 +6,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import com.larkplayer.core.database.dao.PlaylistDao
+import com.larkplayer.core.database.dao.SongDao
 import com.larkplayer.core.database.entity.PlaylistEntity
 import com.larkplayer.core.database.entity.PlaylistSong
 import com.larkplayer.core.datastore.SettingsDataStore
@@ -56,6 +57,7 @@ class PlayerViewModel @Inject constructor(
     private val albumColors: AlbumColorRepository,
     private val settings: SettingsDataStore,
     private val playlistDao: PlaylistDao,
+    private val songDao: SongDao,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PlayerUiState())
@@ -136,8 +138,15 @@ class PlayerViewModel @Inject constructor(
                     albumColors.load(meta?.artworkUri?.toString())
                 }
                 viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    val songObj = Song(id = id, title = title, artist = artist, path = path)
-                    val rawLrc = com.larkplayer.core.common.MediaFileUtils.findLyricsText(context, songObj)
+                    val rawLrc = songDao.lyricsFor(id)
+                        ?: com.larkplayer.feature.player.EmbeddedLyricsReader.read(context, path, id)
+                        ?: com.larkplayer.core.common.MediaFileUtils.findLyricsText(
+                            context,
+                            Song(id = id, title = title, artist = artist, path = path),
+                        )
+                    if (!rawLrc.isNullOrBlank() && songDao.lyricsFor(id).isNullOrBlank()) {
+                        runCatching { songDao.updateLyrics(id, rawLrc) }
+                    }
                     if (!rawLrc.isNullOrBlank()) {
                         val parsed = parseSimpleLrc(rawLrc)
                         activeLyricsLines = parsed

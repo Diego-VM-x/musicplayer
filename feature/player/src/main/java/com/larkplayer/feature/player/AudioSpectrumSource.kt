@@ -55,15 +55,17 @@ object AudioSpectrumSource {
         if (available < 64) return result
 
         val maxFreq = minOf(16_000f, rate / 2f)
+        // Automatic gain control: quiet songs still animate, loud ones don't clip.
+        val level = rms().coerceAtLeast(0.02f)
+        val gain = (0.45f / level).coerceIn(1f, 8f)
         for (band in 0 until BAND_COUNT) {
             val f0 = 40.0 * Math.pow((maxFreq / 40.0).toDouble(), band / BAND_COUNT.toDouble())
             val f1 = 40.0 * Math.pow((maxFreq / 40.0).toDouble(), (band + 1) / BAND_COUNT.toDouble())
             val center = sqrt(f0 * f1).toFloat()
-            // Aggressive but clamped response: strong kick even on quiet
-            // passages, without ever exceeding the animation bounds.
-            val raw = goertzel(buffer, center, rate)
-            val shaped = 1f - kotlin.math.exp(-raw * 7f)
-            result[band] = shaped.coerceIn(0.06f, 1f)
+            val raw = goertzel(buffer, center, rate) * gain
+            val shaped = 1f - kotlin.math.exp(-raw * 5f)
+            // Linear, non-saturating response inside the animation bounds.
+            result[band] = shaped.coerceIn(0.04f, 0.98f)
         }
         return result
     }
@@ -76,6 +78,21 @@ object AudioSpectrumSource {
     }
 
     private fun availableOrZero(): Int = synchronized(lock) { filled }
+
+    /** RMS level of the current window, for AGC and honest intensity. */
+    fun rms(): Float {
+        val (buffer, available) = synchronized(lock) {
+            val ordered = FloatArray(filled)
+            for (i in 0 until filled) {
+                ordered[i] = samples[(writeIndex - filled + i + WINDOW) % WINDOW]
+            }
+            ordered to filled
+        }
+        if (available < 64) return 0f
+        var sum = 0.0
+        for (v in buffer) sum += v.toDouble() * v
+        return sqrt(sum / buffer.size).toFloat()
+    }
 
     private fun goertzel(input: FloatArray, freq: Float, rate: Int): Float {
         val n = input.size

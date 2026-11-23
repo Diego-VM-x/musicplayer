@@ -24,6 +24,12 @@ interface SongDao {
 
     @Query("DELETE FROM songs")
     suspend fun clear()
+
+    @Query("UPDATE songs SET lyricsText = :text WHERE id = :id")
+    suspend fun updateLyrics(id: Long, text: String)
+
+    @Query("SELECT lyricsText FROM songs WHERE id = :id")
+    suspend fun lyricsFor(id: Long): String?
 }
 
 @Dao

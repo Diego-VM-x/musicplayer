@@ -26,11 +26,18 @@ object DatabaseModule {
         }
     }
 
+    /** v3 adds embedded lyrics stored with the song. */
+    private val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE songs ADD COLUMN lyricsText TEXT")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LarkDatabase =
         Room.databaseBuilder(context, LarkDatabase::class.java, "lark.db")
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .fallbackToDestructiveMigration()
             .build()
 

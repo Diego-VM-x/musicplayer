@@ -15,6 +15,7 @@ data class SongEntity(
     val path: String,
     val isVideo: Boolean = false,
     val dateAdded: Long = 0L,
+    val lyricsText: String? = null,
 )
 
 @Entity(tableName = "playlists")

@@ -3,6 +3,7 @@ package com.larkplayer.feature.lyrics
 import android.content.ContentUris
 import android.content.Context
 import android.provider.MediaStore
+import com.larkplayer.core.database.dao.SongDao
 import com.larkplayer.core.common.MediaFileUtils
 import com.larkplayer.core.model.Lyrics
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -14,6 +15,7 @@ import javax.inject.Singleton
 @Singleton
 class LyricsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val songDao: SongDao,
 ) {
     /** Loads the sibling .lrc for the playing song (MediaStore + direct file). */
     suspend fun loadForTitle(
@@ -37,6 +39,9 @@ class LyricsRepository @Inject constructor(
     /** Most reliable path: resolve the exact MediaStore row by song id. */
     suspend fun loadForSongId(id: Long): Lyrics = withContext(Dispatchers.IO) {
         if (id <= 0) return@withContext Lyrics(0)
+        songDao.lyricsFor(id)?.takeIf { it.isNotBlank() }?.let {
+            return@withContext LrcParser.parse(id, it)
+        }
         val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
         val song = runCatching {
             context.contentResolver.query(
