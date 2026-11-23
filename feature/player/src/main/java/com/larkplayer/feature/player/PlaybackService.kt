@@ -152,6 +152,10 @@ class PlaybackService : MediaSessionService() {
                             val ids = args.getStringArray(EXTRA_SHUFFLE_ORDER)?.toList().orEmpty()
                             applyShuffleOrder(ids)
                         }
+                        COMMAND_GET_AUDIO_SESSION -> {
+                            val extras = Bundle().apply { putInt(EXTRA_AUDIO_SESSION_ID, player.audioSessionId) }
+                            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, extras))
+                        }
                     }
                     return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                 }
@@ -445,6 +449,8 @@ class PlaybackService : MediaSessionService() {
         const val CHANNEL_ID = "player_service_v2"
         const val NOTIFICATION_ID = 3
         const val COMMAND_SET_SHUFFLE_ORDER = "com.larkplayer.command.SET_SHUFFLE_ORDER"
+        const val COMMAND_GET_AUDIO_SESSION = "com.larkplayer.command.GET_AUDIO_SESSION"
+        const val EXTRA_AUDIO_SESSION_ID = "lark_audio_session_id"
         const val EXTRA_SHUFFLE_ORDER = "lark_shuffle_order"
         const val ACTION_PLAY = "com.larkplayer.action.PLAY"
         const val ACTION_PAUSE = "com.larkplayer.action.PAUSE"

@@ -106,7 +106,6 @@ import com.larkplayer.core.designsystem.component.GlassMenu
 import com.larkplayer.core.designsystem.component.GlassMenuItem
 import com.larkplayer.core.designsystem.component.GlassPill
 import com.larkplayer.core.designsystem.component.LarkDialog
-import com.larkplayer.core.designsystem.component.LarkGradientBackground
 import com.larkplayer.core.designsystem.component.LarkSheet
 import com.larkplayer.core.designsystem.component.LarkTextField
 import com.larkplayer.core.designsystem.theme.ApplePalette
@@ -461,16 +460,21 @@ fun PlayerScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // ---- Visualizador de música (monochrome subtle wave above progress) ----
-            VisualizerWave(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(34.dp)
-                    .clickable { visualizerSheetOpen = true },
-                accent = Color(0xFFE0E0E0),
-                isPlaying = state.isPlaying,
-                style = if (state.visualizerEnabled) state.visualizerStyle else "armonia",
-            )
+            // ---- Visualizador: solo se dibuja si el usuario lo activa ----
+            val visualizerBands = rememberAudioBands(state.audioSessionId, state.visualizerEnabled)
+            if (state.visualizerEnabled) {
+                VisualizerWave(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(34.dp)
+                        .clickable { visualizerSheetOpen = true },
+                    accent = accent,
+                    isPlaying = state.isPlaying,
+                    style = state.visualizerStyle,
+                    enabled = true,
+                    bands = visualizerBands,
+                )
+            }
 
             // ---- Barra de progreso y tiempos ----
             Column(Modifier.fillMaxWidth()) {

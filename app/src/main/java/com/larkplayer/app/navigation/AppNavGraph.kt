@@ -161,7 +161,7 @@ fun AppNavGraph() {
         currentRoute !in MINI_PLAYER_HIDDEN_ROUTES
 
     Box(Modifier.fillMaxSize()) {
-    CompositionLocalProvider(LocalFlatSurface provides (currentRoute in FLAT_ROUTES)) {
+    CompositionLocalProvider(LocalFlatSurface provides true) {
     NavHost(
         navController = navController,
         startDestination = Routes.LIBRARY,

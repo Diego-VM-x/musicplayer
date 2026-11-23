@@ -1,10 +1,11 @@
 package com.larkplayer.feature.player.ui
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import android.Manifest
+import android.content.pm.PackageManager
+import android.media.audiofx.Visualizer
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -27,26 +28,153 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.larkplayer.core.designsystem.component.LarkSheet
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.sin
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Audio-band state holder (passed from PlayerScreen)
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * Visualizer sheet matching Lark Player original ("Visualizador de música").
- * Options: Armonía (fluid waves), Rebote (bouncing bars), Ascenso (rising spectrum).
+ * Real-time audio band levels captured from ExoPlayer via Android Visualizer API.
+ * All values normalized 0f..1f.
+ */
+data class AudioBands(
+    val bass: Float = 0f,     // 20–250 Hz  — kick, sub
+    val mid: Float = 0f,      // 250–4000 Hz — vocals, melody
+    val treble: Float = 0f,   // 4000+ Hz   — hi-hats, cymbals
+    /** 16 log-spaced bins for studio-style per-frequency bars. */
+    val spectrum: FloatArray = FloatArray(16),
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Android Visualizer capture effect (composable lifecycle)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Attaches Android [Visualizer] to the given [audioSessionId] while this
+ * composable is in the composition. Calls [onBands] on every FFT capture
+ * (~30 fps). Requires RECORD_AUDIO permission.
+ */
+@Composable
+fun rememberAudioBands(
+    audioSessionId: Int,
+    enabled: Boolean,
+): AudioBands {
+    var bands by remember { mutableStateOf(AudioBands()) }
+
+    DisposableEffect(audioSessionId, enabled) {
+        if (!enabled || audioSessionId == 0) {
+            bands = AudioBands()
+            onDispose {}
+        } else {
+            val vis = runCatching {
+                Visualizer(audioSessionId).apply {
+                    captureSize = Visualizer.getCaptureSizeRange()[1] // max = 1024
+                    setDataCaptureListener(
+                        object : Visualizer.OnDataCaptureListener {
+                            override fun onWaveFormDataCapture(v: Visualizer, waveform: ByteArray, sr: Int) = Unit
+                            override fun onFftDataCapture(v: Visualizer, fft: ByteArray, sr: Int) {
+                                // fft[0] = DC, fft[1..n/2] = magnitude pairs
+                                val n = fft.size
+                                // Frequency per bin = sr / n  (sr in mHz → convert)
+                                val binHz = (sr / 1000.0) / n
+
+                                val mags = DoubleArray(n / 2)
+                                var bassSum = 0.0
+                                var bassCount = 0
+                                var midSum = 0.0
+                                var midCount = 0
+                                var trebleSum = 0.0
+                                var trebleCount = 0
+
+                                for (i in 1 until n / 2) {
+                                    val re = fft[2 * i].toDouble()
+                                    val im = fft[2 * i + 1].toDouble()
+                                    val mag = Math.sqrt(re * re + im * im) / 128.0
+                                    mags[i] = mag
+                                    val freq = binHz * i
+                                    when {
+                                        freq < 250 -> { bassSum += mag; bassCount++ }
+                                        freq < 4000 -> { midSum += mag; midCount++ }
+                                        else -> { trebleSum += mag; trebleCount++ }
+                                    }
+                                }
+
+                                // Log-spaced spectrum: 16 bands from 40 Hz to Nyquist.
+                                val spectrum = FloatArray(16)
+                                val maxFreq = minOf(16000.0, (sr / 1000.0) / 2.0)
+                                for (b in 0 until 16) {
+                                    val f0 = 40.0 * Math.pow(maxFreq / 40.0, b / 16.0)
+                                    val f1 = 40.0 * Math.pow(maxFreq / 40.0, (b + 1) / 16.0)
+                                    var sum = 0.0
+                                    var count = 0
+                                    for (i in 1 until n / 2) {
+                                        val freq = binHz * i
+                                        if (freq >= f0 && freq < f1) { sum += mags[i]; count++ }
+                                    }
+                                    spectrum[b] = (if (count > 0) sum / count * 3.0 else 0.0)
+                                        .toFloat().coerceIn(0f, 1f)
+                                }
+
+                                bands = AudioBands(
+                                    bass = (if (bassCount > 0) (bassSum / bassCount * 2.5) else 0.0)
+                                        .toFloat().coerceIn(0f, 1f),
+                                    mid = (if (midCount > 0) (midSum / midCount * 3.0) else 0.0)
+                                        .toFloat().coerceIn(0f, 1f),
+                                    treble = (if (trebleCount > 0) (trebleSum / trebleCount * 3.5) else 0.0)
+                                        .toFloat().coerceIn(0f, 1f),
+                                    spectrum = spectrum,
+                                )
+                            }
+                        },
+                        1000,
+                        false,
+                        true,
+                    )
+                    setEnabled(true)
+                }
+            }.getOrNull()
+
+            onDispose {
+                runCatching { vis?.enabled = false; vis?.release() }
+            }
+        }
+    }
+
+    return bands
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Visualizer settings sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bottom sheet for toggling and styling the visualizer.
+ * Default state: OFF (switch unchecked). User activates it here.
  */
 @Composable
 fun MusicVisualizerSheet(
@@ -57,6 +185,10 @@ fun MusicVisualizerSheet(
     accent: Color,
     onDismissRequest: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> if (granted) onEnabledChange(true) }
     LarkSheet(onDismissRequest = onDismissRequest) {
         Column(
             Modifier
@@ -69,15 +201,31 @@ fun MusicVisualizerSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    "Visualizador de música",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                )
+                Column {
+                    Text(
+                        "Visualizador de música",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        if (enabled) "Reactivo al audio en tiempo real" else "Desactivado — toca para activar",
+                        color = Color(0xFF8E8E93),
+                        fontSize = 12.sp,
+                    )
+                }
                 Switch(
                     checked = enabled,
-                    onCheckedChange = onEnabledChange,
+                    onCheckedChange = { checked ->
+                        if (checked &&
+                            context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+                            PackageManager.PERMISSION_GRANTED
+                        ) {
+                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        } else {
+                            onEnabledChange(checked)
+                        }
+                    },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = accent,
@@ -136,7 +284,7 @@ private fun VisualizerStyleCard(
     onClick: () -> Unit,
     preview: @Composable () -> Unit,
 ) {
-    val bg = if (selected) Color(0xFFFFDAB9) else Color(0xFF1F2F38).copy(alpha = 0.6f)
+    val bg = if (selected) accent else Color(0xFF1F2228)
     val textColor = if (selected) Color.Black else Color.White.copy(alpha = 0.75f)
 
     Column(
@@ -147,7 +295,7 @@ private fun VisualizerStyleCard(
             .background(bg)
             .border(
                 1.dp,
-                if (selected) Color.Transparent else Color.White.copy(alpha = 0.15f),
+                if (selected) Color.Transparent else Color.White.copy(alpha = 0.12f),
                 RoundedCornerShape(18.dp),
             )
             .clickable(onClick = onClick)
@@ -167,89 +315,85 @@ private fun VisualizerStyleCard(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Main visualizer composable (shown in PlayerScreen bar)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Audio-reactive waveform/bars drawn on a [Canvas].
+ *
+ * - **[enabled] = false** → renders a flat static baseline (no animation, no CPU cost).
+ * - **[enabled] = true** → reacts to real [AudioBands] from the Android Visualizer API.
+ *
+ * Band routing:
+ * - Bass  → wave amplitude / bar height base
+ * - Mid   → secondary wave layer / bar colour modulation
+ * - Treble → fine wave detail / small bar jitter on top
+ */
 @Composable
 fun VisualizerWave(
     modifier: Modifier = Modifier,
     accent: Color,
     isPlaying: Boolean,
     style: String = "armonia",
+    enabled: Boolean = false,
+    bands: AudioBands = AudioBands(),
 ) {
-    val transition = rememberInfiniteTransition(label = "wave_anim")
-    
-    // Frecuencia baja (bajos): movimiento rítmico amplio y pesado (~1.1 seg)
-    val bassPhase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(if (isPlaying) 1100 else 7000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "bass_phase",
-    )
+    // Smoothed band levels (spring-like follow)
+    val smoothBass = remember { Animatable(0f) }
+    val smoothMid = remember { Animatable(0f) }
+    val smoothTreble = remember { Animatable(0f) }
 
-    // Frecuencia media (voces/melodía): oscilación armónica fluida (~1.7 seg)
-    val midPhase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(if (isPlaying) 1700 else 8500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "mid_phase",
-    )
+    LaunchedEffect(bands.bass, enabled) {
+        if (enabled && isPlaying) smoothBass.animateTo(bands.bass, tween(80))
+        else smoothBass.animateTo(0f, tween(400))
+    }
+    LaunchedEffect(bands.mid, enabled) {
+        if (enabled && isPlaying) smoothMid.animateTo(bands.mid, tween(80))
+        else smoothMid.animateTo(0f, tween(400))
+    }
+    LaunchedEffect(bands.treble, enabled) {
+        if (enabled && isPlaying) smoothTreble.animateTo(bands.treble, tween(60))
+        else smoothTreble.animateTo(0f, tween(400))
+    }
 
-    // Frecuencia alta (agudos/hi-hats): vibración rápida y precisa (~0.55 seg)
-    val treblePhase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(if (isPlaying) 550 else 6000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "treble_phase",
-    )
+    val bassVal = smoothBass.value
+    val midVal = smoothMid.value
+    val trebleVal = smoothTreble.value
 
     Canvas(modifier = modifier) {
-        val width = size.width
-        val height = size.height
-        if (width <= 0 || height <= 0) return@Canvas
+        val w = size.width
+        val h = size.height
+        if (w <= 0 || h <= 0) return@Canvas
+        // The visualizer is opt-in: when off, draw absolutely nothing.
+        if (!enabled) return@Canvas
 
         when (style) {
             "rebote", "ascenso" -> {
                 val barCount = 36
-                val barWidth = (width / (barCount * 1.55f)).coerceAtLeast(3f)
+                val barWidth = (w / (barCount * 1.55f)).coerceAtLeast(3f)
                 val spacing = barWidth * 0.55f
                 val totalWidth = barCount * (barWidth + spacing)
-                val startX = (width - totalWidth) / 2f
+                val startX = (w - totalWidth) / 2f
 
                 for (i in 0 until barCount) {
                     val progress = i.toFloat() / (barCount - 1)
-                    
-                    // Separación espectral real:
-                    // Primer tercio (0.0..0.33): Bajos intensos impulsados por bassPhase
-                    // Segundo tercio (0.33..0.66): Medios y voces impulsados por midPhase
-                    // Último tercio (0.66..1.0): Agudos rápidos impulsados por treblePhase
-                    val bandAmp = when {
-                        progress < 0.35f -> {
-                            val b = (sin((bassPhase + i * 0.6).toDouble()).toFloat() * 0.5f + 0.5f)
-                            b * 0.95f
-                        }
-                        progress < 0.70f -> {
-                            val m = (sin((midPhase + i * 0.8).toDouble()).toFloat() * 0.5f + 0.5f)
-                            m * 0.75f + (sin((bassPhase * 0.5 + i * 0.2).toDouble()).toFloat() * 0.2f)
-                        }
-                        else -> {
-                            val t = (sin((treblePhase + i * 1.2).toDouble()).toFloat() * 0.5f + 0.5f)
-                            t * 0.85f
+
+                    // Each bar follows its own log-spaced frequency bin.
+                    val bandAmp = bands.spectrum.getOrElse((progress * bands.spectrum.size).toInt()) {
+                        when {
+                            progress < 0.35f -> bassVal
+                            progress < 0.70f -> midVal
+                            else -> trebleVal
                         }
                     }
 
                     val factor = if (style == "ascenso") (0.3f + progress * 0.7f) else 1f
-                    val waveAmp = if (isPlaying) (bandAmp * factor).coerceIn(0.08f, 1f) else 0.12f
-                    val barHeight = (height * 0.92f * waveAmp).coerceAtLeast(4f)
+                    val waveAmp = (bandAmp * factor).coerceIn(0.04f, 1f)
+                    val barHeight = (h * 0.92f * waveAmp).coerceAtLeast(4f)
                     val x = startX + i * (barWidth + spacing)
-                    val y = height - barHeight
-                    
+                    val y = h - barHeight
+
                     drawRoundRect(
                         brush = Brush.verticalGradient(
                             listOf(
@@ -258,68 +402,111 @@ fun VisualizerWave(
                                 accent.copy(alpha = 0.2f),
                             ),
                             startY = y,
-                            endY = height,
+                            endY = h,
                         ),
                         topLeft = Offset(x, y),
-                        size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth / 2f),
+                        size = Size(barWidth, barHeight),
+                        cornerRadius = CornerRadius(barWidth / 2f),
                     )
                 }
             }
-            else -> {
-                // "armonia" - Soft fluid wave matching Lark Player exact aesthetics
-                val midY = height * 0.70f
-                val bassAmp = if (isPlaying) height * 0.35f else height * 0.08f
-                val trebleAmp = if (isPlaying) height * 0.15f else height * 0.03f
 
-                // Layer 1: Soft translucent filled background wave
+            else -> {
+                // "armonia" — fluid filled wave, audio-reactive
+                val midY = h * 0.72f
+
+                if (!enabled) {
+                    // Static flat baseline
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.18f),
+                        start = Offset(0f, midY),
+                        end = Offset(w, midY),
+                        strokeWidth = 2.dp.toPx(),
+                        cap = StrokeCap.Round,
+                    )
+                    return@Canvas
+                }
+
+                val bassAmp = h * 0.42f * (0.08f + bassVal * 0.92f)
+                val midAmp  = h * 0.28f * (0.05f + midVal * 0.95f)
+
+                val steps = 60
+
+                // Layer 1 — bass-driven wide wave
                 val path1 = Path()
                 path1.moveTo(0f, midY)
-                val steps = 40
                 for (step in 0..steps) {
                     val p = step.toFloat() / steps
-                    val x = p * width
-                    val y = midY - (sin((bassPhase + p * 2.2 * PI).toDouble()).toFloat() * bassAmp * (0.4f + 0.6f * sin((p * PI).toDouble()).toFloat()))
+                    val x = p * w
+                    // Bass drives the dominant oscillation; treble adds rapid micro-ripple
+                    val y = midY - (
+                        sin(p * 2.1 * PI).toFloat() * bassAmp
+                        + sin(p * 5.3 * PI + trebleVal * PI).toFloat() * h * 0.06f * trebleVal
+                    )
                     path1.lineTo(x, y)
                 }
-                path1.lineTo(width, height)
-                path1.lineTo(0f, height)
+                path1.lineTo(w, h)
+                path1.lineTo(0f, h)
                 path1.close()
 
                 drawPath(
                     path = path1,
                     brush = Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.04f), Color.Transparent),
+                        listOf(Color.White.copy(alpha = 0.20f), Color.White.copy(alpha = 0.05f), Color.Transparent),
                         startY = midY - bassAmp,
-                        endY = height,
+                        endY = h,
                     ),
                 )
 
-                // Layer 2: Secondary wave overlapping with mid phase
+                // Layer 2 — mid-frequency secondary wave
                 val path2 = Path()
                 path2.moveTo(0f, midY)
                 for (step in 0..steps) {
                     val p = step.toFloat() / steps
-                    val x = p * width
-                    val y = midY - (sin((midPhase + p * 2.8 * PI).toDouble()).toFloat() * (bassAmp * 0.75f) * (0.3f + 0.7f * sin((p * PI).toDouble()).toFloat()))
+                    val x = p * w
+                    val y = midY - (
+                        sin(p * 2.8 * PI + 0.8).toFloat() * midAmp
+                        + sin(p * 4.0 * PI).toFloat() * h * 0.04f * bassVal
+                    )
                     path2.lineTo(x, y)
                 }
-                path2.lineTo(width, height)
-                path2.lineTo(0f, height)
+                path2.lineTo(w, h)
+                path2.lineTo(0f, h)
                 path2.close()
 
                 drawPath(
                     path = path2,
                     brush = Brush.verticalGradient(
                         listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.02f), Color.Transparent),
-                        startY = midY - bassAmp * 0.8f,
-                        endY = height,
+                        startY = midY - midAmp,
+                        endY = h,
                     ),
                 )
+
+                // Treble line — crisp top highlight that shimmers with hi-hats
+                if (trebleVal > 0.05f) {
+                    val path3 = Path()
+                    path3.moveTo(0f, midY)
+                    for (step in 0..steps) {
+                        val p = step.toFloat() / steps
+                        val x = p * w
+                        val y = midY - sin(p * 7.5 * PI).toFloat() * h * 0.08f * trebleVal
+                        if (step == 0) path3.moveTo(x, y) else path3.lineTo(x, y)
+                    }
+                    drawPath(
+                        path = path3,
+                        color = Color.White.copy(alpha = trebleVal * 0.35f),
+                        style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round),
+                    )
+                }
             }
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Thumbnail previews for style cards
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun MiniWavePreview(accent: Color) {
@@ -329,7 +516,7 @@ private fun MiniWavePreview(accent: Color) {
         path.moveTo(0f, midY)
         path.cubicTo(size.width * 0.25f, midY - 10f, size.width * 0.5f, midY + 10f, size.width * 0.75f, midY - 6f)
         path.lineTo(size.width, midY)
-        drawPath(path, color = accent, style = Stroke(width = 2.dp.toPx()))
+        drawPath(path, color = accent, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
     }
 }
 
@@ -349,8 +536,8 @@ private fun MiniBarsPreview(accent: Color, mode: Int) {
             drawRoundRect(
                 color = accent,
                 topLeft = Offset(x, y),
-                size = androidx.compose.ui.geometry.Size(barW, h),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(barW / 2),
+                size = Size(barW, h),
+                cornerRadius = CornerRadius(barW / 2),
             )
         }
     }

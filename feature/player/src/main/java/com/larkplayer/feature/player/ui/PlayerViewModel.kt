@@ -44,6 +44,7 @@ data class PlayerUiState(
     val isFavorite: Boolean = false,
     val visualizerEnabled: Boolean = false,
     val visualizerStyle: String = "armonia",
+    val audioSessionId: Int = 0,
     val hasLyrics: Boolean = false,
     val currentLyricsLine: String? = null,
 )
@@ -100,6 +101,7 @@ class PlayerViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(
                             position = pos,
                             duration = c.duration.takeIf { it > 0 } ?: _uiState.value.duration,
+                            audioSessionId = repository.audioSessionId(),
                             currentLyricsLine = currentLine,
                         )
                     }

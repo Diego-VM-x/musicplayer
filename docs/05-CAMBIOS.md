@@ -4,6 +4,19 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-22 — Fase 43: interfaz plana global y visualizador de estudio (v36)
+
+- **Sin liquid glass en toda la app**: `LocalFlatSurface` por defecto `true` y proveedor global en
+  `AppNavGraph`; todas las tarjetas, botones, menús y fondos usan superficies sólidas.
+- **Visualizador solo si el usuario lo activa**: si está desactivado no se dibuja nada en la barra del
+  reproductor (ni ondas ni línea de base). Se activa desde el panel de visualizador, solicitando
+  `RECORD_AUDIO` cuando hace falta.
+- **Espectro real por frecuencias**: `rememberAudioBands` captura FFT del `audioSessionId` de ExoPlayer
+  (obtenido del servicio mediante comando personalizado) y calcula 16 bandas logarítmicas de 40 Hz a
+  Nyquist; las barras y ondas responden a cada banda, no a una sinusoide fija.
+- `versionCode` 36 / `1.0.35-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.35` con `musicplayer-36.apk` (3.466.184 bytes, SHA-256 `C54C7C05FE4D935459DAE1061F07B30ED202CD1CFCB11F1E0A2C8FF29D6842E1`), verificada con `aapt` (`versionCode=36`).
+
 ## 2026-11-22 — Fase 42: importación escaneando la BD local del original (v29)
 
 - Pantalla de importación simplificada: solo **Importar de Lark Player**, basada en `vlc_database`.

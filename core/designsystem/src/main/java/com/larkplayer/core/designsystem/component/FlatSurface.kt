@@ -6,7 +6,6 @@ import androidx.compose.runtime.compositionLocalOf
  * When true, shared Lark components drop the glass treatment (gradients,
  * translucency, hairline borders and shadows) and render flat surfaces.
  *
- * Enabled for the playlist and settings routes only; the player keeps its
- * original look.
+ * Always true — flat matte aesthetic everywhere, no liquid glass anywhere.
  */
-val LocalFlatSurface = compositionLocalOf { false }
+val LocalFlatSurface = compositionLocalOf { true }

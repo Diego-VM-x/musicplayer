@@ -55,6 +55,7 @@ class PlayerRepository @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private val _controller = MutableStateFlow<MediaController?>(null)
+    private val _audioSessionId = MutableStateFlow(0)
     val controller: StateFlow<MediaController?> = _controller.asStateFlow()
 
     private val _sleepTimerRemaining = MutableStateFlow(0L)
@@ -149,6 +150,26 @@ class PlayerRepository @Inject constructor(
                         )
                     }
                     _controller.value = controller
+                    // Ask the service for the real ExoPlayer audio session id.
+                    runCatching {
+                        val cmd = androidx.media3.session.SessionCommand(
+                            PlaybackService.COMMAND_GET_AUDIO_SESSION,
+                            Bundle.EMPTY,
+                        )
+                        val future = controller.sendCustomCommand(cmd, Bundle.EMPTY)
+                        future.addListener(
+                            {
+                                runCatching {
+                                    val result = future.get()
+                                    _audioSessionId.value = result.extras.getInt(
+                                        PlaybackService.EXTRA_AUDIO_SESSION_ID,
+                                        0,
+                                    )
+                                }
+                            },
+                            MoreExecutors.directExecutor(),
+                        )
+                    }
                     // Recover the last queue/position if the service process was
                     // killed while the app was closed.
                     restoreQueueIfEmpty(controller)
@@ -534,6 +555,8 @@ class PlayerRepository @Inject constructor(
             (0 until c.mediaItemCount).mapNotNull { c.getMediaItemAt(it) }
         }.getOrDefault(emptyList())
     }
+
+    fun audioSessionId(): Int = _audioSessionId.value
 
     fun currentIndex(): Int {
         val c = _controller.value ?: return -1
