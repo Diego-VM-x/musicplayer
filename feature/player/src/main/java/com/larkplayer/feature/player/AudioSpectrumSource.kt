@@ -4,6 +4,17 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sqrt
 
+/** 16 log-spaced bands, waveform snapshot and derived low/mid/high levels. */
+data class AudioBands(
+    val bass: Float = 0f,
+    val mid: Float = 0f,
+    val treble: Float = 0f,
+    val spectrum: FloatArray = FloatArray(16),
+    val peaks: FloatArray = FloatArray(16),
+    val waveform: FloatArray = FloatArray(64),
+    val fallback: Boolean = false,
+)
+
 /**
  * Mono PCM ring buffer tapped from ExoPlayer's audio sink.
  *
@@ -20,6 +31,7 @@ object AudioSpectrumSource {
     private var writeIndex = 0
     private var filled = 0
     @Volatile private var sampleRate = 48_000
+    private val waveformSnapshot = FloatArray(64)
 
     fun feed(pcm: FloatArray, count: Int, rate: Int) {
         if (count <= 0) return
@@ -35,12 +47,18 @@ object AudioSpectrumSource {
                     i++
                     channels++
                 }
-                samples[writeIndex] = sum / channels.coerceAtLeast(1)
+                val mono = sum / channels.coerceAtLeast(1)
+                samples[writeIndex] = mono
                 writeIndex = (writeIndex + 1) % WINDOW
                 if (filled < WINDOW) filled++
+                // Keep a compact waveform snapshot for organic modes (Flujo).
+                val wIndex = (writeIndex % waveformSnapshot.size)
+                waveformSnapshot[wIndex] = mono.coerceIn(-1f, 1f)
             }
         }
     }
+
+    fun currentWaveform(): FloatArray = synchronized(lock) { waveformSnapshot.copyOf() }
 
     /** 16 log-spaced levels from 40 Hz to 16 kHz, normalized 0f..1f. */
     fun currentBands(): FloatArray {

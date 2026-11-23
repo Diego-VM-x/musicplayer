@@ -1,9 +1,5 @@
-package com.larkplayer.feature.player.ui
+﻿package com.larkplayer.feature.player.ui
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,55 +39,74 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larkplayer.core.designsystem.component.LarkSheet
 import com.larkplayer.feature.player.AudioBands
-import com.larkplayer.feature.player.VisualizerEngine
+import com.larkplayer.feature.player.AudioSpectrumSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Capture controller (Visualizer + automatic fallback)
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Capture controller (Media3 PCM tap — no microphone, same as Lark Player)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * Owns a [VisualizerEngine] tied to this composable's lifecycle.
+ * Samples the PCM tap installed in ExoPlayer's audio sink ([AudioSpectrumSource]).
  *
- * Connect [audioSessionId] from your player (`ExoPlayer.audioSessionId` or
- * `MediaPlayer.getAudioSessionId()`). If RECORD_AUDIO is missing or the id is
- * unavailable, the engine switches to a soft simulated signal automatically.
+ * The original app does exactly this: an `AudioProcessor` copies the decoded
+ * PCM before AudioTrack, computes the spectrum off the audio thread, and sends
+ * it to the UI. No `Visualizer`, no `audioSessionId`, no RECORD_AUDIO.
  */
 @Composable
 fun rememberVisualizerBands(
-    audioSessionId: Int,
     enabled: Boolean,
     isPlaying: Boolean,
 ): androidx.compose.runtime.State<AudioBands> {
-    val context = LocalContext.current
-    val engine = remember { VisualizerEngine(context) }
-
-    DisposableEffect(audioSessionId, enabled) {
-        if (enabled) {
-            engine.start(audioSessionId, isPlaying)
-        } else {
-            engine.release()
+    val bands = remember { mutableStateOf(AudioBands()) }
+    LaunchedEffect(enabled) {
+        if (!enabled) {
+            bands.value = AudioBands()
+            return@LaunchedEffect
         }
-        onDispose { engine.release() }
+        var smooth = FloatArray(AudioSpectrumSource.BAND_COUNT)
+        var peaks = FloatArray(AudioSpectrumSource.BAND_COUNT)
+        var waveform = FloatArray(64)
+        while (isActive) {
+            val spectrum = withContext(Dispatchers.Default) {
+                AudioSpectrumSource.currentBands()
+            }
+            val wave = AudioSpectrumSource.currentWaveform()
+            val targetGain = if (isPlaying) 1f else 0f
+            for (i in smooth.indices) {
+                val target = spectrum.getOrElse(i) { 0f } * targetGain
+                smooth[i] += (target - smooth[i]) * if (target > smooth[i]) 0.38f else 0.12f
+                peaks[i] = maxOf(smooth[i], peaks[i] - 0.02f)
+            }
+            waveform = wave
+            bands.value = AudioBands(
+                bass = (smooth.take(4).average().toFloat()).coerceIn(0f, 1f),
+                mid = (smooth.drop(4).take(8).average().toFloat()).coerceIn(0f, 1f),
+                treble = (smooth.drop(12).average().toFloat()).coerceIn(0f, 1f),
+                spectrum = smooth.copyOf(),
+                peaks = peaks.copyOf(),
+                waveform = waveform.copyOf(),
+            )
+            delay(16L)
+        }
     }
-    LaunchedEffect(isPlaying) { engine.setPlaying(isPlaying) }
-
-    return engine.bands.collectAsStateWithLifecycle()
+    return bands
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // High-performance drawing component
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Audio-reactive canvas placed directly above the progress bar.
@@ -101,14 +116,13 @@ fun rememberVisualizerBands(
  */
 @Composable
 fun VisualizerCanvas(
-    audioSessionId: Int,
     enabled: Boolean,
     isPlaying: Boolean,
     style: String,
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
-    val target by rememberVisualizerBands(audioSessionId, enabled, isPlaying)
+    val target by rememberVisualizerBands(enabled, isPlaying)
     val display = remember { mutableStateOf(AudioBands()) }
 
     LaunchedEffect(enabled) {
@@ -215,8 +229,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArmonia(
             for (step in 0..60) {
                 val p = step / 60f
                 val x = p * w
-                val y = midY - sin(p * frequency * PI).toFloat() * amp -
-                    sin(p * 9f * PI + index).toFloat() * h * 0.06f * bands.treble
+                val y = midY - sin(p * frequency * PI.toFloat()).toFloat() * amp -
+                    sin(p * 9f * PI.toFloat() + index).toFloat() * h * 0.06f * bands.treble
                 lineTo(x, y)
             }
             lineTo(w, h)
@@ -251,7 +265,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFlujo(
         for (step in 0..80) {
             val p = step / 80f
             val wave = bands.waveform.getOrElse((p * bands.waveform.size).toInt()) { 0f }
-            val y = midY - (sin(p * 3f * PI).toFloat() * amp + wave * h * 0.22f)
+            val y = midY - (sin(p * 3f * PI.toFloat()).toFloat() * amp + wave * h * 0.22f)
             lineTo(p * w, y)
         }
     }
@@ -260,7 +274,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFlujo(
         for (step in 0..80) {
             val p = step / 80f
             val wave = bands.waveform.getOrElse((p * bands.waveform.size).toInt()) { 0f }
-            val y = midY + (sin(p * 3f * PI + 0.6).toFloat() * amp + wave * h * 0.18f)
+            val y = midY + (sin(p * 3f * PI.toFloat() + 0.6).toFloat() * amp + wave * h * 0.18f)
             lineTo(p * w, y)
         }
     }
@@ -268,9 +282,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFlujo(
     drawPath(bottom, color = accent.copy(alpha = 0.45f * fade), style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Bottom sheet / mode selector
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 private val MODES = listOf(
     "armonia" to "Armonía",
@@ -289,13 +303,6 @@ fun MusicVisualizerSheet(
     accent: Color,
     onDismissRequest: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        // Even when denied the visualizer works in its simulated fallback.
-        onEnabledChange(true)
-    }
     LarkSheet(onDismissRequest = onDismissRequest) {
         Column(
             Modifier
@@ -318,16 +325,7 @@ fun MusicVisualizerSheet(
                 }
                 Switch(
                     checked = enabled,
-                    onCheckedChange = { checked ->
-                        if (checked &&
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
-                            PackageManager.PERMISSION_GRANTED
-                        ) {
-                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        } else {
-                            onEnabledChange(checked)
-                        }
-                    },
+                    onCheckedChange = onEnabledChange,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = accent,
@@ -435,7 +433,7 @@ fun MiniFlowPreview(accent: Color) {
         val bottom = Path()
         for (x in 0..size.width.toInt() step 4) {
             val p = x / size.width
-            val wave = sin(p * 2.5f * PI).toFloat() * 8f
+            val wave = sin(p * 2.5f * PI.toFloat()).toFloat() * 8f
             if (x == 0) {
                 top.moveTo(x.toFloat(), size.height / 2 - wave)
                 bottom.moveTo(x.toFloat(), size.height / 2 + wave * 0.7f)
@@ -448,3 +446,4 @@ fun MiniFlowPreview(accent: Color) {
         drawPath(bottom, color = accent.copy(alpha = 0.55f), style = Stroke(2f, cap = StrokeCap.Round))
     }
 }
+

@@ -4,6 +4,18 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 51: visualizador PCM real sin micrófono (v44)
+
+- Verificado en el APK original: **no usa `android.media.audiofx.Visualizer` ni declara `RECORD_AUDIO`**;
+  inserta un `AudioProcessor` en Media3 que lee el PCM antes de `AudioTrack` (`o/jm2.java`), FFT en hilo
+  aparte (`o/uo2.java`) y manifest con micrófono `required=false`.
+- Nuestra UI dejó de consumir `VisualizerEngine` (Visualizer + permiso): ahora lee directamente
+  `AudioSpectrumSource` (PCM tap real) con suavizado/peak decay y canvas a 60 fps. Eliminado el fallback
+  simulado y el permiso `RECORD_AUDIO`. El visualizador ya no pide micrófono y muestra audio real.
+- Letras: la línea activa ahora se anima (escala, color, alpha y sombra) siguiendo `currentPosition`.
+- `versionCode` 44 / `1.0.43-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.43` con `musicplayer-44.apk` (3.466.164 bytes, SHA-256 `28263C70B95D5492401CC26048B9F7056D2EC48FD9BD6801CCFD5C5170750A78`), verificada con `aapt` (`versionCode=44`, sin permiso `RECORD_AUDIO`).
+
 ## 2026-11-23 - Fase 50: visualizador modular y lyrics definitivos (v43)
 
 - **Visualizador modular** (`docs/18-VISUALIZADOR.md`): `VisualizerEngine` usa `android.media.audiofx.Visualizer`

@@ -578,6 +578,29 @@ class PlayerRepository @Inject constructor(
 
     fun audioSessionId(): Int = _audioSessionId.value
 
+    /** Re-requests the session id after prepare, when ExoPlayer assigns it. */
+    fun refreshAudioSession() {
+        val controller = _controller.value ?: return
+        runCatching {
+            val cmd = androidx.media3.session.SessionCommand(
+                PlaybackService.COMMAND_GET_AUDIO_SESSION,
+                Bundle.EMPTY,
+            )
+            val future = controller.sendCustomCommand(cmd, Bundle.EMPTY)
+            future.addListener(
+                {
+                    runCatching {
+                        _audioSessionId.value = future.get().extras.getInt(
+                            PlaybackService.EXTRA_AUDIO_SESSION_ID,
+                            0,
+                        )
+                    }
+                },
+                MoreExecutors.directExecutor(),
+            )
+        }
+    }
+
     fun currentIndex(): Int {
         val c = _controller.value ?: return -1
         return runCatching { c.currentMediaItemIndex }.getOrDefault(-1)

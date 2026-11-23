@@ -468,7 +468,6 @@ fun PlayerScreen(
             // ---- Visualizador: solo se dibuja si el usuario lo activa ----
             if (state.visualizerEnabled) {
                 VisualizerCanvas(
-                    audioSessionId = state.audioSessionId,
                     enabled = true,
                     isPlaying = state.isPlaying,
                     style = state.visualizerStyle,

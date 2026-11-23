@@ -1,5 +1,8 @@
 package com.larkplayer.feature.lyrics.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +21,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,20 +78,39 @@ fun LyricsScreen(
             ) {
                 itemsIndexed(lyrics.lines) { index, line ->
                     val isActive = lyrics.isSynced && index == active
+                    // Animated highlight: the active line grows, brightens and
+                    // keeps a subtle glow while the others fade into the background.
+                    val scale by animateFloatAsState(
+                        targetValue = if (isActive) 1.12f else 1f,
+                        animationSpec = spring(dampingRatio = 0.6f, stiffness = 320f),
+                        label = "lyric_scale",
+                    )
+                    val lineAlpha by animateFloatAsState(
+                        targetValue = if (isActive) 1f else if (lyrics.isSynced) 0.38f else 0.85f,
+                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 260f),
+                        label = "lyric_alpha",
+                    )
+                    val lineColor by animateColorAsState(
+                        targetValue = if (isActive) MaterialTheme.colorScheme.primary else Color.White,
+                        animationSpec = spring(dampingRatio = 0.7f, stiffness = 280f),
+                        label = "lyric_color",
+                    )
                     Text(
                         line.text,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp)
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                                shadowElevation = if (isActive) 12f else 0f
+                            }
+                            .alpha(lineAlpha),
                         textAlign = TextAlign.Center,
-                        fontSize = when {
-                            isActive -> 24.sp
-                            lyrics.isSynced -> 17.sp
-                            else -> 18.sp
-                        },
-                        color = when {
-                            isActive -> MaterialTheme.colorScheme.primary
-                            lyrics.isSynced -> Color.White.copy(0.42f)
-                            else -> Color.White.copy(0.85f)
-                        },
+                        fontSize = 18.sp,
+                        fontWeight = if (isActive) androidx.compose.ui.text.font.FontWeight.Bold
+                        else androidx.compose.ui.text.font.FontWeight.Medium,
+                        color = lineColor,
                     )
                 }
             }
