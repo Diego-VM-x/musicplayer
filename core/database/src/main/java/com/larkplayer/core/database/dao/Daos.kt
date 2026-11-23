@@ -19,6 +19,10 @@ interface SongDao {
     @Query("SELECT * FROM songs ORDER BY title ASC")
     fun observeAll(): Flow<List<SongEntity>>
 
+    /** One-shot lookup used by the lyrics repository to resolve a cached song. */
+    @Query("SELECT * FROM songs ORDER BY title ASC")
+    suspend fun observeAllOnce(): List<SongEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(songs: List<SongEntity>)
 

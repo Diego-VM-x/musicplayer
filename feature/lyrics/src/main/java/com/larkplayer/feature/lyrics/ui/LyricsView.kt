@@ -1,7 +1,9 @@
 package com.larkplayer.feature.lyrics.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +29,7 @@ import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.lyrics.LrcParser
 import com.larkplayer.feature.player.ui.PlayerViewModel
 
-/** Scrolling synchronized lyrics with Lark styling. */
+/** Scrolling lyrics: synchronized lines are highlighted, plain text just scrolls. */
 @Composable
 fun LyricsScreen(
     onBack: () -> Unit,
@@ -37,8 +39,11 @@ fun LyricsScreen(
     val playerState by playerViewModel.uiState.collectAsStateWithLifecycle()
     val lyrics by lyricsViewModel.lyrics.collectAsStateWithLifecycle()
 
-    LaunchedEffect(playerState.title) {
-        if (playerState.title.isNotBlank()) {
+    // Reload when the track identity changes, not only when the title changes:
+    // the controller can be reattached with the same title but a different id.
+    val songKey = "${playerState.id}|${playerState.title}|${playerState.songPath}"
+    LaunchedEffect(songKey) {
+        if (playerState.id > 0 || playerState.title.isNotBlank()) {
             lyricsViewModel.load(
                 title = playerState.title,
                 artist = playerState.artist,
@@ -48,35 +53,62 @@ fun LyricsScreen(
         }
     }
 
-    val active = LrcParser.activeIndex(lyrics, playerState.position)
+    val active = if (lyrics.isSynced) LrcParser.activeIndex(lyrics, playerState.position) else -1
     val listState = rememberLazyListState()
 
-    LaunchedEffect(active) {
-        if (active >= 0) runCatching { listState.animateScrollToItem(active, -220) }
+    // Smooth auto-scroll only for synchronized lyrics; plain text is user-driven.
+    LaunchedEffect(active, lyrics.songId) {
+        if (lyrics.isSynced && active >= 0) {
+            runCatching { listState.animateScrollToItem(active, -180) }
+        }
     }
 
     Box(Modifier.fillMaxSize().background(ApplePalette.Background)) {
-        if (lyrics.lines.isEmpty()) {
-            Box(Modifier.fillMaxSize(), Alignment.Center) {
-                Text("No hay letras para esta canción", color = ApplePalette.TextSecondary)
-            }
-        } else {
+        if (lyrics.hasText) {
             LazyColumn(
                 state = listState,
-                contentPadding = PaddingValues(top = 84.dp, bottom = 60.dp),
+                contentPadding = PaddingValues(top = 92.dp, bottom = 96.dp),
                 modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 itemsIndexed(lyrics.lines) { index, line ->
-                    val isActive = index == active
+                    val isActive = lyrics.isSynced && index == active
                     Text(
                         line.text,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
                         textAlign = TextAlign.Center,
-                        fontSize = if (isActive) 24.sp else 17.sp,
-                        color = if (isActive) MaterialTheme.colorScheme.primary
-                        else Color.White.copy(0.42f),
+                        fontSize = when {
+                            isActive -> 24.sp
+                            lyrics.isSynced -> 17.sp
+                            else -> 18.sp
+                        },
+                        color = when {
+                            isActive -> MaterialTheme.colorScheme.primary
+                            lyrics.isSynced -> Color.White.copy(0.42f)
+                            else -> Color.White.copy(0.85f)
+                        },
                     )
                 }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 40.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "Sin letras disponibles",
+                    color = ApplePalette.TextPrimary,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    "Esta canción no tiene letras incrustadas ni un archivo .lrc o .txt junto al audio.",
+                    color = ApplePalette.TextSecondary,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
         }
 

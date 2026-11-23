@@ -1,10 +1,10 @@
 package com.larkplayer.core.common
 
+import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import android.provider.OpenableColumns
-import android.content.ContentUris
 import android.os.Environment
 import com.larkplayer.core.model.Song
 import timber.log.Timber
@@ -26,6 +26,8 @@ object MediaFileUtils {
         MediaStore.Audio.Media.MIME_TYPE,
     )
 
+    private val LYRIC_EXTENSIONS = listOf("lrc", "LRC", "txt", "TXT")
+
     /**
      * Scans all local audio files.
      * Important: IS_MUSIC alone hides valid .flac/.m4a/.opus files on many ROMs,
@@ -39,14 +41,14 @@ object MediaFileUtils {
         try {
             context.contentResolver.query(uri, AUDIO_PROJECTION, selection, null, sort)?.use { c ->
                 val idIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                val titleIdx = c.getColumnIndex(MediaStore.Audio.Media.TITLE)
-                val artistIdx = c.getColumnIndex(MediaStore.Audio.Media.ARTIST)
-                val albumIdx = c.getColumnIndex(MediaStore.Audio.Media.ALBUM)
-                val albumIdIdx = c.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID)
-                val durIdx = c.getColumnIndex(MediaStore.Audio.Media.DURATION)
-                val pathIdx = c.getColumnIndex(MediaStore.Audio.Media.DATA)
-                val dateIdx = c.getColumnIndex(MediaStore.Audio.Media.DATE_ADDED)
-                val sizeIdx = c.getColumnIndex(MediaStore.Audio.Media.SIZE)
+                val titleIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val albumIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val albumIdIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val durIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val pathIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val dateIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                val sizeIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
                 while (c.moveToNext()) {
                     val path = c.getString(pathIdx) ?: ""
                     if (path.isBlank()) continue
@@ -76,111 +78,103 @@ object MediaFileUtils {
     fun albumArtUri(albumId: Long): Uri =
         Uri.parse("content://media/external/audio/albumart/$albumId")
 
-    /** Looks for a sibling .lrc file next to the audio file. */
+    /** Looks for a sibling .lrc / .txt file next to the audio file. */
     fun hasLocalLyrics(songPath: String): Boolean = runCatching {
-        val file = java.io.File(songPath)
-        listOf(
-            java.io.File(file.parentFile, "${file.nameWithoutExtension}.lrc"),
-            java.io.File(file.parentFile, "${file.nameWithoutExtension}.LRC"),
-            java.io.File(android.os.Environment.getExternalStorageDirectory(), "Lyrics/${file.nameWithoutExtension}.lrc"),
-        ).any { it.exists() }
+        val file = File(songPath)
+        lyricStems(file.nameWithoutExtension).any { stem ->
+            lyricDirs(file.parentFile).any { dir ->
+                LYRIC_EXTENSIONS.any { ext -> File(dir, "$stem.$ext").isFile }
+            }
+        }
     }.getOrDefault(false)
 
-    /** Looks for a sibling .lrc file next to the audio file. */
-    fun findLocalLyrics(songPath: String): String? = runCatching {
-        val file = java.io.File(songPath)
-        val candidates = listOf(
-            java.io.File(file.parentFile, "${file.nameWithoutExtension}.lrc"),
-            java.io.File(file.parentFile, "${file.nameWithoutExtension}.LRC"),
-            java.io.File(android.os.Environment.getExternalStorageDirectory(), "Lyrics/${file.nameWithoutExtension}.lrc"),
-        )
-        candidates.firstOrNull { it.exists() }?.readText()
-    }.getOrNull()
+    /** Reads a sibling .lrc / .txt file next to the audio file (BOM-safe). */
+    fun findLocalLyrics(songPath: String): String? = findLocalLyrics(songPath, emptyArray())
 
-    /**
-     * Finds an .lrc file through MediaStore. Direct File access to the audio
-     * folder is blocked by scoped storage on Android 13+, so the sibling-file
-     * check alone used to fail there.
-     */
-    fun findLyricsText(context: Context, song: Song): String? {
-        // Many Lark downloads store the .lrc inside the MP3 as an ID3 USLT
-        // frame instead of a sibling file. Try that first.
-        EmbeddedLyrics.read(context, song)?.takeIf { it.isNotBlank() }?.let { return it }
-        return runCatching {
-        val audioFile = java.io.File(song.path)
-        val base = audioFile.nameWithoutExtension
-        val stems = listOf(
-            base,
-            song.title,
-            "${song.artist} - ${song.title}",
-            "${song.title} - ${song.artist}",
-        ).map { it.trim() }.filter { it.isNotBlank() }.distinct()
+    private fun findLocalLyrics(songPath: String, extraStems: Array<String>): String? {
+        if (songPath.isBlank()) return null
+        val audio = File(songPath)
+        val stems = (listOf(audio.nameWithoutExtension) + extraStems)
+            .map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        val dirs = lyricDirs(audio.parentFile)
 
-        val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
-        val dirs = listOfNotNull(
-            audioFile.parentFile,
-            File(musicDir, "Lyrics"),
-            File(Environment.getExternalStorageDirectory(), "Lyrics"),
-            File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                "Lyrics",
-            ),
-            File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-                "Lyrics",
-            ),
-            musicDir,
-        )
-
-        // Direct files still work on many devices (Android 10 and older, or files
-        // owned by this app).
-        for (dir in dirs) {
-            stems.forEach { stem ->
-                listOf("$stem.lrc", "$stem.LRC").forEach { name ->
-                    val file = File(dir, name)
-                    if (file.exists()) return file.readText()
+        // Exact names first, then a case/accent-insensitive match in the folder.
+        for (stem in stems) {
+            for (dir in dirs) {
+                for (ext in LYRIC_EXTENSIONS) {
+                    LyricsTextUtils.readFile(File(dir, "$stem.$ext"))?.let { return it }
                 }
             }
+        }
+        for (dir in dirs) {
             runCatching { dir.listFiles() }.getOrNull()
                 ?.firstOrNull { file ->
-                    file.name.endsWith(".lrc", ignoreCase = true) &&
-                        stems.any { file.nameWithoutExtension.equals(it, ignoreCase = true) }
-                }?.let { return it.readText() }
+                    file.isFile && file.extension.lowercase() in setOf("lrc", "txt") &&
+                        stems.any { normalizeLyricName(it) == normalizeLyricName(file.nameWithoutExtension) }
+                }?.let { LyricsTextUtils.readFile(it) }?.let { return it }
         }
+        return null
+    }
 
-        // Scoped storage: search MediaStore by file name. Use a generic LIKE
-        // with the stem only (not "%stem.lrc"): many ROMs index the name
-        // without extension or with extra suffixes, and escaped characters
-        // such as brackets/quotes otherwise break the query.
+    private fun lyricDirs(parent: File?): List<File> = listOfNotNull(
+        parent,
+        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "Lyrics"),
+        File(Environment.getExternalStorageDirectory(), "Lyrics"),
+        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Lyrics"),
+        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Lyrics"),
+        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+    )
+
+    private fun lyricStems(base: String): List<String> = listOf(base)
+
+    /**
+     * Priority: (1) tags embedded in the audio file, (2) local .lrc/.txt files,
+     * (3) MediaStore-indexed lyric files. Works with scoped storage and with
+     * UTF-8 / UTF-16 / ISO-8859-1 files.
+     */
+    fun findLyricsText(context: Context, song: Song): String? {
+        EmbeddedLyrics.read(context, song)?.takeIf { it.isNotBlank() }?.let { return it }
+
+        val title = song.title.trim()
+        val artist = song.artist.trim()
+        val stems = listOf(
+            File(song.path).nameWithoutExtension,
+            title,
+            "$artist - $title",
+            "$title - $artist",
+        ).map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        findLocalLyrics(song.path, stems.toTypedArray())?.let { return it }
+
+        // Scoped storage: search MediaStore by file name. A generic LIKE on the
+        // extension avoids escaping problems with brackets/quotes in song names.
         val collection = MediaStore.Files.getContentUri("external")
+        val nameColumn = OpenableColumns.DISPLAY_NAME
         val candidates = mutableListOf<Pair<Long, String>>()
         runCatching {
             context.contentResolver.query(
                 collection,
-                arrayOf(MediaStore.MediaColumns._ID, OpenableColumns.DISPLAY_NAME),
-                "LOWER(${OpenableColumns.DISPLAY_NAME}) LIKE LOWER(?)",
-                arrayOf("%.lrc"),
+                arrayOf(MediaStore.MediaColumns._ID, nameColumn),
+                "LOWER($nameColumn) LIKE ? OR LOWER($nameColumn) LIKE ?",
+                arrayOf("%.lrc", "%.txt"),
                 null,
             )?.use { c ->
                 val idIdx = c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
-                val nameIdx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val nameIdx = c.getColumnIndex(nameColumn)
                 while (c.moveToNext()) {
                     val name = if (nameIdx >= 0) c.getString(nameIdx).orEmpty() else ""
                     candidates += c.getLong(idIdx) to name
                 }
             }
         }
-        // First exact stem match, then fuzzy match ignoring case/accents.
         val normalizedStems = stems.map { normalizeLyricName(it) }
         val ranked = candidates.sortedBy { rankOfLyric(it.second, normalizedStems) }
         for ((id, name) in ranked) {
             if (rankOfLyric(name, normalizedStems) > 1) break
+            if (name.substringAfterLast('.').lowercase() !in setOf("lrc", "txt")) continue
             val uri = ContentUris.withAppendedId(collection, id)
-            val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            if (!text.isNullOrBlank()) return text
+            LyricsTextUtils.readUri(context, uri)?.let { return it }
         }
-        null
-        }.getOrNull() ?: findLocalLyrics(song.path)
+        return null
     }
 
     private fun normalizeLyricName(value: String): String = value

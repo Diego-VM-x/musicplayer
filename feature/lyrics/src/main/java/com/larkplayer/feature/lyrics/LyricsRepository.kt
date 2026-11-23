@@ -3,9 +3,11 @@ package com.larkplayer.feature.lyrics
 import android.content.ContentUris
 import android.content.Context
 import android.provider.MediaStore
-import com.larkplayer.core.database.dao.SongDao
+import com.larkplayer.core.common.LyricsTextUtils
 import com.larkplayer.core.common.MediaFileUtils
+import com.larkplayer.core.database.dao.SongDao
 import com.larkplayer.core.model.Lyrics
+import com.larkplayer.core.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,12 +19,22 @@ class LyricsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val songDao: SongDao,
 ) {
-    /** Loads the sibling .lrc for the playing song (MediaStore + direct file). */
+    /** Loads lyrics for a song identified by title/artist/path (DB first). */
     suspend fun loadForTitle(
         title: String,
         artist: String = "",
         path: String = "",
     ): Lyrics = withContext(Dispatchers.IO) {
+        val localMatch = songDao.observeAllOnce().firstOrNull { song ->
+            (path.isNotBlank() && song.path.equals(path, ignoreCase = true)) ||
+                (song.title.equals(title, ignoreCase = true) &&
+                    (artist.isBlank() || song.artist.equals(artist, ignoreCase = true)))
+        }
+        if (localMatch != null && localMatch.id > 0) {
+            val cached = loadForSongId(localMatch.id)
+            if (cached.hasText) return@withContext cached
+        }
+
         val library = MediaFileUtils.queryAudio(context)
         val byPath = path.takeIf { it.isNotBlank() }
             ?.let { p -> library.firstOrNull { it.path.equals(p, ignoreCase = true) } }
@@ -32,8 +44,7 @@ class LyricsRepository @Inject constructor(
         } ?: library.firstOrNull { it.title.equals(title, ignoreCase = true) }
             ?: return@withContext Lyrics(0)
 
-        val raw = MediaFileUtils.findLyricsText(context, song)
-        if (raw.isNullOrBlank()) Lyrics(song.id) else LrcParser.parse(song.id, raw)
+        resolve(song)
     }
 
     /** Most reliable path: resolve the exact MediaStore row by song id. */
@@ -54,7 +65,7 @@ class LyricsRepository @Inject constructor(
                 ),
                 null, null, null,
             )?.use { c ->
-                if (!c.moveToFirst()) null else com.larkplayer.core.model.Song(
+                if (!c.moveToFirst()) null else Song(
                     id = c.getLong(0),
                     title = c.getString(1).orEmpty(),
                     artist = c.getString(2).orEmpty(),
@@ -62,8 +73,18 @@ class LyricsRepository @Inject constructor(
                 )
             }
         }.getOrNull() ?: return@withContext Lyrics(0)
+        resolve(song)
+    }
 
+    /** Embedded tags → local/MediaStore files, then cache the raw text in Room. */
+    private suspend fun resolve(song: Song): Lyrics {
         val raw = MediaFileUtils.findLyricsText(context, song)
-        if (raw.isNullOrBlank()) Lyrics(song.id) else LrcParser.parse(song.id, raw)
+            ?.let { LyricsTextUtils.clean(it) }
+            ?.takeIf { it.isNotBlank() }
+            ?: return Lyrics(song.id)
+        if (song.id > 0 && songDao.lyricsFor(song.id).isNullOrBlank()) {
+            runCatching { songDao.updateLyrics(song.id, raw) }
+        }
+        return LrcParser.parse(song.id, raw)
     }
 }

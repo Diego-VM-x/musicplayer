@@ -4,6 +4,64 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 50: visualizador modular y lyrics definitivos (v43)
+
+- **Visualizador modular** (`docs/18-VISUALIZADOR.md`): `VisualizerEngine` usa `android.media.audiofx.Visualizer`
+  con el `audioSessionId` del reproductor, FFT + forma de onda, suavizado, peak decay y fallback simulado
+  si falta `RECORD_AUDIO` o el id. `VisualizerCanvas` dibuja a 60 fps con `withFrameNanos` y 4 modos:
+  Armonía, Rebote, Ascenso y Flujo. Panel con switch y tarjetas horizontales.
+- **Letras definitivas**: lector único de ID3v2 (USLT/SYLT), FLAC, OGG y M4A, con decodificación
+  BOM-aware, `.lrc`/`.txt` locales, letras planas y sincronizadas, caché en Room y auto-scroll.
+- `versionCode` 43 / `1.0.42-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.42` con `musicplayer-43.apk` (3.466.184 bytes, SHA-256 `DCA41CFF771606F39891EF4823C075058E9C5EDAA5A0CA958900DA9542E0A4B8`), verificada con `aapt` (`versionCode=43`).
+
+## 2026-11-23 - Diagnóstico y corrección integral del subsistema de letras
+
+**Qué fallaba**
+
+- Había **dos lectores de etiquetas duplicados** (`core:common/EmbeddedLyrics` y
+  `feature:player/EmbeddedLyricsReader`) con parser ID3 incompleto: el de `core` usaba
+  `UTF_16` (con BOM) para el encoding ID3 2 = UTF-16BE, y ninguno convertía **SYLT** a texto
+  útil (los timestamps binarios quedaban como caracteres raros).
+- ambos usaban `InputStream.readNBytes()`, que **solo existe desde API 33**: en Android 10/12
+  la extracción lanzaba `NoSuchMethodError` y la canción parecía no tener letras.
+- `EmbeddedLyricsReader` abría `file://...` mediante `ContentResolver` (no soportado en Android).
+- Solo se buscaban archivos `.lrc`; los `.txt` y los archivos en **ISO-8859-1 / UTF-16 con BOM**
+  fallaban porque `File.readText()` es UTF-8 estricto (excepción → "sin letras").
+- `LrcParser` descartaba las **letras planas** (sin timestamps) y calculaba mal los milisegundos
+  de un solo dígito (`.5` → 50 ms en vez de 500 ms).
+- `PlayerViewModel` mantenía las líneas de la canción anterior al cambiar de pista (parpadeo de
+  letras stale) y también descartaba las letras planas.
+- La pantalla de letras solo recargaba cuando cambiaba el **título**, no al cambiar id/ruta, y
+  el estado vacío no indicaba qué se había buscado.
+
+**Corrección**
+
+- `LyricsTextUtils.kt` (nuevo en `core:common`): decodificación BOM-aware (UTF-8/UTF-16LE/BE),
+  fallback ISO-8859-1, normalización CRLF/CR, limpieza de BOM/caracteres de control y lectura
+  de archivos/URIs sin APIs de API 33+.
+- `EmbeddedLyrics.kt`: único lector real, con ID3v2.2/2.3/2.4 (USLT/ULT + **SYLT→LRC** con
+  timestamps), FLAC/OGG (Vorbis comment `LYRICS`/`UNSYNCEDLYRICS`) y M4A (`©lyr`). Lee el archivo
+  por ruta directa o por MediaStore. `EmbeddedLyricsReader.kt` pasa a ser una fachada que delega.
+- `MediaFileUtils.kt`: prioridad embebido → archivos locales `.lrc`/`.txt` → MediaStore
+  (`.lrc`/`.txt`), con ranking por nombre normalizado y decodificación robusta.
+- `LrcParser.kt`: múltiples timestamps por línea, metadatos `[ar:]` ignorados, fracciones
+  corregidas y letras planas representadas con `timestampMs = -1` (`Lyrics.isSynced`/`hasText`).
+- `LyricsRepository.kt` + `SongDao.observeAllOnce()`: caché en `songs.lyricsText` (migración 2→3)
+  y resolución por id, ruta o título sin escanear de más.
+- `LyricsViewModel.kt`: cancela cargas obsoletas al cambiar de canción.
+- `LyricsView.kt`: resalta la línea activa con auto-scroll suave, muestra letras planas
+  desplazables y estado vacío "Sin letras disponibles"; recarga al cambiar id/título/ruta.
+- `PlayerViewModel.kt`: limpia las líneas al cambiar de pista, carga en E/S y aplica en main,
+  ignora metadatos, soporta varios timestamps y cachea el texto crudo en Room.
+- Permisos: `READ_MEDIA_AUDIO` ya se solicita en `MainActivity` (Android 13+) y está en el
+  manifiesto; el lector usa el `content://` de MediaStore cuando el acceso directo está restringido.
+
+Archivos: `core/common/{LyricsTextUtils,EmbeddedLyrics,MediaFileUtils}.kt`, `core/model/Lyric.kt`,
+`core/database/dao/Daos.kt`, `feature/player/{EmbeddedLyricsReader.kt,ui/PlayerViewModel.kt}`,
+`feature/lyrics/{LrcParser,LyricsRepository}.kt`, `feature/lyrics/ui/{LyricsView,LyricsViewModel}.kt`.
+Verificación: `./gradlew.bat :app:compileDebugKotlin --no-daemon` → sin errores.
+
 ## 2026-11-23 - Fase 49: lyrics cacheadas y espectro con AGC (v42)
 
 - `EmbeddedLyricsReader` lee USLT/ULT del archivo de audio directamente en el reproductor y guarda el

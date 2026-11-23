@@ -466,18 +466,17 @@ fun PlayerScreen(
             Spacer(Modifier.height(16.dp))
 
             // ---- Visualizador: solo se dibuja si el usuario lo activa ----
-            val visualizerBands = rememberAudioBands(state.visualizerEnabled)
             if (state.visualizerEnabled) {
-                VisualizerWave(
+                VisualizerCanvas(
+                    audioSessionId = state.audioSessionId,
+                    enabled = true,
+                    isPlaying = state.isPlaying,
+                    style = state.visualizerStyle,
+                    accent = accent,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(34.dp)
                         .clickable { visualizerSheetOpen = true },
-                    accent = accent,
-                    isPlaying = state.isPlaying,
-                    style = state.visualizerStyle,
-                    enabled = true,
-                    bands = visualizerBands,
                 )
             }
 

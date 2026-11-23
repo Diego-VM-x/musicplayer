@@ -9,16 +9,21 @@ import com.larkplayer.core.database.dao.PlaylistDao
 import com.larkplayer.core.database.dao.SongDao
 import com.larkplayer.core.database.entity.PlaylistEntity
 import com.larkplayer.core.database.entity.PlaylistSong
+import com.larkplayer.core.common.LyricsTextUtils
+import com.larkplayer.core.common.MediaFileUtils
 import com.larkplayer.core.datastore.SettingsDataStore
 import com.larkplayer.core.model.Song
 import com.larkplayer.feature.player.AlbumColorRepository
+import com.larkplayer.feature.player.EmbeddedLyricsReader
 import com.larkplayer.feature.player.PlayerRepository
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_NORMAL
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_REPEAT_ALL
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_REPEAT_ONE
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_SHUFFLE
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +32,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class PlayerUiState(
@@ -114,6 +120,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private var activeLyricsLines: List<Pair<Long, String>> = emptyList()
+    private var lyricsLoadJob: Job? = null
 
     private fun attachListener(c: MediaController) {
         val l = object : Player.Listener {
@@ -124,6 +131,10 @@ class PlayerViewModel @Inject constructor(
                 val artist = meta?.artist?.toString() ?: ""
                 val path = meta?.extras?.getString(PlayerRepository.EXTRA_SONG_PATH).orEmpty()
 
+                // Clear the previous track's lines immediately so a fast skip
+                // never shows a stale highlighted line.
+                activeLyricsLines = emptyList()
+                lyricsLoadJob?.cancel()
                 _uiState.value = _uiState.value.copy(
                     id = id,
                     title = title,
@@ -137,24 +148,28 @@ class PlayerViewModel @Inject constructor(
                 viewModelScope.launch {
                     albumColors.load(meta?.artworkUri?.toString())
                 }
-                viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    val rawLrc = songDao.lyricsFor(id)
-                        ?: com.larkplayer.feature.player.EmbeddedLyricsReader.read(context, path, id)
-                        ?: com.larkplayer.core.common.MediaFileUtils.findLyricsText(
-                            context,
-                            Song(id = id, title = title, artist = artist, path = path),
-                        )
-                    if (!rawLrc.isNullOrBlank() && songDao.lyricsFor(id).isNullOrBlank()) {
-                        runCatching { songDao.updateLyrics(id, rawLrc) }
+                lyricsLoadJob = viewModelScope.launch {
+                    // All I/O in one withContext; the result is applied back on
+                    // the main dispatcher, where the ticker reads activeLyricsLines.
+                    val clean = withContext(Dispatchers.IO) {
+                        val cached = runCatching { songDao.lyricsFor(id) }.getOrNull()
+                        val raw = cached?.takeIf { it.isNotBlank() }
+                            ?: EmbeddedLyricsReader.read(context, path, id)
+                            ?: MediaFileUtils.findLyricsText(
+                                context,
+                                Song(id = id, title = title, artist = artist, path = path),
+                            )
+                        val text = raw?.let { LyricsTextUtils.clean(it) }?.takeIf { it.isNotBlank() }
+                        if (text != null && cached.isNullOrBlank()) {
+                            runCatching { songDao.updateLyrics(id, text) }
+                        }
+                        text
                     }
-                    if (!rawLrc.isNullOrBlank()) {
-                        val parsed = parseSimpleLrc(rawLrc)
-                        activeLyricsLines = parsed
-                        _uiState.value = _uiState.value.copy(hasLyrics = parsed.isNotEmpty())
-                    } else {
-                        activeLyricsLines = emptyList()
-                        _uiState.value = _uiState.value.copy(hasLyrics = false)
-                    }
+                    activeLyricsLines = if (clean == null) emptyList() else parseLrcLines(clean)
+                    _uiState.value = _uiState.value.copy(
+                        hasLyrics = clean != null,
+                        currentLyricsLine = null,
+                    )
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -293,19 +308,35 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch { settings.setVisualizerStyle(style) }
     }
 
-    private fun parseSimpleLrc(text: String): List<Pair<Long, String>> {
-        val pattern = Regex("""\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\](.*)""")
-        return text.lineSequence().mapNotNull { line ->
-            pattern.matchEntire(line.trim())?.let { match ->
-                val min = match.groupValues[1].toLongOrNull() ?: 0L
-                val sec = match.groupValues[2].toLongOrNull() ?: 0L
-                val msStr = match.groupValues[3].padEnd(3, '0').take(3)
-                val ms = msStr.toLongOrNull() ?: 0L
-                val totalMs = min * 60_000L + sec * 1_000L + ms
-                val lyricText = match.groupValues[4].trim()
-                if (lyricText.isNotBlank()) totalMs to lyricText else null
+    /**
+     * Timed lines for the player's inline "current line" display. Multiple
+     * timestamps on one line are supported; plain text yields no timed lines
+     * (the full-screen lyrics view still shows it as scrollable text).
+     */
+    private fun parseLrcLines(text: String): List<Pair<Long, String>> {
+        val pattern = Regex("""\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]""")
+        val result = mutableListOf<Pair<Long, String>>()
+        text.lineSequence().forEach { source ->
+            val line = source.trim()
+            if (line.isEmpty() || Regex("""^\[[a-zA-Z]+:""").containsMatchIn(line)) return@forEach
+            val tags = pattern.findAll(line).toList()
+            if (tags.isEmpty()) return@forEach
+            val lyricText = pattern.replace(line, "").let { LyricsTextUtils.clean(it) }.trim()
+            if (lyricText.isEmpty()) return@forEach
+            tags.forEach { tag ->
+                val min = tag.groupValues[1].toLongOrNull() ?: 0L
+                val sec = tag.groupValues[2].toLongOrNull() ?: 0L
+                val frac = tag.groupValues[3]
+                val ms = when {
+                    frac.isBlank() -> 0L
+                    frac.length == 1 -> frac.toLong() * 100L
+                    frac.length == 2 -> frac.toLong() * 10L
+                    else -> frac.take(3).toLong()
+                }
+                result += (min * 60_000L + sec * 1_000L + ms) to lyricText
             }
-        }.sortedBy { it.first }.toList()
+        }
+        return result.sortedBy { it.first }
     }
 
     override fun onCleared() {

@@ -1,6 +1,6 @@
 package com.larkplayer.core.model
 
-/** A single synchronized lyric line parsed from LRC. */
+/** A single lyric line. [timestampMs] is -1 for plain (unsynchronized) lyrics. */
 data class LyricLine(
     val timestampMs: Long,
     val text: String,
@@ -11,4 +11,10 @@ data class Lyrics(
     val songId: Long,
     val lines: List<LyricLine> = emptyList(),
     val plainText: String = "",
-)
+) {
+    /** True when there is something to show (synced lines or plain text). */
+    val hasText: Boolean get() = lines.isNotEmpty() || plainText.isNotBlank()
+
+    /** Synced lyrics have real timestamps; plain lyrics must scroll freely. */
+    val isSynced: Boolean get() = lines.isNotEmpty() && lines.all { it.timestampMs >= 0 }
+}
