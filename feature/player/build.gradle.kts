@@ -38,6 +38,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.palette)
 
+    implementation(libs.androidx.core.ktx)
+    implementation("androidx.media:media:1.7.0")
+
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.session)

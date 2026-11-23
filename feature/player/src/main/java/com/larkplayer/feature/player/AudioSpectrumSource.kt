@@ -12,6 +12,9 @@ data class AudioBands(
     val spectrum: FloatArray = FloatArray(16),
     val peaks: FloatArray = FloatArray(16),
     val waveform: FloatArray = FloatArray(64),
+    /** Slowly advancing phase for the wave styles, so they flow even on a
+     *  steady note. Amplitude still comes exclusively from the real PCM. */
+    val phase: Float = 0f,
     val fallback: Boolean = false,
 )
 
@@ -64,26 +67,35 @@ object AudioSpectrumSource {
     fun currentBands(): FloatArray {
         val result = FloatArray(BAND_COUNT)
         val (buffer, rate, available) = synchronized(lock) {
-            val ordered = FloatArray(availableOrZero())
-            for (i in 0 until availableOrZero()) {
-                ordered[i] = samples[(writeIndex - availableOrZero() + i + WINDOW) % WINDOW]
+            val count = filled
+            val ordered = FloatArray(count)
+            for (i in 0 until count) {
+                ordered[i] = samples[(writeIndex - count + i + WINDOW) % WINDOW]
             }
-            Triple(ordered, sampleRate, availableOrZero())
+            Triple(ordered, sampleRate, count)
         }
-        if (available < 64) return result
+        if (available < 128) return result
 
         val maxFreq = minOf(16_000f, rate / 2f)
-        // Automatic gain control: quiet songs still animate, loud ones don't clip.
-        val level = rms().coerceAtLeast(0.02f)
-        val gain = (0.45f / level).coerceIn(1f, 8f)
+        // Raw magnitude per band. The old `1 - exp(-raw*5)` + AGC pinned every
+        // band to 0.98 with normal music, so all bars looked identical/frozen.
+        val magnitudes = FloatArray(BAND_COUNT)
+        var total = 0f
         for (band in 0 until BAND_COUNT) {
             val f0 = 40.0 * Math.pow((maxFreq / 40.0).toDouble(), band / BAND_COUNT.toDouble())
             val f1 = 40.0 * Math.pow((maxFreq / 40.0).toDouble(), (band + 1) / BAND_COUNT.toDouble())
             val center = sqrt(f0 * f1).toFloat()
-            val raw = goertzel(buffer, center, rate) * gain
-            val shaped = 1f - kotlin.math.exp(-raw * 5f)
-            // Linear, non-saturating response inside the animation bounds.
-            result[band] = shaped.coerceIn(0.04f, 0.98f)
+            val magnitude = goertzel(buffer, center, rate)
+            magnitudes[band] = magnitude
+            total += magnitude
+        }
+        val mean = total / BAND_COUNT
+        // Loudness gate: silence stays flat instead of being amplified into motion.
+        val loudness = (rms() / 0.10f).coerceIn(0f, 1f)
+        for (band in 0 until BAND_COUNT) {
+            val relative = magnitudes[band] / (mean + 1e-6f)
+            result[band] = (loudness * (0.10f + 0.90f * (relative / 2.2f).coerceIn(0f, 1f)))
+                .coerceIn(0.02f, 1f)
         }
         return result
     }
@@ -95,9 +107,7 @@ object AudioSpectrumSource {
         }
     }
 
-    private fun availableOrZero(): Int = synchronized(lock) { filled }
-
-    /** RMS level of the current window, for AGC and honest intensity. */
+    /** RMS level of the current window, used as a loudness gate for the bands. */
     fun rms(): Float {
         val (buffer, available) = synchronized(lock) {
             val ordered = FloatArray(filled)
@@ -125,7 +135,8 @@ object AudioSpectrumSource {
             s1 = s0
         }
         val power = (s1 * s1 + s2 * s2 - coeff * s1 * s2) / n
-        // Empirical scale: typical music PCM peaks around 0.2-0.6 RMS.
-        return (sqrt(maxOf(0.0, power)) * 6f).toFloat()
+        // Plain magnitude; normalization against the other bands happens in
+        // currentBands(), so no empirical multiplier is needed here.
+        return sqrt(maxOf(0.0, power)).toFloat()
     }
 }

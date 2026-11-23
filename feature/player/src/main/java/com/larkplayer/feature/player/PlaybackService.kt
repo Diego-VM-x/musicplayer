@@ -18,7 +18,6 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ShuffleOrder
 import androidx.media3.session.CommandButton
-import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
@@ -31,6 +30,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -48,6 +49,7 @@ class PlaybackService : MediaSessionService() {
 
     private var session: MediaSession? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private lateinit var notificationProvider: LarkMediaNotificationProvider
 
     /** Mirrors the "Notificación de reproducción" preference. */
     @Volatile private var showNotification = true
@@ -121,12 +123,16 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         }
-        setMediaNotificationProvider(
-            DefaultMediaNotificationProvider.Builder(this)
-                .setChannelId(CHANNEL_ID)
-                .setNotificationId(NOTIFICATION_ID)
-                .build(),
-        )
+        notificationProvider = LarkMediaNotificationProvider(context = this)
+        setMediaNotificationProvider(notificationProvider)
+        // Repost every second so the custom notification's progress bar tracks
+        // the real playback position instead of freezing at metadata changes.
+        scope.launch {
+            while (isActive) {
+                delay(1_000L)
+                if (player.isPlaying) notificationProvider.tick()
+            }
+        }
         val closeCommand = SessionCommand(COMMAND_STOP_ALL, Bundle.EMPTY)
         session = MediaSession.Builder(this, player)
             .setId("lark_player_session")
@@ -361,6 +367,11 @@ class PlaybackService : MediaSessionService() {
             ACTION_PAUSE -> player.pause()
             ACTION_NEXT -> { cancelCrossfade(); player.seekToNext() }
             ACTION_PREV -> { cancelCrossfade(); player.seekToPrevious() }
+            ACTION_CLOSE_NOTIFICATION -> stopPlaybackCompletely()
+            ACTION_FAVORITE -> {
+                val id = intent.getLongExtra(EXTRA_SONG_ID, -1L)
+                if (id > 0) scope.launch { runCatching { settings.toggleFavorite(id) } }
+            }
         }
         val result = super.onStartCommand(intent, flags, startId)
         return if (backgroundPlayback && result == START_NOT_STICKY) START_STICKY else result
@@ -456,6 +467,9 @@ class PlaybackService : MediaSessionService() {
         const val ACTION_PAUSE = "com.larkplayer.action.PAUSE"
         const val ACTION_NEXT = "com.larkplayer.action.NEXT"
         const val ACTION_PREV = "com.larkplayer.action.PREV"
+        const val ACTION_CLOSE_NOTIFICATION = "com.larkplayer.action.CLOSE_NOTIFICATION"
+        const val ACTION_FAVORITE = "com.larkplayer.action.FAVORITE"
+        const val EXTRA_SONG_ID = "lark_song_id"
         const val COMMAND_STOP_ALL = "com.larkplayer.command.STOP_ALL"
     }
 }

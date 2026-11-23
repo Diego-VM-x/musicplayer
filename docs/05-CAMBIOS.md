@@ -4,6 +4,14 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 53: sincronización real de letras, visualizador dinámico y notificación Lark (v46)
+
+- **Letras**: se priorizan las fuentes con timestamps reales (SYLT incrustado y `.lrc`) sobre USLT/`.txt` planos, tanto en `EmbeddedLyrics` como en `MediaFileUtils.findLyricsText` y en la caché de Room. Un USLT plano ya no gana sobre un `.lrc` sincronizado. La línea activa sigue ahora la posición real de audio.
+- **Visualizador**: corregido el tap PCM — `1-exp(-raw*5)` + AGC saturaban todas las bandas a 0.98 (barras idénticas y estáticas). Se normaliza cada banda contra la media con una compuerta de volumen; se añade fase animada a Armonía/Flujo; `LaunchedEffect` incluye `isPlaying` para que activar el switch en pausa no congele el loop.
+- **Notificación multimedia**: nuevo `LarkMediaNotificationProvider` con layout plano oscuro (fila de app, carátula circular, título/artista, progreso con tiempos y 5 controles: anterior/play/siguiente/favorito/cerrar). La barra de progreso se actualiza cada segundo. El brillo y los puntos de página son elementos del sistema y no se pueden replicar desde la app.
+- `versionCode` 46 / `1.0.45-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.45` con `musicplayer-46.apk` (3.485.180 bytes, SHA-256 `12FF5E2BDB474D0A66DF29A0521FE6DA30DA5E8239AA5BE05252EE4F22976FBD`), verificada con `aapt` (`versionCode=46`).
+
 ## 2026-11-23 - Fase 52: redibujo del visualizador, icono de cola y letras animadas (v45)
 
 - `VisualizerCanvas`: el estado de captura se lee ahora en el cuerpo del composable, de modo que las

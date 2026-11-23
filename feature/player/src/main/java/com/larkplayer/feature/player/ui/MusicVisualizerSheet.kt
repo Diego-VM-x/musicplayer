@@ -70,7 +70,9 @@ fun rememberVisualizerBands(
     isPlaying: Boolean,
 ): androidx.compose.runtime.State<AudioBands> {
     val bands = remember { mutableStateOf(AudioBands()) }
-    LaunchedEffect(enabled) {
+    // isPlaying must be a key: launching while paused used to capture 0f forever,
+    // so pressing play never woke the visualizer up.
+    LaunchedEffect(enabled, isPlaying) {
         if (!enabled) {
             bands.value = AudioBands()
             return@LaunchedEffect
@@ -78,6 +80,7 @@ fun rememberVisualizerBands(
         var smooth = FloatArray(AudioSpectrumSource.BAND_COUNT)
         var peaks = FloatArray(AudioSpectrumSource.BAND_COUNT)
         var waveform = FloatArray(64)
+        var phase = 0f
         while (isActive) {
             val spectrum = withContext(Dispatchers.Default) {
                 AudioSpectrumSource.currentBands()
@@ -90,6 +93,8 @@ fun rememberVisualizerBands(
                 peaks[i] = maxOf(smooth[i], peaks[i] - 0.02f)
             }
             waveform = wave
+            val energy = (spectrum.average().toFloat()).coerceIn(0f, 1f)
+            phase = (phase + 0.02f + 0.06f * energy) % (2f * PI.toFloat())
             bands.value = AudioBands(
                 bass = (smooth.take(4).average().toFloat()).coerceIn(0f, 1f),
                 mid = (smooth.drop(4).take(8).average().toFloat()).coerceIn(0f, 1f),
@@ -97,6 +102,7 @@ fun rememberVisualizerBands(
                 spectrum = smooth.copyOf(),
                 peaks = peaks.copyOf(),
                 waveform = waveform.copyOf(),
+                phase = phase,
             )
             delay(16L)
         }
@@ -154,6 +160,7 @@ fun VisualizerCanvas(
                 bass = d.bass + (target.bass - d.bass) * k,
                 mid = d.mid + (target.mid - d.mid) * k,
                 treble = d.treble + (target.treble - d.treble) * k,
+                phase = target.phase,
                 fallback = target.fallback,
             )
         }
@@ -229,13 +236,14 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArmonia(
     )
     layers.forEachIndexed { index, (level, scale, frequency) ->
         val amp = h * scale * level.coerceIn(0.05f, 1f)
+        val t = bands.phase
         val path = Path().apply {
             moveTo(0f, midY)
             for (step in 0..60) {
                 val p = step / 60f
                 val x = p * w
-                val y = midY - sin(p * frequency * PI.toFloat()).toFloat() * amp -
-                    sin(p * 9f * PI.toFloat() + index).toFloat() * h * 0.06f * bands.treble
+                val y = midY - sin(p * frequency * PI.toFloat() + t * (index + 1) * 0.7f).toFloat() * amp -
+                    sin(p * 9f * PI.toFloat() + index + t * 1.3f).toFloat() * h * 0.06f * bands.treble
                 lineTo(x, y)
             }
             lineTo(w, h)
@@ -265,12 +273,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFlujo(
 ) {
     val midY = h * 0.55f
     val amp = h * 0.38f * bands.mid.coerceIn(0.08f, 1f)
+    val t = bands.phase * 0.9f
     val top = Path().apply {
         moveTo(0f, midY)
         for (step in 0..80) {
             val p = step / 80f
             val wave = bands.waveform.getOrElse((p * bands.waveform.size).toInt()) { 0f }
-            val y = midY - (sin(p * 3f * PI.toFloat()).toFloat() * amp + wave * h * 0.22f)
+            val y = midY - (sin(p * 3f * PI.toFloat() + t).toFloat() * amp + wave * h * 0.22f)
             lineTo(p * w, y)
         }
     }
@@ -279,7 +288,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFlujo(
         for (step in 0..80) {
             val p = step / 80f
             val wave = bands.waveform.getOrElse((p * bands.waveform.size).toInt()) { 0f }
-            val y = midY + (sin(p * 3f * PI.toFloat() + 0.6).toFloat() * amp + wave * h * 0.18f)
+            val y = midY + (sin(p * 3f * PI.toFloat() + 0.6f + t).toFloat() * amp + wave * h * 0.18f)
             lineTo(p * w, y)
         }
     }

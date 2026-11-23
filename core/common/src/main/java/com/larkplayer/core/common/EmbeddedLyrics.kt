@@ -92,6 +92,11 @@ object EmbeddedLyrics {
 
         val idLen = if (version == 2) 3 else 4
         val sizeLen = if (version == 2) 3 else 4
+        // A file can carry both a plain USLT and a synchronized SYLT. The old
+        // code returned the first frame it found (usually USLT), throwing away
+        // real timestamps and making the highlight drift from the audio.
+        var plainLyrics: String? = null
+        var syncedLyrics: String? = null
         var pos = 0
         while (pos + idLen + sizeLen + 2 <= tag.size) {
             val id = String(tag, pos, idLen, StandardCharsets.ISO_8859_1)
@@ -122,11 +127,17 @@ object EmbeddedLyrics {
 
             if (id == "USLT" || id == "ULT" || id == "SYLT" || id == "SLT") {
                 val text = parseId3LyricsFrame(tag, bodyStart, bodySize, id.startsWith("S"))
-                if (!text.isNullOrBlank()) return text
+                if (!text.isNullOrBlank()) {
+                    if (id.startsWith("S")) {
+                        if (LyricsTextUtils.hasTimestamps(text)) syncedLyrics = text
+                    } else if (plainLyrics == null) {
+                        plainLyrics = text
+                    }
+                }
             }
             pos = frameStart + rawSize.toInt()
         }
-        return null
+        return syncedLyrics ?: plainLyrics
     }
 
     private fun parseId3LyricsFrame(

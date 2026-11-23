@@ -91,17 +91,22 @@ object MediaFileUtils {
     /** Reads a sibling .lrc / .txt file next to the audio file (BOM-safe). */
     fun findLocalLyrics(songPath: String): String? = findLocalLyrics(songPath, emptyArray())
 
-    private fun findLocalLyrics(songPath: String, extraStems: Array<String>): String? {
+    private fun findLocalLyrics(
+        songPath: String,
+        extraStems: Array<String>,
+        extensions: List<String> = LYRIC_EXTENSIONS,
+    ): String? {
         if (songPath.isBlank()) return null
         val audio = File(songPath)
         val stems = (listOf(audio.nameWithoutExtension) + extraStems)
             .map { it.trim() }.filter { it.isNotBlank() }.distinct()
         val dirs = lyricDirs(audio.parentFile)
+        val lowerExts = extensions.map { it.lowercase() }.toSet()
 
         // Exact names first, then a case/accent-insensitive match in the folder.
         for (stem in stems) {
             for (dir in dirs) {
-                for (ext in LYRIC_EXTENSIONS) {
+                for (ext in extensions) {
                     LyricsTextUtils.readFile(File(dir, "$stem.$ext"))?.let { return it }
                 }
             }
@@ -109,7 +114,7 @@ object MediaFileUtils {
         for (dir in dirs) {
             runCatching { dir.listFiles() }.getOrNull()
                 ?.firstOrNull { file ->
-                    file.isFile && file.extension.lowercase() in setOf("lrc", "txt") &&
+                    file.isFile && file.extension.lowercase() in lowerExts &&
                         stems.any { normalizeLyricName(it) == normalizeLyricName(file.nameWithoutExtension) }
                 }?.let { LyricsTextUtils.readFile(it) }?.let { return it }
         }
@@ -133,8 +138,6 @@ object MediaFileUtils {
      * UTF-8 / UTF-16 / ISO-8859-1 files.
      */
     fun findLyricsText(context: Context, song: Song): String? {
-        EmbeddedLyrics.read(context, song)?.takeIf { it.isNotBlank() }?.let { return it }
-
         val title = song.title.trim()
         val artist = song.artist.trim()
         val stems = listOf(
@@ -143,7 +146,15 @@ object MediaFileUtils {
             "$artist - $title",
             "$title - $artist",
         ).map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        findLocalLyrics(song.path, stems.toTypedArray())?.let { return it }
+        val embedded = EmbeddedLyrics.read(context, song)?.takeIf { it.isNotBlank() }
+        val local = findLocalLyrics(song.path, stems.toTypedArray())
+
+        // Real timestamps win: a plain USLT/.txt can only be distributed
+        // proportionally and made the highlight drift from the actual singing.
+        listOf(
+            findLocalLyrics(song.path, stems.toTypedArray(), listOf("lrc", "LRC")),
+            embedded,
+        ).firstOrNull { it != null && LyricsTextUtils.hasTimestamps(it) }?.let { return it }
 
         // Scoped storage: search MediaStore by file name. A generic LIKE on the
         // extension avoids escaping problems with brackets/quotes in song names.
@@ -168,13 +179,22 @@ object MediaFileUtils {
         }
         val normalizedStems = stems.map { normalizeLyricName(it) }
         val ranked = candidates.sortedBy { rankOfLyric(it.second, normalizedStems) }
+        var timedLrc: String? = null
+        var anyLyrics: String? = null
         for ((id, name) in ranked) {
             if (rankOfLyric(name, normalizedStems) > 1) break
             if (name.substringAfterLast('.').lowercase() !in setOf("lrc", "txt")) continue
             val uri = ContentUris.withAppendedId(collection, id)
-            LyricsTextUtils.readUri(context, uri)?.let { return it }
+            val text = LyricsTextUtils.readUri(context, uri) ?: continue
+            if (name.substringAfterLast('.').equals("lrc", ignoreCase = true) &&
+                LyricsTextUtils.hasTimestamps(text) && timedLrc == null
+            ) timedLrc = text
+            if (anyLyrics == null) anyLyrics = text
         }
-        return null
+        if (timedLrc != null) return timedLrc
+
+        // Last resort: unsynchronized text, in the old priority order.
+        return local ?: embedded ?: anyLyrics
     }
 
     private fun normalizeLyricName(value: String): String = value

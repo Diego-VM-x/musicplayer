@@ -32,7 +32,11 @@ class LyricsRepository @Inject constructor(
         }
         if (localMatch != null && localMatch.id > 0) {
             val cached = loadForSongId(localMatch.id)
-            if (cached.hasText) return@withContext cached
+            // Plain cached text cannot follow the audio; keep looking for a
+            // synchronized source (SYLT / .lrc) before accepting it.
+            if (cached.hasText && LyricsTextUtils.hasTimestamps(cached.plainText)) {
+                return@withContext cached
+            }
         }
 
         val library = MediaFileUtils.queryAudio(context)
@@ -50,8 +54,9 @@ class LyricsRepository @Inject constructor(
     /** Most reliable path: resolve the exact MediaStore row by song id. */
     suspend fun loadForSongId(id: Long): Lyrics = withContext(Dispatchers.IO) {
         if (id <= 0) return@withContext Lyrics(0)
-        songDao.lyricsFor(id)?.takeIf { it.isNotBlank() }?.let {
-            return@withContext LrcParser.parse(id, it)
+        val cached = songDao.lyricsFor(id)
+        if (!cached.isNullOrBlank() && LyricsTextUtils.hasTimestamps(cached)) {
+            return@withContext LrcParser.parse(id, cached)
         }
         val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
         val song = runCatching {
@@ -82,8 +87,14 @@ class LyricsRepository @Inject constructor(
             ?.let { LyricsTextUtils.clean(it) }
             ?.takeIf { it.isNotBlank() }
             ?: return Lyrics(song.id)
-        if (song.id > 0 && songDao.lyricsFor(song.id).isNullOrBlank()) {
-            runCatching { songDao.updateLyrics(song.id, raw) }
+        if (song.id > 0) {
+            val existing = songDao.lyricsFor(song.id)
+            // Replace a stale plain-text cache when we find real timestamps.
+            if (existing.isNullOrBlank() ||
+                (!LyricsTextUtils.hasTimestamps(existing) && LyricsTextUtils.hasTimestamps(raw))
+            ) {
+                runCatching { songDao.updateLyrics(song.id, raw) }
+            }
         }
         return LrcParser.parse(song.id, raw)
     }

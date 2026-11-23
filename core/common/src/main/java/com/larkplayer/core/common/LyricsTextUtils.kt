@@ -102,6 +102,15 @@ object LyricsTextUtils {
             ?.takeIf { it.isNotBlank() }
     }.getOrNull()
 
+    /**
+     * True when the text contains real `[mm:ss.xx]` time tags. Used to prefer
+     * synchronized sources (SYLT / .lrc) over plain USLT / .txt lyrics: plain
+     * text can only be distributed proportionally, which never matches the
+     * actual singing and made the highlight look out of order.
+     */
+    fun hasTimestamps(text: String): Boolean =
+        Regex("""\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\]""").containsMatchIn(text)
+
     /** Big-endian 32-bit helper used by the tag parsers. */
     fun be32(bytes: ByteArray, offset: Int): Long {
         if (offset < 0 || offset + 4 > bytes.size) return 0L

@@ -164,14 +164,28 @@ class PlayerViewModel @Inject constructor(
                     // the main dispatcher, where the ticker reads activeLyricsLines.
                     val clean = withContext(Dispatchers.IO) {
                         val cached = runCatching { songDao.lyricsFor(id) }.getOrNull()
-                        val raw = cached?.takeIf { it.isNotBlank() }
-                            ?: EmbeddedLyricsReader.read(context, path, id)
-                            ?: MediaFileUtils.findLyricsText(
+                        val candidates = listOfNotNull(
+                            EmbeddedLyricsReader.read(context, path, id),
+                            MediaFileUtils.findLyricsText(
                                 context,
                                 Song(id = id, title = title, artist = artist, path = path),
-                            )
+                            ),
+                        )
+                        // A synchronized source (SYLT/.lrc) always wins over a
+                        // plain cached USLT/.txt so the highlight follows audio.
+                        val timed = cached?.takeIf {
+                            it.isNotBlank() && LyricsTextUtils.hasTimestamps(it)
+                        } ?: candidates.firstOrNull { LyricsTextUtils.hasTimestamps(it) }
+                        val raw = timed
+                            ?: cached?.takeIf { it.isNotBlank() }
+                            ?: candidates.firstOrNull()
                         val text = raw?.let { LyricsTextUtils.clean(it) }?.takeIf { it.isNotBlank() }
-                        if (text != null && cached.isNullOrBlank()) {
+                        if (text != null && (
+                                cached.isNullOrBlank() ||
+                                    (LyricsTextUtils.hasTimestamps(text) &&
+                                        !LyricsTextUtils.hasTimestamps(cached))
+                                )
+                        ) {
                             runCatching { songDao.updateLyrics(id, text) }
                         }
                         text
