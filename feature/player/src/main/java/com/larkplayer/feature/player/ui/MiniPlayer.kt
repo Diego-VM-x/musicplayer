@@ -74,6 +74,7 @@ fun MiniPlayer(
         modifier
             .fillMaxWidth()
             .height(72.dp)
+            .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
             .background(background)
             .clickable(onClick = onOpen)
             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -155,20 +156,6 @@ fun MiniPlayer(
             )
         }
         Spacer(Modifier.width(4.dp))
-        Box(
-            Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .clickable(onClick = viewModel::skipNext),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.Rounded.SkipNext,
-                "Siguiente",
-                tint = foreground,
-                modifier = Modifier.size(24.dp),
-            )
-        }
     }
 }
 

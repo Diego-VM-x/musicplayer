@@ -59,7 +59,11 @@ object AudioSpectrumSource {
             val f0 = 40.0 * Math.pow((maxFreq / 40.0).toDouble(), band / BAND_COUNT.toDouble())
             val f1 = 40.0 * Math.pow((maxFreq / 40.0).toDouble(), (band + 1) / BAND_COUNT.toDouble())
             val center = sqrt(f0 * f1).toFloat()
-            result[band] = goertzel(buffer, center, rate).coerceIn(0f, 1f)
+            // Aggressive but clamped response: strong kick even on quiet
+            // passages, without ever exceeding the animation bounds.
+            val raw = goertzel(buffer, center, rate)
+            val shaped = 1f - kotlin.math.exp(-raw * 7f)
+            result[band] = shaped.coerceIn(0.06f, 1f)
         }
         return result
     }

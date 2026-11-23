@@ -144,28 +144,53 @@ object MediaFileUtils {
                 }?.let { return it.readText() }
         }
 
-        // Scoped storage: find the .lrc through MediaStore and read it by URI.
+        // Scoped storage: search MediaStore by file name. Use a generic LIKE
+        // with the stem only (not "%stem.lrc"): many ROMs index the name
+        // without extension or with extra suffixes, and escaped characters
+        // such as brackets/quotes otherwise break the query.
         val collection = MediaStore.Files.getContentUri("external")
-        stems.forEach { stem ->
-            val cursor = context.contentResolver.query(
+        val candidates = mutableListOf<Pair<Long, String>>()
+        runCatching {
+            context.contentResolver.query(
                 collection,
-                arrayOf(MediaStore.MediaColumns._ID),
-                "${OpenableColumns.DISPLAY_NAME} LIKE ?",
-                arrayOf("%$stem.lrc"),
+                arrayOf(MediaStore.MediaColumns._ID, OpenableColumns.DISPLAY_NAME),
+                "LOWER(${OpenableColumns.DISPLAY_NAME}) LIKE LOWER(?)",
+                arrayOf("%.lrc"),
                 null,
-            )
-            cursor?.use { c ->
-                if (c.moveToFirst()) {
-                    val uri = ContentUris.withAppendedId(collection, c.getLong(0))
-                    context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
-                        val text = reader.readText()
-                        if (text.isNotBlank()) return text
-                    }
+            )?.use { c ->
+                val idIdx = c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                val nameIdx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                while (c.moveToNext()) {
+                    val name = if (nameIdx >= 0) c.getString(nameIdx).orEmpty() else ""
+                    candidates += c.getLong(idIdx) to name
                 }
             }
         }
+        // First exact stem match, then fuzzy match ignoring case/accents.
+        val normalizedStems = stems.map { normalizeLyricName(it) }
+        val ranked = candidates.sortedBy { rankOfLyric(it.second, normalizedStems) }
+        for ((id, name) in ranked) {
+            if (rankOfLyric(name, normalizedStems) > 1) break
+            val uri = ContentUris.withAppendedId(collection, id)
+            val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            if (!text.isNullOrBlank()) return text
+        }
         null
     }.getOrNull() ?: findLocalLyrics(song.path)
+
+    private fun normalizeLyricName(value: String): String = value
+        .lowercase()
+        .replace(Regex("[\\u0300-\\u036f]"), "")
+        .replace(Regex("[^\\p{L}\\p{N}]+"), "")
+
+    private fun rankOfLyric(name: String, stems: List<String>): Int {
+        val n = normalizeLyricName(name.substringBeforeLast('.'))
+        return when {
+            stems.any { it.equals(n, ignoreCase = true) } -> 0
+            stems.any { n.contains(it, ignoreCase = true) || it.contains(n, ignoreCase = true) } -> 1
+            else -> 2
+        }
+    }
 
     fun hasLocalLyrics(context: Context, song: Song): Boolean =
         findLyricsText(context, song)?.isNotBlank() == true

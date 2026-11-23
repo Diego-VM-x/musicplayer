@@ -307,9 +307,11 @@ fun VisualizerWave(
                         }
                     }
 
-                    val factor = if (style == "ascenso") (0.3f + progress * 0.7f) else 1f
-                    val waveAmp = (bandAmp * factor).coerceIn(0.04f, 1f)
-                    val barHeight = (h * 0.92f * waveAmp).coerceAtLeast(4f)
+                    val factor = if (style == "ascenso") (0.35f + progress * 0.65f) else 1f
+                    // Near-full scale response, hard-clamped so bars never
+                    // overflow the canvas (no saturated/clipped look).
+                    val waveAmp = (bandAmp * factor * 1.15f).coerceIn(0.04f, 0.98f)
+                    val barHeight = (h * 0.95f * waveAmp).coerceAtLeast(4f)
                     val x = startX + i * (barWidth + spacing)
                     val y = h - barHeight
 

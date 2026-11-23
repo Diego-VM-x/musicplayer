@@ -4,7 +4,17 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
-## 2026-11-23 — Fase 46: fondo, mini-reproductor y letras (v39)
+## 2026-11-23 - Fase 47: mini barra, lyrics y visualizador intenso (v40)
+
+- Mini-reproductor sin botón de siguiente y con esquinas superiores redondeadas.
+- Búsqueda de `.lrc` en MediaStore con `LIKE '%.lrc'` y ranking por nombre normalizado (sin acentos ni
+  puntuación), además de las rutas directas; más robusto en Android 13+.
+- Visualizador con respuesta exponencial (1 - e^-x) recortada a 0..1: movimiento casi exagerado pero
+  siempre dentro del canvas, sin saturación.
+- `versionCode` 40 / `1.0.39-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.39` con `musicplayer-40.apk` (3.466.168 bytes, SHA-256 `FE96EF879E5560FCCEA9677C98CA50C9543C3546FCBAEDAAA027952816C92833`), verificada con `aapt` (`versionCode=40`).
+
+## 2026-11-23 - Fase 46: fondo, mini-reproductor y letras (v39)
 
 - **Fondo**: `LarkGradientBackground` deja pasar la imagen del usuario en modo plano (solo un velo
   ligero), así que se ve en biblioteca, canciones, playlists, cola, etc.; ajustes siguen sin imagen.

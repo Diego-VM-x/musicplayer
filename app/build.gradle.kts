@@ -14,8 +14,8 @@ android {
         applicationId = "com.larkplayer.clean"
         minSdk = 24
         targetSdk = 35
-        versionCode = 39
-        versionName = "1.0.38-clean"
+        versionCode = 40
+        versionName = "1.0.39-clean"
     }
 
     lint {
