@@ -461,7 +461,7 @@ fun PlayerScreen(
             Spacer(Modifier.height(16.dp))
 
             // ---- Visualizador: solo se dibuja si el usuario lo activa ----
-            val visualizerBands = rememberAudioBands(state.audioSessionId, state.visualizerEnabled)
+            val visualizerBands = rememberAudioBands(state.visualizerEnabled)
             if (state.visualizerEnabled) {
                 VisualizerWave(
                     modifier = Modifier
@@ -844,10 +844,9 @@ private fun PlayerModeBadge(
 }
 
 private fun nextMode(mode: Int): Int = when (mode) {
-    PlayerRepository.MODE_NORMAL -> PlayerRepository.MODE_REPEAT_ALL
     PlayerRepository.MODE_REPEAT_ALL -> PlayerRepository.MODE_REPEAT_ONE
     PlayerRepository.MODE_REPEAT_ONE -> PlayerRepository.MODE_SHUFFLE
-    else -> PlayerRepository.MODE_NORMAL
+    else -> PlayerRepository.MODE_REPEAT_ALL
 }
 
 @Composable

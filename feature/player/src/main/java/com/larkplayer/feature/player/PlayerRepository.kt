@@ -476,25 +476,46 @@ class PlayerRepository @Inject constructor(
 
     fun setShuffle(on: Boolean) {
         desiredShuffle = on
-        if (on) rebuildShuffleOrder() else visibleOrder = emptyList()
+        if (!on) visibleOrder = emptyList()
         withController { controller -> sendShuffleOrder(controller, on) }
         scope.launch { runCatching { settings.setShuffle(on) } }
     }
 
-    /** Current track first, then a brand-new random order on every activation. */
-    private fun rebuildShuffleOrder() {
+    /**
+     * Current track first. When [force] is false an order saved in a previous
+     * session is reused if the queue still contains the same songs, so the
+     * mix survives app restarts. Pressing shuffle again forces a new order.
+     */
+    private fun rebuildShuffleOrder(force: Boolean = false) {
         val items = currentQueue()
         if (items.isEmpty()) {
             visibleOrder = emptyList()
             return
         }
         val currentId = runCatching { _controller.value?.currentMediaItem?.mediaId }.getOrNull()
-        val first = currentId?.takeIf { id -> items.any { it.mediaId == id } }
-        // No fixed seed: each activation produces a different order.
-        val rest = items.mapNotNull { it.mediaId }
-            .filter { it != first }
-            .shuffled()
+        val ids = items.mapNotNull { it.mediaId }.toSet()
+        if (!force) {
+            val saved = statePrefs.getString(KEY_SHUFFLE_ORDER, null)
+                ?.split(',')
+                ?.filter { it.isNotBlank() }
+            if (saved != null && saved.toSet() == ids) {
+                visibleOrder = listOfNotNull(currentId) + saved.filter { it != currentId }
+                persistShuffleOrder()
+                return
+            }
+        }
+        val first = currentId?.takeIf { id -> ids.contains(id) }
+        val rest = ids.filter { it != first }.shuffled()
         visibleOrder = listOfNotNull(first) + rest
+        persistShuffleOrder()
+    }
+
+    private fun persistShuffleOrder() {
+        ioScope.launch {
+            runCatching {
+                statePrefs.edit().putString(KEY_SHUFFLE_ORDER, visibleOrder.joinToString(",")).apply()
+            }
+        }
     }
 
     /** Sends the visible order to the service; the service owns Media3's shuffle state. */
@@ -534,14 +555,13 @@ class PlayerRepository @Inject constructor(
     /** Mutually exclusive playback option: only one mode can be active. */
     fun setPlaybackMode(mode: Int) {
         val shuffle = mode == MODE_SHUFFLE
+        // Pressing shuffle while it is already active generates a fresh order.
+        if (shuffle) rebuildShuffleOrder(force = desiredShuffle)
         setRepeat(
             when (mode) {
-                MODE_REPEAT_ALL -> Player.REPEAT_MODE_ALL
                 MODE_REPEAT_ONE -> Player.REPEAT_MODE_ONE
-                // Shuffle keeps the queue looping; otherwise it would stop
-                // after the last shuffled track and contradict "repeat all".
-                MODE_SHUFFLE -> Player.REPEAT_MODE_ALL
-                else -> Player.REPEAT_MODE_OFF
+                // Only three radio-like modes exist: one is always active.
+                else -> Player.REPEAT_MODE_ALL
             },
         )
         setShuffle(shuffle)
@@ -761,6 +781,7 @@ class PlayerRepository @Inject constructor(
     companion object {
         const val EXTRA_SONG_PATH = "lark_song_path"
         const val EXTRA_SONG_DURATION = "lark_song_duration"
+        private const val KEY_SHUFFLE_ORDER = "shuffle_order"
         private const val KEY_WIDGET_TITLE = "widget_title"
         private const val KEY_WIDGET_ARTIST = "widget_artist"
         private const val KEY_WIDGET_PLAYING = "widget_playing"

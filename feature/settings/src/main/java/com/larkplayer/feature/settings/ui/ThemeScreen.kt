@@ -205,36 +205,37 @@ fun ThemeScreen(
             modifier = Modifier.padding(horizontal = 16.dp),
         )
         Spacer(Modifier.height(10.dp))
-        Row(
+        Box(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(horizontal = 16.dp)
+                .height(56.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(accent)
+                .clickable { imagePicker.launch("image/*") },
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF1C1D22))
-                    .clickable { imagePicker.launch("image/*") }
-                    .padding(vertical = 13.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("Elegir imagen", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Add, null, tint = Color.Black, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Cambiar fondo de la app",
+                    color = Color.Black,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                )
             }
-            if (bgUri.isNotBlank()) {
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF3A2024))
-                        .clickable { viewModel.clearAppBackgroundImage(context) }
-                        .padding(vertical = 13.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("Quitar imagen", color = Color(0xFFFF9A9A), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
+        }
+        if (bgUri.isNotBlank()) {
+            Text(
+                "Quitar imagen de fondo",
+                color = Color(0xFFFF9A9A),
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable { viewModel.clearAppBackgroundImage(context) },
+            )
         }
         Spacer(Modifier.height(14.dp))
         BackgroundVariants.colors.chunked(5).forEachIndexed { rowIndex, row ->

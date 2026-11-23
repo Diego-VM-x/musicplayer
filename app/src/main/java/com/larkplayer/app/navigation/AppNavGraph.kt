@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +54,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.larkplayer.core.designsystem.component.AppBackground
+import com.larkplayer.core.designsystem.component.LocalAppBackground
 import com.larkplayer.core.designsystem.component.LocalFlatSurface
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.backup.ui.BackupScreen
@@ -148,6 +151,9 @@ fun AppNavGraph() {
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    BackHandler(enabled = currentRoute != Routes.LIBRARY) {
+        navController.exitToLibrary()
+    }
 
     // Delay the floating mini-player (and its PlayerViewModel/Hilt graph) until
     // after the first composed frame. Nothing playback-related runs at launch.
@@ -160,8 +166,14 @@ fun AppNavGraph() {
         MiniPlayerOverlay.visible.collectAsStateWithLifecycle().value &&
         currentRoute !in MINI_PLAYER_HIDDEN_ROUTES
 
+    val currentBackground = LocalAppBackground.current
     Box(Modifier.fillMaxSize()) {
     CompositionLocalProvider(LocalFlatSurface provides true) {
+    CompositionLocalProvider(
+        LocalAppBackground provides if (currentRoute in FLAT_ROUTES) {
+            AppBackground(variantIndex = currentBackground.variantIndex)
+        } else currentBackground,
+    ) {
     NavHost(
         navController = navController,
         startDestination = Routes.LIBRARY,
@@ -202,7 +214,7 @@ fun AppNavGraph() {
         }
         composable(Routes.PLAYER) {
             PlayerScreen(
-                onBack = { navController.popBackStack() },
+                onBack = { navController.exitToLibrary() },
                 onLyrics = { navController.go(Routes.LYRICS) },
                 onQueue = { navController.go(Routes.QUEUE) },
                 onSleepTimer = { navController.go(Routes.SLEEP) },
@@ -215,19 +227,19 @@ fun AppNavGraph() {
             arguments = listOf(navArgument("playlistId") { type = NavType.LongType }),
         ) {
             PlaylistDetailScreen(
-                onBack = { navController.popBackStack() },
+                onBack = { navController.exitToLibrary() },
                 onOpenPlayer = { navController.go(Routes.PLAYER) },
             )
         }
         composable(Routes.LYRICS) {
-            LyricsScreen(onBack = { navController.popBackStack() })
+            LyricsScreen(onBack = { navController.exitToLibrary() })
         }
-        composable(Routes.QUEUE) { QueueScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.SLEEP) { SleepTimerScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.EQUALIZER) { EqualizerScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.QUEUE) { QueueScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.SLEEP) { SleepTimerScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.EQUALIZER) { EqualizerScreen(onBack = { navController.exitToLibrary() }) }
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                onBack = { navController.popBackStack() },
+                onBack = { navController.exitToLibrary() },
                 onPlayTime = { navController.go(Routes.PLAY_TIME) },
                 onBackup = { navController.go(Routes.BACKUP) },
                 onTheme = { navController.go(Routes.THEME) },
@@ -243,23 +255,24 @@ fun AppNavGraph() {
                 onMemories = { navController.go(Routes.MEMORIES) },
             )
         }
-        composable(Routes.PLAY_TIME) { PlayTimeScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.BACKUP) { BackupScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.HIDDEN_FILES) { HiddenFilesScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.RECENTLY_DELETED) { RecentlyDeletedScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.PLAYBACK_SETTINGS) { PlaybackSettingsScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.NOTIFICATIONS) { NotificationSettingsScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.LANGUAGE) { LanguageScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.THEME) { ThemeScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.ABOUT) { AboutScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.FEEDBACK) { FeedbackScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.UPDATES) { UpdateSettingsScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.PLAY_TIME) { PlayTimeScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.BACKUP) { BackupScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.HIDDEN_FILES) { HiddenFilesScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.RECENTLY_DELETED) { RecentlyDeletedScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.PLAYBACK_SETTINGS) { PlaybackSettingsScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.NOTIFICATIONS) { NotificationSettingsScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.LANGUAGE) { LanguageScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.THEME) { ThemeScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.ABOUT) { AboutScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.FEEDBACK) { FeedbackScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.UPDATES) { UpdateSettingsScreen(onBack = { navController.exitToLibrary() }) }
         composable(Routes.MEMORIES) {
             MemoriesScreen(
-                onBack = { navController.popBackStack() },
+                onBack = { navController.exitToLibrary() },
                 onOpenPlayer = { navController.go(Routes.PLAYER) },
             )
         }
+    }
     }
     }
 
@@ -270,6 +283,16 @@ fun AppNavGraph() {
                 onOpen = { navController.go(Routes.PLAYER) },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+        }
+    }
+}
+
+/** Back always leaves the current menu and returns to the library root. */
+private fun NavHostController.exitToLibrary() {
+    if (currentDestination?.route != Routes.LIBRARY) {
+        navigate(Routes.LIBRARY) {
+            popUpTo(Routes.LIBRARY) { inclusive = true }
+            launchSingleTop = true
         }
     }
 }

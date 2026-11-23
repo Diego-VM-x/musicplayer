@@ -169,13 +169,11 @@ fun MiniPlayer(
 }
 
 private fun nextMiniMode(mode: Int): Int = when (mode) {
-    com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL ->
-        com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL
     com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL ->
         com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE
     com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ONE ->
         com.larkplayer.feature.player.PlayerRepository.MODE_SHUFFLE
-    else -> com.larkplayer.feature.player.PlayerRepository.MODE_NORMAL
+    else -> com.larkplayer.feature.player.PlayerRepository.MODE_REPEAT_ALL
 }
 
 /** Compact preview used by the Tema screen. */

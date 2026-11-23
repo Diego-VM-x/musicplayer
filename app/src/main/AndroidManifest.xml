@@ -15,8 +15,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <!-- Required by android.media.audiofx.Visualizer to capture the output mix. -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- Optional: ringtone + online lyrics -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />

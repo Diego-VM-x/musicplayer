@@ -12,6 +12,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,6 +55,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -171,6 +174,7 @@ fun QueueScreen(
                     ) { index, item ->
                         val isCurrent = item.mediaId != null && item.mediaId == currentId
                         var dragY by remember(item.mediaId) { mutableFloatStateOf(0f) }
+                        var rowTopPx by remember(item.mediaId) { mutableFloatStateOf(0f) }
                         val lifted = draggingId == item.mediaId
                         val liftScale by animateFloatAsState(
                             targetValue = if (lifted) 1.06f else 1f,
@@ -196,6 +200,7 @@ fun QueueScreen(
                                     } else Modifier
                                 )
                                 .fillMaxWidth()
+                                .onGloballyPositioned { rowTopPx = it.positionInParent().y }
                                 .graphicsLayer {
                                     translationY = animatedY
                                     scaleX = liftScale
@@ -278,6 +283,28 @@ fun QueueScreen(
                                         ) { change, dragAmount ->
                                             change.consume()
                                             dragY += dragAmount.y
+
+                                            // Edge auto-scroll: dragging near the top or
+                                            // bottom scrolls the queue so a song can be
+                                            // moved far without repeated small gestures.
+                                            if (lifted) {
+                                                val pointerY = rowTopPx + change.position.y
+                                                val start = listState.layoutInfo.viewportStartOffset.toFloat()
+                                                val end = listState.layoutInfo.viewportEndOffset.toFloat()
+                                                val edgePx = with(density) { 72.dp.toPx() }
+                                                val speed = with(density) { 28.dp.toPx() }
+                                                when {
+                                                    pointerY < start + edgePx -> {
+                                                        val strength = ((start + edgePx - pointerY) / edgePx).coerceIn(0f, 1f)
+                                                        scope.launch { listState.animateScrollBy(-speed * strength) }
+                                                    }
+                                                    pointerY > end - edgePx -> {
+                                                        val strength = ((pointerY - (end - edgePx)) / edgePx).coerceIn(0f, 1f)
+                                                        scope.launch { listState.animateScrollBy(speed * strength) }
+                                                    }
+                                                }
+                                            }
+
                                             val steps = (dragY / rowPx).toInt()
                                             if (steps != 0) {
                                                 // Always look up the current live index by ID to
@@ -327,33 +354,21 @@ fun QueueScreen(
                     label = "Repetir",
                     active = mode == MODE_REPEAT_ALL,
                     accent = accentColor,
-                    onClick = {
-                        viewModel.setPlaybackMode(
-                            if (mode == MODE_REPEAT_ALL) MODE_NORMAL else MODE_REPEAT_ALL
-                        )
-                    },
+                    onClick = { viewModel.setPlaybackMode(MODE_REPEAT_ALL) },
                 )
                 QueueToggle(
                     icon = Icons.Rounded.RepeatOne,
                     label = "Repetir una",
                     active = mode == MODE_REPEAT_ONE,
                     accent = accentColor,
-                    onClick = {
-                        viewModel.setPlaybackMode(
-                            if (mode == MODE_REPEAT_ONE) MODE_NORMAL else MODE_REPEAT_ONE
-                        )
-                    },
+                    onClick = { viewModel.setPlaybackMode(MODE_REPEAT_ONE) },
                 )
                 QueueToggle(
                     icon = Icons.Rounded.Shuffle,
                     label = "Aleatorio",
                     active = mode == MODE_SHUFFLE,
                     accent = accentColor,
-                    onClick = {
-                        viewModel.setPlaybackMode(
-                            if (mode == MODE_SHUFFLE) MODE_NORMAL else MODE_SHUFFLE
-                        )
-                    },
+                    onClick = { viewModel.setPlaybackMode(MODE_SHUFFLE) },
                 )
             }
         }

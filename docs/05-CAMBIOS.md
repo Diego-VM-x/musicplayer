@@ -4,6 +4,31 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-22 — Fase 45: visualizador PCM real sin permisos (v38)
+
+- `PcmSpectrumProcessor`: `AudioProcessor` que deja pasar el PCM intacto y alimenta `AudioSpectrumSource`.
+- `SpectrumRenderersFactory` instala el procesador en el `DefaultAudioSink` de ExoPlayer.
+- `AudioSpectrumSource` calcula 16 bandas logarítmicas con el algoritmo de Goertzel sobre el PCM que va
+  al altavoz; no se usa `android.media.audiofx.Visualizer` ni `RECORD_AUDIO`.
+- `rememberAudioBands` sondea esas bandas a ~30 fps; las ondas/barras responden al audio real y no se
+  dibuja nada cuando el visualizador está apagado.
+- `versionCode` 38 / `1.0.37-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.37` con `musicplayer-38.apk` (3.466.168 bytes, SHA-256 `897D806545604450FD6B8858F9054A5B5696CC66558B0789F37DB7CA99FDC7CE`), verificada con `aapt` (`versionCode=38`).
+
+## 2026-11-22 — Fase 44: navegación, modos, cola y fondo (v37)
+
+- **Atrás** sale del menú actual y vuelve a la biblioteca (tanto el botón como el gesto del sistema),
+  sin acumular el historial de ventanas.
+- **Visualizador**: se eliminó `RECORD_AUDIO` y su solicitud; el capturador FFT sigue activo solo cuando
+  el usuario lo enciende y no se dibuja nada cuando está apagado.
+- **Modos aleatorios**: ahora son tres opciones excluyentes donde siempre hay una activa; pulsar aleatorio
+  estando ya activo genera un orden nuevo. El orden se guarda en `SharedPreferences` y se reutiliza al
+  reabrir la app mientras la cola sea la misma.
+- **Cola**: al arrastrar una canción cerca de los bordes, la lista hace autoscroll para poder moverla lejos.
+- **Fondo**: botón "Cambiar fondo de la app" amplio y en acento; la imagen de fondo se aplica en todas
+  las vistas excepto ajustes.
+- `versionCode` 37 / `1.0.36-clean`.
+
 ## 2026-11-22 — Fase 43: interfaz plana global y visualizador de estudio (v36)
 
 - **Sin liquid glass en toda la app**: `LocalFlatSurface` por defecto `true` y proveedor global en

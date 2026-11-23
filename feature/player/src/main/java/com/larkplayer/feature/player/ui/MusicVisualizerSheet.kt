@@ -1,10 +1,5 @@
 package com.larkplayer.feature.player.ui
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.media.audiofx.Visualizer
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -34,6 +29,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.larkplayer.feature.player.AudioSpectrumSource
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,7 +43,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,93 +72,28 @@ data class AudioBands(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Attaches Android [Visualizer] to the given [audioSessionId] while this
- * composable is in the composition. Calls [onBands] on every FFT capture
- * (~30 fps). Requires RECORD_AUDIO permission.
+ * Reads 16 real frequency bands from the PCM tap installed in ExoPlayer's
+ * audio sink. No microphone and no permission are involved: the bytes are the
+ * same ones sent to the speaker.
  */
 @Composable
-fun rememberAudioBands(
-    audioSessionId: Int,
-    enabled: Boolean,
-): AudioBands {
+fun rememberAudioBands(enabled: Boolean): AudioBands {
     var bands by remember { mutableStateOf(AudioBands()) }
 
-    DisposableEffect(audioSessionId, enabled) {
-        if (!enabled || audioSessionId == 0) {
+    LaunchedEffect(enabled) {
+        if (!enabled) {
             bands = AudioBands()
-            onDispose {}
-        } else {
-            val vis = runCatching {
-                Visualizer(audioSessionId).apply {
-                    captureSize = Visualizer.getCaptureSizeRange()[1] // max = 1024
-                    setDataCaptureListener(
-                        object : Visualizer.OnDataCaptureListener {
-                            override fun onWaveFormDataCapture(v: Visualizer, waveform: ByteArray, sr: Int) = Unit
-                            override fun onFftDataCapture(v: Visualizer, fft: ByteArray, sr: Int) {
-                                // fft[0] = DC, fft[1..n/2] = magnitude pairs
-                                val n = fft.size
-                                // Frequency per bin = sr / n  (sr in mHz → convert)
-                                val binHz = (sr / 1000.0) / n
-
-                                val mags = DoubleArray(n / 2)
-                                var bassSum = 0.0
-                                var bassCount = 0
-                                var midSum = 0.0
-                                var midCount = 0
-                                var trebleSum = 0.0
-                                var trebleCount = 0
-
-                                for (i in 1 until n / 2) {
-                                    val re = fft[2 * i].toDouble()
-                                    val im = fft[2 * i + 1].toDouble()
-                                    val mag = Math.sqrt(re * re + im * im) / 128.0
-                                    mags[i] = mag
-                                    val freq = binHz * i
-                                    when {
-                                        freq < 250 -> { bassSum += mag; bassCount++ }
-                                        freq < 4000 -> { midSum += mag; midCount++ }
-                                        else -> { trebleSum += mag; trebleCount++ }
-                                    }
-                                }
-
-                                // Log-spaced spectrum: 16 bands from 40 Hz to Nyquist.
-                                val spectrum = FloatArray(16)
-                                val maxFreq = minOf(16000.0, (sr / 1000.0) / 2.0)
-                                for (b in 0 until 16) {
-                                    val f0 = 40.0 * Math.pow(maxFreq / 40.0, b / 16.0)
-                                    val f1 = 40.0 * Math.pow(maxFreq / 40.0, (b + 1) / 16.0)
-                                    var sum = 0.0
-                                    var count = 0
-                                    for (i in 1 until n / 2) {
-                                        val freq = binHz * i
-                                        if (freq >= f0 && freq < f1) { sum += mags[i]; count++ }
-                                    }
-                                    spectrum[b] = (if (count > 0) sum / count * 3.0 else 0.0)
-                                        .toFloat().coerceIn(0f, 1f)
-                                }
-
-                                bands = AudioBands(
-                                    bass = (if (bassCount > 0) (bassSum / bassCount * 2.5) else 0.0)
-                                        .toFloat().coerceIn(0f, 1f),
-                                    mid = (if (midCount > 0) (midSum / midCount * 3.0) else 0.0)
-                                        .toFloat().coerceIn(0f, 1f),
-                                    treble = (if (trebleCount > 0) (trebleSum / trebleCount * 3.5) else 0.0)
-                                        .toFloat().coerceIn(0f, 1f),
-                                    spectrum = spectrum,
-                                )
-                            }
-                        },
-                        1000,
-                        false,
-                        true,
-                    )
-                    setEnabled(true)
-                }
-            }.getOrNull()
-
-            onDispose {
-                runCatching { vis?.enabled = false; vis?.release() }
-            }
+            return@LaunchedEffect
+        }
+        while (isActive) {
+            val spectrum = AudioSpectrumSource.currentBands()
+            bands = AudioBands(
+                bass = (spectrum.take(4).average().toFloat()).coerceIn(0f, 1f),
+                mid = (spectrum.drop(4).take(8).average().toFloat()).coerceIn(0f, 1f),
+                treble = (spectrum.drop(12).average().toFloat()).coerceIn(0f, 1f),
+                spectrum = spectrum,
+            )
+            delay(33L)
         }
     }
 
@@ -185,10 +117,6 @@ fun MusicVisualizerSheet(
     accent: Color,
     onDismissRequest: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted -> if (granted) onEnabledChange(true) }
     LarkSheet(onDismissRequest = onDismissRequest) {
         Column(
             Modifier
@@ -216,16 +144,7 @@ fun MusicVisualizerSheet(
                 }
                 Switch(
                     checked = enabled,
-                    onCheckedChange = { checked ->
-                        if (checked &&
-                            context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
-                            PackageManager.PERMISSION_GRANTED
-                        ) {
-                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        } else {
-                            onEnabledChange(checked)
-                        }
-                    },
+                    onCheckedChange = onEnabledChange,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = accent,
