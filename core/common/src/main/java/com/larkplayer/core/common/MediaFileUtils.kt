@@ -102,7 +102,11 @@ object MediaFileUtils {
      * folder is blocked by scoped storage on Android 13+, so the sibling-file
      * check alone used to fail there.
      */
-    fun findLyricsText(context: Context, song: Song): String? = runCatching {
+    fun findLyricsText(context: Context, song: Song): String? {
+        // Many Lark downloads store the .lrc inside the MP3 as an ID3 USLT
+        // frame instead of a sibling file. Try that first.
+        EmbeddedLyrics.read(context, song)?.takeIf { it.isNotBlank() }?.let { return it }
+        return runCatching {
         val audioFile = java.io.File(song.path)
         val base = audioFile.nameWithoutExtension
         val stems = listOf(
@@ -176,7 +180,8 @@ object MediaFileUtils {
             if (!text.isNullOrBlank()) return text
         }
         null
-    }.getOrNull() ?: findLocalLyrics(song.path)
+        }.getOrNull() ?: findLocalLyrics(song.path)
+    }
 
     private fun normalizeLyricName(value: String): String = value
         .lowercase()

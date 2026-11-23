@@ -253,6 +253,7 @@ fun PlayerScreen(
         accent,
         0.55f,
     )
+    NavBarTint(color = playerBackground, active = true)
 
     Box(
         Modifier

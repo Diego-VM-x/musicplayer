@@ -69,6 +69,7 @@ fun MiniPlayer(
     val accent = Color(accentInt)
     val background = androidx.compose.ui.graphics.lerp(Color(0xFF101014), accent, 0.55f)
     val foreground = Color.White
+    NavBarTint(color = background, active = true)
 
     Row(
         modifier

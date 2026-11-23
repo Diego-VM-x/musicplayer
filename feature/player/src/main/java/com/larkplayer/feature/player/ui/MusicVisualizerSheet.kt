@@ -307,11 +307,14 @@ fun VisualizerWave(
                         }
                     }
 
-                    val factor = if (style == "ascenso") (0.35f + progress * 0.65f) else 1f
-                    // Near-full scale response, hard-clamped so bars never
-                    // overflow the canvas (no saturated/clipped look).
-                    val waveAmp = (bandAmp * factor * 1.15f).coerceIn(0.04f, 0.98f)
-                    val barHeight = (h * 0.95f * waveAmp).coerceAtLeast(4f)
+                    val factor = when (style) {
+                        "rebote" -> 0.62f          // shorter, springy bars
+                        "ascenso" -> 0.35f + progress * 0.45f  // rising but lower ceiling
+                        else -> 1f
+                    }
+                    // Hard clamp keeps every bar inside the canvas.
+                    val waveAmp = (bandAmp * factor * 1.1f).coerceIn(0.04f, 0.9f)
+                    val barHeight = (h * 0.88f * waveAmp).coerceAtLeast(4f)
                     val x = startX + i * (barWidth + spacing)
                     val y = h - barHeight
 
@@ -348,8 +351,9 @@ fun VisualizerWave(
                     return@Canvas
                 }
 
-                val bassAmp = h * 0.42f * (0.08f + bassVal * 0.92f)
-                val midAmp  = h * 0.28f * (0.05f + midVal * 0.95f)
+                // Armonía: tall, lively waves driven by the three band levels.
+                val bassAmp = h * 0.72f * bassVal.coerceIn(0.06f, 1f)
+                val midAmp  = h * 0.48f * midVal.coerceIn(0.04f, 1f)
 
                 val steps = 60
 

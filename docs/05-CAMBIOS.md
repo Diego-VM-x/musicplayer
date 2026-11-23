@@ -4,6 +4,17 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 48: lyrics incrustadas y barra de navegación teñida (v41)
+
+- `EmbeddedLyrics`: lector de ID3v2 USLT/SYLT sin dependencias, para canciones que traen la letra dentro
+  del MP3 (no como archivo `.lrc`). `MediaFileUtils.findLyricsText` lo intenta antes que los archivos.
+- Armonía usa amplitudes mucho mayores (0.72 h / 0.48 h); rebote baja a 0.62 y ascenso a un techo de
+  0.8 para que ninguna barra llegue arriba como antes.
+- `NavBarTint`: la barra de navegación de Android toma el color del reproductor mientras suena música y
+  vuelve a negro cuando no hay reproducción.
+- `versionCode` 41 / `1.0.40-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.40` con `musicplayer-41.apk` (3.466.164 bytes, SHA-256 `56CDDB9D2A5532C0E84F53EC26CF43F06AECD45708B76B3C29E1FF7C4CA212BB`), verificada con `aapt` (`versionCode=41`).
+
 ## 2026-11-23 - Fase 47: mini barra, lyrics y visualizador intenso (v40)
 
 - Mini-reproductor sin botón de siguiente y con esquinas superiores redondeadas.
