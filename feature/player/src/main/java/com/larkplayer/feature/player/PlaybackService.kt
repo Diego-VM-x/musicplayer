@@ -18,6 +18,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ShuffleOrder
 import androidx.media3.session.CommandButton
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
@@ -49,7 +50,6 @@ class PlaybackService : MediaSessionService() {
 
     private var session: MediaSession? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private lateinit var notificationProvider: LarkMediaNotificationProvider
 
     /** Mirrors the "Notificación de reproducción" preference. */
     @Volatile private var showNotification = true
@@ -123,16 +123,15 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         }
-        notificationProvider = LarkMediaNotificationProvider(context = this)
-        setMediaNotificationProvider(notificationProvider)
-        // Repost every second so the custom notification's progress bar tracks
-        // the real playback position instead of freezing at metadata changes.
-        scope.launch {
-            while (isActive) {
-                delay(1_000L)
-                if (player.isPlaying) notificationProvider.tick()
-            }
-        }
+        // The custom RemoteViews provider crashed on playback start on some
+        // devices (startForeground rejects the view). Keep the stable Media3
+        // layout until a safer custom implementation is available.
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this)
+                .setChannelId(CHANNEL_ID)
+                .setNotificationId(NOTIFICATION_ID)
+                .build(),
+        )
         val closeCommand = SessionCommand(COMMAND_STOP_ALL, Bundle.EMPTY)
         session = MediaSession.Builder(this, player)
             .setId("lark_player_session")

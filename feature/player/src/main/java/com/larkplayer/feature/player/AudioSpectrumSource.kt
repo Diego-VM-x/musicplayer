@@ -2,6 +2,7 @@ package com.larkplayer.feature.player
 
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 /** 16 log-spaced bands, waveform snapshot and derived low/mid/high levels. */
@@ -35,6 +36,9 @@ object AudioSpectrumSource {
     private var filled = 0
     @Volatile private var sampleRate = 48_000
     private val waveformSnapshot = FloatArray(64)
+    // Per-band running peak with slow decay: gives every bar its own dynamic
+    // range, so a nearly flat spectrum still produces visible movement.
+    private val bandMax = FloatArray(BAND_COUNT) { 0.0005f }
 
     fun feed(pcm: FloatArray, count: Int, rate: Int) {
         if (count <= 0) return
@@ -77,34 +81,33 @@ object AudioSpectrumSource {
         if (available < 128) return result
 
         val maxFreq = minOf(16_000f, rate / 2f)
-        // Raw magnitude per band. The old `1 - exp(-raw*5)` + AGC pinned every
-        // band to 0.98 with normal music, so all bars looked identical/frozen.
         val magnitudes = FloatArray(BAND_COUNT)
-        var total = 0f
         for (band in 0 until BAND_COUNT) {
             val f0 = 40.0 * Math.pow((maxFreq / 40.0).toDouble(), band / BAND_COUNT.toDouble())
             val f1 = 40.0 * Math.pow((maxFreq / 40.0).toDouble(), (band + 1) / BAND_COUNT.toDouble())
             val center = sqrt(f0 * f1).toFloat()
-            val magnitude = goertzel(buffer, center, rate)
-            magnitudes[band] = magnitude
-            total += magnitude
+            magnitudes[band] = goertzel(buffer, center, rate)
         }
-        val mean = total / BAND_COUNT
         // Loudness gate: silence stays flat instead of being amplified into motion.
-        val loudness = (rms() / 0.10f).coerceIn(0f, 1f)
+        val gate = (rms() / 0.06f).coerceIn(0f, 1f)
         for (band in 0 until BAND_COUNT) {
-            val relative = magnitudes[band] / (mean + 1e-6f)
-            result[band] = (loudness * (0.10f + 0.90f * (relative / 2.2f).coerceIn(0f, 1f)))
-                .coerceIn(0.02f, 1f)
+            bandMax[band] = maxOf(magnitudes[band], bandMax[band] * 0.992f, 0.0005f)
+            val relative = (magnitudes[band] / bandMax[band]).coerceIn(0f, 1f)
+            result[band] = ((0.04f + 0.96f * relative.pow(0.7f)) * gate).coerceIn(0f, 1f)
         }
         return result
     }
+
+    /** Current PCM level; the UI uses it to show whether the tap is feeding. */
+    fun level(): Float = rms()
 
     fun reset() {
         synchronized(lock) {
             writeIndex = 0
             filled = 0
+            waveformSnapshot.fill(0f)
         }
+        for (i in bandMax.indices) bandMax[i] = 0.0005f
     }
 
     /** RMS level of the current window, used as a loudness gate for the bands. */

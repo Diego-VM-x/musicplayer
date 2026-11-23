@@ -21,6 +21,7 @@ import androidx.media3.session.MediaNotification
 import androidx.media3.session.MediaSession
 import com.google.common.collect.ImmutableList
 import com.larkplayer.core.designsystem.R as DesignR
+import timber.log.Timber
 import java.util.Locale
 
 /**
@@ -38,6 +39,10 @@ class LarkMediaNotificationProvider(
     @Volatile private var cachedFactory: MediaNotification.ActionFactory? = null
     @Volatile private var cachedLayout: ImmutableList<CommandButton> = ImmutableList.of()
     @Volatile private var callback: MediaNotification.Provider.Callback? = null
+    // Reposting every second must not re-decode full-size artwork (OOM risk).
+    @Volatile private var artworkKey: String? = null
+    @Volatile private var artworkCache: Bitmap? = null
+    @Volatile private var appIconCache: Bitmap? = null
 
     /** Re-posts the notification once a second so the progress bar really moves. */
     fun tick() {
@@ -58,6 +63,21 @@ class LarkMediaNotificationProvider(
         cachedLayout = customLayout
         this.callback = callback
 
+        // A broken custom RemoteViews must never take down playback: fall back
+        // to the standard media layout if any step of the custom build fails.
+        val notification = runCatching { buildCustomNotification(session, customLayout, actionFactory) }
+            .getOrElse { throwable ->
+                Timber.w(throwable, "Custom Lark notification failed; using fallback")
+                buildFallbackNotification(session)
+            }
+        return MediaNotification(PlaybackService.NOTIFICATION_ID, notification)
+    }
+
+    private fun buildCustomNotification(
+        session: MediaSession,
+        customLayout: ImmutableList<CommandButton>,
+        actionFactory: MediaNotification.ActionFactory,
+    ): android.app.Notification {
         val player = session.player
         val metadata: MediaMetadata = player.mediaMetadata ?: MediaMetadata.EMPTY
         val title = metadata.title?.toString()?.takeIf { it.isNotBlank() }
@@ -124,7 +144,24 @@ class LarkMediaNotificationProvider(
             .setOngoing(isPlaying)
             .setOnlyAlertOnce(true)
             .build()
-        return MediaNotification(PlaybackService.NOTIFICATION_ID, notification)
+        return notification
+    }
+
+    private fun buildFallbackNotification(session: MediaSession): android.app.Notification {
+        val metadata: MediaMetadata = runCatching {
+            session.player.mediaMetadata ?: MediaMetadata.EMPTY
+        }.getOrDefault(MediaMetadata.EMPTY)
+        return NotificationCompat.Builder(context, PlaybackService.CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_lark)
+            .setContentTitle(metadata.title ?: context.getString(R.string.notif_unknown_title))
+            .setContentText(metadata.artist)
+            .setStyle(
+                androidx.media.app.NotificationCompat.MediaStyle()
+                    .setMediaSession(session.sessionCompatToken),
+            )
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(runCatching { session.player.isPlaying }.getOrDefault(false))
+            .build()
     }
 
     override fun handleCustomCommand(session: MediaSession, action: String, extras: Bundle): Boolean = false
@@ -142,22 +179,37 @@ class LarkMediaNotificationProvider(
     }
 
     private fun loadArtwork(metadata: MediaMetadata): Bitmap? {
-        metadata.artworkData?.let { data ->
-            runCatching { BitmapFactory.decodeByteArray(data, 0, data.size) }.getOrNull()?.let { return it }
+        val data = metadata.artworkData
+        val uri = metadata.artworkUri
+        val key = uri?.toString() ?: data?.contentHashCode()?.toString() ?: "none"
+        if (key == artworkKey) artworkCache?.let { return it }
+
+        // Downsample while decoding: a 4000x4000 cover would otherwise be
+        // allocated every second by the progress ticker.
+        val options = BitmapFactory.Options().apply { inSampleSize = 4 }
+        val decoded = when {
+            data != null -> runCatching {
+                BitmapFactory.decodeByteArray(data, 0, data.size, options)
+            }.getOrNull()
+            uri != null -> runCatching {
+                context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+            }.getOrNull()
+            else -> null
         }
-        val uri = metadata.artworkUri ?: return null
-        return runCatching {
-            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-        }.getOrNull()
+        artworkKey = key
+        artworkCache = decoded
+        return decoded
     }
 
     private fun appIconBitmap(): Bitmap {
+        appIconCache?.let { return it }
         val size = 48
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val drawable = context.packageManager.getApplicationIcon(context.packageName)
         drawable.setBounds(0, 0, size, size)
         drawable.draw(canvas)
+        appIconCache = bitmap
         return bitmap
     }
 

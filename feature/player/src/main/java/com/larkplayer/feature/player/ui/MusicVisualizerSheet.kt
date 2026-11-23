@@ -94,7 +94,7 @@ fun rememberVisualizerBands(
             }
             waveform = wave
             val energy = (spectrum.average().toFloat()).coerceIn(0f, 1f)
-            phase = (phase + 0.02f + 0.06f * energy) % (2f * PI.toFloat())
+            phase = (phase + 0.05f + 0.12f * energy) % (2f * PI.toFloat())
             bands.value = AudioBands(
                 bass = (smooth.take(4).average().toFloat()).coerceIn(0f, 1f),
                 mid = (smooth.drop(4).take(8).average().toFloat()).coerceIn(0f, 1f),
@@ -199,7 +199,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBounceBars(
         val progress = i.toFloat() / (count - 1)
         val factor = if (rising) 0.3f + progress * 0.5f else 0.85f
         val amp = (bands.spectrum[i] * factor).coerceIn(0.04f, 0.95f)
-        val barH = (h * 0.86f * amp).coerceAtLeast(3f)
+        val sway = 1f + 0.12f * sin(bands.phase + i * 0.6f).toFloat()
+        val barH = (h * 0.86f * amp * sway).coerceAtLeast(3f)
         val peakY = h - (h * 0.86f * bands.peaks[i] * factor).coerceAtLeast(3f)
         val x = startX + i * (barW + gap)
         drawRoundRect(
@@ -307,6 +308,24 @@ private val MODES = listOf(
     "flujo" to "Flujo",
 )
 
+/** Small diagnostic: confirms whether the real PCM tap is delivering samples. */
+@Composable
+private fun AudioSignalLabel() {
+    var level by remember { mutableStateOf(0f) }
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            level = AudioSpectrumSource.level()
+            delay(400L)
+        }
+    }
+    val hasSignal = level > 0.002f
+    Text(
+        if (hasSignal) "Señal PCM: activa" else "Señal PCM: sin datos (¿en pausa?)",
+        color = if (hasSignal) Color(0xFF4CD964) else Color(0xFF8E8E93),
+        fontSize = 11.sp,
+    )
+}
+
 /** Switch + horizontal style cards. Starts OFF; user opts in. */
 @Composable
 fun MusicVisualizerSheet(
@@ -336,6 +355,7 @@ fun MusicVisualizerSheet(
                         color = Color(0xFF8E8E93),
                         fontSize = 12.sp,
                     )
+                    AudioSignalLabel()
                 }
                 Switch(
                     checked = enabled,

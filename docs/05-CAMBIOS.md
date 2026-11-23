@@ -4,6 +4,14 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 54: corrección de crash al reproducir y visualizador reactivo (v47)
+
+- **Crash al reproducir**: el provider de notificación con `RemoteViews` personalizadas era rechazado por `startForeground` en algunos dispositivos. Se restaura `DefaultMediaNotificationProvider` (estable en v1.0.44). El código del layout Lark se conserva pero no se instala.
+- **Visualizador**: bandas con normalización adaptativa por banda (pico con decaimiento lento) para que haya movimiento visible incluso con espectro plano; compuerta de volumen real; fase más rápida y oscilación de barras. Sin audio simulado.
+- **Diagnóstico**: el panel del visualizador muestra «Señal PCM: activa / sin datos», para confirmar si el tap `AudioProcessor` está entregando muestras reales.
+- `versionCode` 47 / `1.0.46-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.46` con `musicplayer-47.apk` (3.485.112 bytes, SHA-256 `24F51AEF5985482959761612FC31CF43310F3CBDDB576D14A948CC36E0650B2E`), verificada con `aapt` (`versionCode=47`).
+
 ## 2026-11-23 - Fase 53: sincronización real de letras, visualizador dinámico y notificación Lark (v46)
 
 - **Letras**: se priorizan las fuentes con timestamps reales (SYLT incrustado y `.lrc`) sobre USLT/`.txt` planos, tanto en `EmbeddedLyrics` como en `MediaFileUtils.findLyricsText` y en la caché de Room. Un USLT plano ya no gana sobre un `.lrc` sincronizado. La línea activa sigue ahora la posición real de audio.
