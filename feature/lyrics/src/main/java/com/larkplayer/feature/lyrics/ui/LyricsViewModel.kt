@@ -19,7 +19,13 @@ class LyricsViewModel @Inject constructor(
     private val _lyrics = MutableStateFlow(Lyrics(0))
     val lyrics: StateFlow<Lyrics> = _lyrics.asStateFlow()
 
-    fun load(title: String, artist: String = "", path: String = "") = viewModelScope.launch {
-        _lyrics.value = repository.loadForTitle(title, artist, path)
-    }
+    fun load(title: String, artist: String = "", path: String = "", songId: Long = -1L) =
+        viewModelScope.launch {
+            _lyrics.value = if (songId > 0) {
+                repository.loadForSongId(songId).takeIf { it.lines.isNotEmpty() }
+                    ?: repository.loadForTitle(title, artist, path)
+            } else {
+                repository.loadForTitle(title, artist, path)
+            }
+        }
 }

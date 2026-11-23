@@ -4,6 +4,18 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 — Fase 46: fondo, mini-reproductor y letras (v39)
+
+- **Fondo**: `LarkGradientBackground` deja pasar la imagen del usuario en modo plano (solo un velo
+  ligero), así que se ve en biblioteca, canciones, playlists, cola, etc.; ajustes siguen sin imagen.
+- **Mini-reproductor**: pasa a ser una barra inferior de ancho completo pegada abajo, como la original,
+  sin borde en el botón de play y con botón de siguiente; superficie de color sólido derivado de la carátula.
+- **Reproductor completo**: fondo sólido del mismo color de la carátula, sin afectar al resto de la app.
+- **Letras**: `LyricsRepository.loadForSongId()` resuelve la fila exacta de MediaStore por id (ruta real),
+  con fallback al título/artista; la pantalla de letras usa el id de la canción en reproducción.
+- `versionCode` 39 / `1.0.38-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.38` con `musicplayer-39.apk` (3.466.168 bytes, SHA-256 `D96E61086FCA816B0F1789A78630DF7517605563D61BA2EC37AC1D98861E24EE`), verificada con `aapt` (`versionCode=39`).
+
 ## 2026-11-22 — Fase 45: visualizador PCM real sin permisos (v38)
 
 - `PcmSpectrumProcessor`: `AudioProcessor` que deja pasar el PCM intacto y alimenta `AudioSpectrumSource`.

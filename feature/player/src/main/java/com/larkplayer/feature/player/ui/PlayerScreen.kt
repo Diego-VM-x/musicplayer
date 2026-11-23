@@ -247,13 +247,17 @@ fun PlayerScreen(
     val currentMode = viewModel.currentPlaybackMode()
     val speedVisible = abs(state.playbackSpeed - 1f) > 0.01f
 
-    // Lark Player Original matte background
-    val darkMatteBg = Color(0xFF262626)
+    // Solid colour derived from the current artwork, used only by the player.
+    val playerBackground = androidx.compose.ui.graphics.lerp(
+        Color(0xFF101014),
+        accent,
+        0.55f,
+    )
 
     Box(
         Modifier
             .fillMaxSize()
-            .background(darkMatteBg)
+            .background(playerBackground)
     ) {
         Column(
             Modifier
@@ -582,7 +586,7 @@ fun PlayerScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .background(darkMatteBg)
+                .background(playerBackground)
                 .padding(horizontal = 24.dp, vertical = 14.dp),
         ) {
             Row(

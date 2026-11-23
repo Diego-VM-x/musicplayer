@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -53,8 +54,8 @@ import coil.compose.AsyncImage
 import com.larkplayer.core.designsystem.theme.ApplePalette
 
 /**
- * Floating mini-player pill. Uses the artwork accent so it blends with the
- * library, exactly like Lark's bottom bar.
+ * Full-width bottom player bar, like the original app. Its surface is a solid
+ * colour derived from the current artwork; the app background is untouched.
  */
 @Composable
 fun MiniPlayer(
@@ -66,104 +67,107 @@ fun MiniPlayer(
     val accentInt by viewModel.accent.collectAsStateWithLifecycle()
     if (state.id <= 0) return
     val accent = Color(accentInt)
+    val background = androidx.compose.ui.graphics.lerp(Color(0xFF101014), accent, 0.55f)
+    val foreground = Color.White
 
-    // Lark Player Original: dark charcoal rounded surface (#212224)
-    val background = Color(0xFF262626)
-
-    Box(
+    Row(
         modifier
             .fillMaxWidth()
             .height(72.dp)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onOpen),
+            .background(background)
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            Modifier
-                .fillMaxSize()
-                .background(background)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(Color(0x22101014)),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF1E1E1E)),
-                contentAlignment = Alignment.Center,
-            ) {
-                AsyncImage(
-                    model = state.albumArt,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    state.title.uppercase(Locale.getDefault()),
-                    color = Color.White,
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    (state.artist.ifBlank { "Desconocido" }).uppercase(Locale.getDefault()),
-                    color = Color(0xFF8E8E93),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            // Lark Original: mode toggle (shuffle / loop)
-            val mode = viewModel.currentPlaybackMode()
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .clickable { viewModel.setPlaybackMode(nextMiniMode(mode)) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(
-                        if (mode == com.larkplayer.feature.player.PlayerRepository.MODE_SHUFFLE) DesignR.drawable.ic_lark_shuffle
-                        else DesignR.drawable.ic_lark_repeat
-                    ),
-                    "Modo de reproducción",
-                    tint = Color(0xFFE0E0E0),
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-            Spacer(Modifier.width(6.dp))
-
-            // Circular Play / pause border button as in screenshot
-            val playBtnScale by animateFloatAsState(
-                targetValue = if (state.isPlaying) 1.04f else 1.0f,
-                animationSpec = tween(150),
-                label = "mini_play_scale",
+            AsyncImage(
+                model = state.albumArt,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
-            Box(
-                Modifier
-                    .size(44.dp)
-                    .scale(playBtnScale)
-                    .clip(CircleShape)
-                    .background(Color(0xFF333333))
-                    .border(1.dp, Color(0xFF555555), CircleShape)
-                    .clickable(onClick = viewModel::togglePlayPause),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(
-                        if (state.isPlaying) DesignR.drawable.ic_lark_pause
-                        else DesignR.drawable.ic_lark_play
-                    ),
-                    contentDescription = if (state.isPlaying) "Pausar" else "Reproducir",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                state.title,
+                color = foreground,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                state.artist.ifBlank { "Desconocido" },
+                color = foreground.copy(alpha = 0.72f),
+                fontSize = 11.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        val mode = viewModel.currentPlaybackMode()
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable { viewModel.setPlaybackMode(nextMiniMode(mode)) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(
+                    if (mode == com.larkplayer.feature.player.PlayerRepository.MODE_SHUFFLE) DesignR.drawable.ic_lark_shuffle
+                    else DesignR.drawable.ic_lark_repeat
+                ),
+                "Modo de reproducción",
+                tint = foreground,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        Spacer(Modifier.width(4.dp))
+
+        val playBtnScale by animateFloatAsState(
+            targetValue = if (state.isPlaying) 1.04f else 1.0f,
+            animationSpec = tween(150),
+            label = "mini_play_scale",
+        )
+        Box(
+            Modifier
+                .size(44.dp)
+                .scale(playBtnScale)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.14f))
+                .clickable(onClick = viewModel::togglePlayPause),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(
+                    if (state.isPlaying) DesignR.drawable.ic_lark_pause
+                    else DesignR.drawable.ic_lark_play
+                ),
+                contentDescription = if (state.isPlaying) "Pausar" else "Reproducir",
+                tint = foreground,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        Spacer(Modifier.width(4.dp))
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable(onClick = viewModel::skipNext),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Rounded.SkipNext,
+                "Siguiente",
+                tint = foreground,
+                modifier = Modifier.size(24.dp),
+            )
         }
     }
 }

@@ -263,7 +263,15 @@ fun LarkGradientBackground(
             .fillMaxSize()
             .background(
                 if (isFlat) {
-                    Brush.linearGradient(listOf(base, base))
+                    // The user's image lives behind this composable: only add a
+                    // light scrim so text stays readable without hiding it.
+                    if (hasImage) {
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, base.copy(alpha = 0.28f)),
+                        )
+                    } else {
+                        Brush.linearGradient(listOf(base, base))
+                    }
                 } else {
                     Brush.verticalGradient(
                         0f to accent.copy(alpha = if (hasImage) strength * 0.55f else strength),
