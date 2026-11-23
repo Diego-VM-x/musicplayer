@@ -149,32 +149,6 @@ fun LyricsScreen(
             modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
         )
 
-        // Manual sync trim: ±0.5 s per tap, remembered per song.
-        Row(
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "−0.5s",
-                color = ApplePalette.TextSecondary,
-                fontSize = 13.sp,
-                modifier = Modifier
-                    .clickable { lyricsViewModel.adjustOffset(-500) }
-                    .padding(8.dp),
-            )
-            Text(
-                "${offsetMs} ms",
-                color = ApplePalette.TextPrimary,
-                fontSize = 12.sp,
-            )
-            Text(
-                "+0.5s",
-                color = ApplePalette.TextSecondary,
-                fontSize = 13.sp,
-                modifier = Modifier
-                    .clickable { lyricsViewModel.adjustOffset(500) }
-                    .padding(8.dp),
-            )
-        }
+        // Sync is derived automatically from the file/audio; no manual trim UI.
     }
 }

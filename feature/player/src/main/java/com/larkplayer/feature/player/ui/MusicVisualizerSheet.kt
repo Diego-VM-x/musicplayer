@@ -46,8 +46,10 @@ import androidx.compose.ui.unit.sp
 import com.larkplayer.core.designsystem.component.LarkSheet
 import com.larkplayer.feature.player.AudioBands
 import com.larkplayer.feature.player.AudioSpectrumSource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
@@ -82,12 +84,14 @@ fun rememberVisualizerBands(
         var phase = 0f
         var frames = 0L
         while (isActive) {
-            val raw = AudioSpectrumSource.currentBands()
+            // Goertzel over 16 bands is CPU work: run it off the main thread so
+            // the UI never stalls and the animation follows the audio closely.
+            val raw = withContext(Dispatchers.Default) { AudioSpectrumSource.currentBands() }
             val gain = if (playing) 1f else 0f
             for (i in smooth.indices) {
                 val target = (raw.getOrElse(i) { 0f }) * gain
-                smooth[i] += (target - smooth[i]) * if (target > smooth[i]) 0.5f else 0.18f
-                peaks[i] = maxOf(smooth[i], peaks[i] - 0.03f)
+                smooth[i] += (target - smooth[i]) * if (target > smooth[i]) 0.7f else 0.25f
+                peaks[i] = maxOf(smooth[i], peaks[i] - 0.04f)
             }
             val energy = smooth.average().toFloat().coerceIn(0f, 1f)
             phase = (phase + 0.04f + 0.16f * energy) % (2f * PI.toFloat())
@@ -102,7 +106,7 @@ fun rememberVisualizerBands(
                 phase = phase,
                 frames = frames,
             )
-            delay(16L)
+            delay(10L)
         }
     }
 }
@@ -160,8 +164,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBounceBars(
     for (i in 0 until count) {
         val progress = i.toFloat() / (count - 1)
         val factor = if (rising) 0.3f + progress * 0.5f else 0.85f
-        val amp = (bands.spectrum[i] * factor).coerceIn(0.04f, 0.95f)
-        val barH = (h * 0.86f * amp).coerceAtLeast(3f)
+        val amp = (bands.spectrum[i] * factor).coerceIn(0f, 0.98f)
+        val barH = (h * 0.86f * amp).coerceAtLeast(0f)
         val peakY = h - (h * 0.86f * bands.peaks[i] * factor).coerceAtLeast(3f)
         val x = startX + i * (barW + gap)
         drawRoundRect(
@@ -197,7 +201,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArmonia(
         Triple(bands.treble, 0.28f, 5.4f),
     )
     layers.forEachIndexed { index, (level, scale, frequency) ->
-        val amp = h * scale * level.coerceIn(0.05f, 1f)
+        val amp = h * scale * level.coerceIn(0f, 1f)
         val path = Path().apply {
             moveTo(0f, midY)
             for (step in 0..60) {
@@ -237,7 +241,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFlujo(
     val waveEnergy = kotlin.math.sqrt(
         bands.waveform.fold(0f) { acc, v -> acc + v * v } / bands.waveform.size.coerceAtLeast(1),
     )
-    val amp = h * 0.38f * (bands.mid * 0.7f + waveEnergy * 0.9f).coerceIn(0.08f, 1f)
+    val amp = h * 0.38f * (bands.mid * 0.7f + waveEnergy * 0.9f).coerceIn(0f, 1f)
     val top = Path().apply {
         moveTo(0f, midY)
         for (step in 0..80) {

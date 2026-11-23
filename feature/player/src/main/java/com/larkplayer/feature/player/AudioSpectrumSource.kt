@@ -31,7 +31,9 @@ data class AudioBands(
 object AudioSpectrumSource {
     const val BAND_COUNT = 16
 
-    private const val WINDOW = 1024
+    // 512 samples @48 kHz ≈ 10 ms: enough for 40 Hz resolution while keeping
+    // the response almost immediate (a 1024 window added ~21 ms of lag).
+    private const val WINDOW = 512
     private val lock = Any()
     private val samples = FloatArray(WINDOW)
     private var writeIndex = 0
@@ -95,7 +97,9 @@ object AudioSpectrumSource {
         for (band in 0 until BAND_COUNT) {
             bandMax[band] = maxOf(magnitudes[band], bandMax[band] * 0.992f, 0.0005f)
             val relative = (magnitudes[band] / bandMax[band]).coerceIn(0f, 1f)
-            result[band] = ((0.04f + 0.96f * relative.pow(0.7f)) * gate).coerceIn(0f, 1f)
+            // No floor: with silence every band must be exactly 0 so the bars
+            // start at the bottom instead of jumping to a high baseline.
+            result[band] = (relative.pow(0.7f) * gate).coerceIn(0f, 1f)
         }
         return result
     }

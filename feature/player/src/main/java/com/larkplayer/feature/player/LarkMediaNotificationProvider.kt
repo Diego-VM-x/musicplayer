@@ -136,34 +136,17 @@ class LarkMediaNotificationProvider(
         // Also register real notification actions: if the OEM replaces the
         // custom RemoteViews with its own template, the transport buttons are
         // still present and fully functional.
-        fun action(iconRes: Int, label: String, intent: PendingIntent) =
-            NotificationCompat.Action.Builder(IconCompat.createWithResource(context, iconRes), label, intent).build()
-
-        val notification = NotificationCompat.Builder(context, PlaybackService.CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, PlaybackService.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_lark)
             .setContentTitle(title)
             .setContentText(artist)
             .setContentIntent(contentIntent(flags))
             .setCustomContentView(views)
             .setCustomBigContentView(views)
-            .addAction(action(DesignR.drawable.ic_lark_prev, "Anterior", serviceIntent(PlaybackService.ACTION_PREV, -1L, flags)))
-            .addAction(
-                action(
-                    if (isPlaying) DesignR.drawable.ic_lark_pause else DesignR.drawable.ic_lark_play,
-                    if (isPlaying) "Pausar" else "Reproducir",
-                    serviceIntent(if (isPlaying) PlaybackService.ACTION_PAUSE else PlaybackService.ACTION_PLAY, -1L, flags),
-                ),
-            )
-            .addAction(action(DesignR.drawable.ic_lark_next, "Siguiente", serviceIntent(PlaybackService.ACTION_NEXT, -1L, flags)))
-            .addAction(action(DesignR.drawable.ic_lark_heart_outline, "Favorito", serviceIntent(PlaybackService.ACTION_FAVORITE, songId, flags)))
-            .addAction(
-                action(
-                    android.R.drawable.ic_menu_close_clear_cancel,
-                    "Cerrar reproducción",
-                    serviceIntent(PlaybackService.ACTION_CLOSE_NOTIFICATION, -1L, flags),
-                ),
-            )
             .setShowWhen(false)
+        transportActions(builder, songId, isPlaying, flags)
+
+        val notification = builder
             .setStyle(
                 androidx.media.app.NotificationCompat.MediaStyle()
                     .setMediaSession(session.sessionCompatToken)
@@ -177,20 +160,60 @@ class LarkMediaNotificationProvider(
         return notification
     }
 
+    /**
+     * Real notification actions are always registered, even when the custom
+     * RemoteViews is replaced by the system template — that is the only way the
+     * prev/play/next/close buttons are guaranteed to appear in the shade.
+     */
+    private fun transportActions(
+        builder: NotificationCompat.Builder,
+        songId: Long,
+        isPlaying: Boolean,
+        flags: Int,
+    ) {
+        fun add(iconRes: Int, label: String, intent: PendingIntent) {
+            builder.addAction(
+                NotificationCompat.Action.Builder(IconCompat.createWithResource(context, iconRes), label, intent).build(),
+            )
+        }
+        add(DesignR.drawable.ic_lark_prev, "Anterior", serviceIntent(PlaybackService.ACTION_PREV, -1L, flags))
+        add(
+            if (isPlaying) DesignR.drawable.ic_lark_pause else DesignR.drawable.ic_lark_play,
+            if (isPlaying) "Pausar" else "Reproducir",
+            serviceIntent(if (isPlaying) PlaybackService.ACTION_PAUSE else PlaybackService.ACTION_PLAY, -1L, flags),
+        )
+        add(DesignR.drawable.ic_lark_next, "Siguiente", serviceIntent(PlaybackService.ACTION_NEXT, -1L, flags))
+        add(DesignR.drawable.ic_lark_heart_outline, "Favorito", serviceIntent(PlaybackService.ACTION_FAVORITE, songId, flags))
+        add(
+            android.R.drawable.ic_menu_close_clear_cancel,
+            "Cerrar reproducción",
+            serviceIntent(PlaybackService.ACTION_CLOSE_NOTIFICATION, -1L, flags),
+        )
+    }
+
     private fun buildFallbackNotification(session: MediaSession): android.app.Notification {
         val metadata: MediaMetadata = runCatching {
             session.player.mediaMetadata ?: MediaMetadata.EMPTY
         }.getOrDefault(MediaMetadata.EMPTY)
-        return NotificationCompat.Builder(context, PlaybackService.CHANNEL_ID)
+        val isPlaying = runCatching { session.player.isPlaying }.getOrDefault(false)
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else PendingIntent.FLAG_UPDATE_CURRENT
+        val builder = NotificationCompat.Builder(context, PlaybackService.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_lark)
             .setContentTitle(metadata.title ?: context.getString(R.string.notif_unknown_title))
             .setContentText(metadata.artist)
+            .setContentIntent(contentIntent(flags))
+            .setShowWhen(false)
+        transportActions(builder, -1L, isPlaying, flags)
+        return builder
             .setStyle(
                 androidx.media.app.NotificationCompat.MediaStyle()
-                    .setMediaSession(session.sessionCompatToken),
+                    .setMediaSession(session.sessionCompatToken)
+                    .setShowActionsInCompactView(0, 1, 2),
             )
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setOngoing(runCatching { session.player.isPlaying }.getOrDefault(false))
+            .setOngoing(isPlaying)
             .build()
     }
 

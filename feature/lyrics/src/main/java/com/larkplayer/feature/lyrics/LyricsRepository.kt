@@ -83,19 +83,35 @@ class LyricsRepository @Inject constructor(
 
     /** Embedded tags → local/MediaStore files, then cache the raw text in Room. */
     private suspend fun resolve(song: Song): Lyrics {
+        val cached = if (song.id > 0) songDao.lyricsFor(song.id) else null
+        if (!cached.isNullOrBlank() && LyricsTextUtils.hasTimestamps(cached)) {
+            return LrcParser.parse(song.id, cached)
+        }
+
         val raw = MediaFileUtils.findLyricsText(context, song)
             ?.let { LyricsTextUtils.clean(it) }
             ?.takeIf { it.isNotBlank() }
             ?: return Lyrics(song.id)
-        if (song.id > 0) {
-            val existing = songDao.lyricsFor(song.id)
-            // Replace a stale plain-text cache when we find real timestamps.
-            if (existing.isNullOrBlank() ||
-                (!LyricsTextUtils.hasTimestamps(existing) && LyricsTextUtils.hasTimestamps(raw))
-            ) {
-                runCatching { songDao.updateLyrics(song.id, raw) }
+
+        var parsed = LrcParser.parse(song.id, raw)
+        var toCache = raw
+
+        // No timestamps in the file: derive them once from the song's own
+        // energy envelope instead of asking the user to adjust anything.
+        if (!parsed.isSynced && parsed.lines.isNotEmpty() && song.path.isNotBlank()) {
+            val duration = LyricsAutoSync.durationMs(song.path)
+            val aligned = runCatching {
+                LyricsAutoSync.align(song.path, parsed.lines, duration)
+            }.getOrNull()
+            if (!aligned.isNullOrEmpty()) {
+                toCache = LyricsAutoSync.toLrc(aligned)
+                parsed = LrcParser.parse(song.id, toCache)
             }
         }
-        return LrcParser.parse(song.id, raw)
+
+        if (song.id > 0 && (cached.isNullOrBlank() || toCache != cached)) {
+            runCatching { songDao.updateLyrics(song.id, toCache) }
+        }
+        return parsed
     }
 }

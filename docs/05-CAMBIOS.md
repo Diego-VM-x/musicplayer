@@ -4,6 +4,15 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 57: latencia del visualizador, botones reales y auto-sync de letras (v50)
+
+- **Investigación del original** (`jadx_full/sources`, versión real 2027.1.8): el Lark Player **no detecta frases por audio**. Solo usa timestamps del `.lrc`/USLT, elige la última línea con `startTime <= posición` (`o/ck5.java:758-800`) con un tick de 150 ms (`o/r96.java:47`) y transición de 300 ms. Ni siquiera aplica `[offset:]` (lo parsea en `o/ot4.java:61-64` y lo descarta). La FFT del original es solo del visualizador.
+- **Auto-sync nuevo**: para letras sin timestamps se decodifica el audio una vez a PCM mono 16 kHz, se detectan aumentos de energía (inicios de frase) y se alinean las líneas por peso de sílabas, sin intervención del usuario. El resultado se guarda como LRC en Room. Se retiró el ajuste manual ±0.5 s.
+- **Visualizador**: ventana de 512 muestras (~10 ms), cálculo en `Dispatchers.Default`, ataque 0.7 y muestreo cada 10 ms; sin suelos de amplitud (con silencio la barra arranca en 0).
+- **Notificación**: los cinco controles (anterior/play/siguiente/favorito/cerrar) se añaden también al layout de respaldo, que era el que se mostraba y no tenía acciones.
+- `versionCode` 50 / `1.0.49-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.49` con `musicplayer-50.apk` (3.501.568 bytes, SHA-256 `3898CB1E23DF2C23C8A3F05D53E4CA68D4875125828CD9A8F7186DCBB90EDC03`), verificada con `aapt` (`versionCode=50`).
+
 ## 2026-11-23 - Fase 56: forma fija del visualizador, botones de notificacion y ajuste fino de letras (v49)
 
 - **Visualizador**: se eliminó el desplazamiento horizontal (fase viajera en Armonía/Flujo y oscilación de barras). La forma queda anclada y solo respira con la amplitud real del PCM.
