@@ -61,6 +61,16 @@ class SettingsDataStore @Inject constructor(
     private fun playlistSortKey(playlistId: Long) =
         intPreferencesKey("playlist_detail_sort_$playlistId")
 
+    /** Manual sync correction in milliseconds, per song. */
+    private fun lyricsOffsetKey(songId: Long) =
+        intPreferencesKey("lyrics_offset_$songId")
+
+    fun lyricsOffset(songId: Long): Flow<Int> =
+        context.settingsDataStore.data.map { p -> p[lyricsOffsetKey(songId)] ?: 0 }
+
+    suspend fun setLyricsOffset(songId: Long, offsetMs: Int) =
+        edit { it[lyricsOffsetKey(songId)] = offsetMs }
+
     val themeConfig: Flow<ThemeConfig> = context.settingsDataStore.data.map { p ->
         ThemeConfig(
             useDynamicColor = p[Keys.DYNAMIC_COLOR] ?: false,

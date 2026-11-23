@@ -47,6 +47,7 @@ class PlaybackService : MediaSessionService() {
 
     @Inject lateinit var player: ExoPlayer
     @Inject lateinit var settings: SettingsDataStore
+    @Inject lateinit var repository: PlayerRepository
 
     private var session: MediaSession? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -398,11 +399,20 @@ class PlaybackService : MediaSessionService() {
     private fun stopPlaybackCompletely() {
         cancelCrossfade()
         shuttingDown = true
+        fadeHandler.removeCallbacks(fadeRunnable)
+        runCatching { player.pause() }
         runCatching { player.stop() }
         runCatching { player.clearMediaItems() }
+        // Clear the persisted queue too, so reopening the app does not restore
+        // the list the user just closed from the notification.
+        runCatching { repository.clearQueue() }
         releaseWakeLock()
-        stopForeground(Service.STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        scope.launch {
+            runCatching { settings.setShuffle(false) }
+            runCatching { settings.setRepeatMode(Player.REPEAT_MODE_ALL) }
+        }
+        runCatching { stopForeground(Service.STOP_FOREGROUND_REMOVE) }
+        runCatching { stopSelf() }
     }
 
     override fun onDestroy() {

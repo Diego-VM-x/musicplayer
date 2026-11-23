@@ -4,6 +4,14 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 56: forma fija del visualizador, botones de notificacion y ajuste fino de letras (v49)
+
+- **Visualizador**: se eliminó el desplazamiento horizontal (fase viajera en Armonía/Flujo y oscilación de barras). La forma queda anclada y solo respira con la amplitud real del PCM.
+- **Notificación**: se registran también acciones reales (anterior, play/pausa, siguiente, favorito y cerrar) para que estén presentes aunque el OEM reemplace la vista personalizada. «Cerrar» detiene y limpia la cola persistida, cancela el crossfade, libera el wake lock, reinicia modo/shuffle y detiene el servicio.
+- **Letras**: se aplica `[offset:±xxx]` de los archivos LRC; las letras sin timestamps se reparten por longitud de línea (antes a intervalos iguales, lo que adelantaba o retrasaba según la velocidad de la canción). Nuevo ajuste manual ±0.5 s por canción, persistido en DataStore.
+- `versionCode` 49 / `1.0.48-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.48` con `musicplayer-49.apk` (3.485.180 bytes, SHA-256 `7596966EAD2E98B893F0C98A904BE719AF357E0FF20C4853450800236555FB5F`), verificada con `aapt` (`versionCode=49`).
+
 ## 2026-11-23 - Fase 55: visualizador con productor unico y notificacion que abre el reproductor (v48)
 
 - **Visualizador**: con PCM confirmado como activo, se eliminó el doble bucle de suavizado (`LaunchedEffect` + `withFrameNanos`). Ahora un único `produceState` muestrea, suaviza y publica el estado; el `Canvas` solo lo lee, garantizando recomposición en cada cuadro. Se añade contador de cuadros en el diagnóstico.

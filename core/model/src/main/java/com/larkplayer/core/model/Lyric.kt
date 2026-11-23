@@ -11,6 +11,8 @@ data class Lyrics(
     val songId: Long,
     val lines: List<LyricLine> = emptyList(),
     val plainText: String = "",
+    /** `[offset:...]` from an LRC file, already applied to [lines]. */
+    val offsetMs: Long = 0L,
 ) {
     /** True when there is something to show (synced lines or plain text). */
     val hasText: Boolean get() = lines.isNotEmpty() || plainText.isNotBlank()

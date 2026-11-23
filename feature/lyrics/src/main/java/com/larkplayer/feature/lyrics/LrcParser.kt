@@ -9,11 +9,15 @@ object LrcParser {
     /** Accepts `[mm:ss]`, `[mm:ss.x]`, `[mm:ss.xx]`, `[mm:ss.xxx]` and `mm:ss:xx`. */
     private val TIME_TAG = Regex("""\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]""")
     private val METADATA_TAG = Regex("""^\[[a-zA-Z]+:""")
+    private val OFFSET_TAG = Regex("""\[offset:\s*([+-]?\d+)\]""", RegexOption.IGNORE_CASE)
 
     fun parse(songId: Long, raw: String): Lyrics {
         val cleaned = LyricsTextUtils.clean(raw)
         if (cleaned.isBlank()) return Lyrics(songId)
 
+        // LRC files often carry [offset:±xxx]; ignoring it made every line
+        // consistently early or late. Apply it to all timestamps once here.
+        val offsetMs = OFFSET_TAG.find(cleaned)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
         val timed = mutableListOf<LyricLine>()
         val seen = HashSet<String>()
         cleaned.lineSequence().forEach { source ->
@@ -28,18 +32,36 @@ object LrcParser {
             tags.forEach { tag ->
                 val timestamp = timestampOf(tag)
                 val key = "$timestamp\u0000$text"
-                if (seen.add(key)) timed += LyricLine(timestamp, text)
+                if (seen.add(key)) timed += LyricLine(timestamp + offsetMs, text)
             }
         }
         if (timed.isNotEmpty()) {
-            return Lyrics(songId, timed.sortedBy { it.timestampMs }, cleaned)
+            return Lyrics(songId, timed.sortedBy { it.timestampMs }, cleaned, offsetMs)
         }
 
         // No timestamps at all: keep the text so the UI can show scrollable,
         // unhighlighted lyrics instead of the "no lyrics" empty state.
         val plain = cleaned.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }
             .map { LyricLine(-1L, it) }.toList()
-        return Lyrics(songId, plain, cleaned)
+        return Lyrics(songId, plain, cleaned, offsetMs)
+    }
+
+    /**
+     * Plain lyrics have no timestamps. Distributing them evenly makes short
+     * verses drag and long verses rush, so weight each line by its length to
+     * follow the singing far more closely.
+     */
+    fun activeIndexForPlain(lyrics: Lyrics, positionMs: Long, durationMs: Long): Int {
+        if (durationMs <= 0 || lyrics.lines.isEmpty()) return -1
+        val weights = lyrics.lines.map { 6f + it.text.length * 0.7f }
+        val total = weights.sum()
+        val target = positionMs.coerceIn(0L, durationMs).toFloat() / durationMs * total
+        var acc = 0f
+        weights.forEachIndexed { index, weight ->
+            acc += weight
+            if (target <= acc) return index
+        }
+        return lyrics.lines.lastIndex
     }
 
     private fun timestampOf(match: MatchResult): Long {

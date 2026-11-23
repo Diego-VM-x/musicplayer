@@ -161,8 +161,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBounceBars(
         val progress = i.toFloat() / (count - 1)
         val factor = if (rising) 0.3f + progress * 0.5f else 0.85f
         val amp = (bands.spectrum[i] * factor).coerceIn(0.04f, 0.95f)
-        val sway = 1f + 0.12f * sin(bands.phase + i * 0.6f).toFloat()
-        val barH = (h * 0.86f * amp * sway).coerceAtLeast(3f)
+        val barH = (h * 0.86f * amp).coerceAtLeast(3f)
         val peakY = h - (h * 0.86f * bands.peaks[i] * factor).coerceAtLeast(3f)
         val x = startX + i * (barW + gap)
         drawRoundRect(
@@ -199,14 +198,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawArmonia(
     )
     layers.forEachIndexed { index, (level, scale, frequency) ->
         val amp = h * scale * level.coerceIn(0.05f, 1f)
-        val t = bands.phase
         val path = Path().apply {
             moveTo(0f, midY)
             for (step in 0..60) {
                 val p = step / 60f
                 val x = p * w
-                val y = midY - sin(p * frequency * PI.toFloat() + t * (index + 1) * 0.7f).toFloat() * amp -
-                    sin(p * 9f * PI.toFloat() + index + t * 1.3f).toFloat() * h * 0.06f * bands.treble
+                val y = midY - sin(p * frequency * PI.toFloat()).toFloat() * amp -
+                    sin(p * 9f * PI.toFloat() + index).toFloat() * h * 0.06f * bands.treble
                 lineTo(x, y)
             }
             lineTo(w, h)
@@ -235,14 +233,16 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFlujo(
     fade: Float,
 ) {
     val midY = h * 0.55f
-    val amp = h * 0.38f * bands.mid.coerceIn(0.08f, 1f)
-    val t = bands.phase * 0.9f
+    // Shape stays anchored; only its amplitude breathes with the real audio.
+    val waveEnergy = kotlin.math.sqrt(
+        bands.waveform.fold(0f) { acc, v -> acc + v * v } / bands.waveform.size.coerceAtLeast(1),
+    )
+    val amp = h * 0.38f * (bands.mid * 0.7f + waveEnergy * 0.9f).coerceIn(0.08f, 1f)
     val top = Path().apply {
         moveTo(0f, midY)
         for (step in 0..80) {
             val p = step / 80f
-            val wave = bands.waveform.getOrElse((p * bands.waveform.size).toInt()) { 0f }
-            val y = midY - (sin(p * 3f * PI.toFloat() + t).toFloat() * amp + wave * h * 0.22f)
+            val y = midY - sin(p * 3f * PI.toFloat()).toFloat() * amp
             lineTo(p * w, y)
         }
     }
@@ -250,8 +250,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFlujo(
         moveTo(0f, midY)
         for (step in 0..80) {
             val p = step / 80f
-            val wave = bands.waveform.getOrElse((p * bands.waveform.size).toInt()) { 0f }
-            val y = midY + (sin(p * 3f * PI.toFloat() + 0.6f + t).toFloat() * amp + wave * h * 0.18f)
+            val y = midY + sin(p * 3f * PI.toFloat() + 0.6f).toFloat() * amp
             lineTo(p * w, y)
         }
     }

@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
+import androidx.core.graphics.drawable.IconCompat
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.CommandButton
@@ -132,6 +133,12 @@ class LarkMediaNotificationProvider(
         // instead of letting startForeground reject it later.
         views.apply(context, android.widget.FrameLayout(context))
 
+        // Also register real notification actions: if the OEM replaces the
+        // custom RemoteViews with its own template, the transport buttons are
+        // still present and fully functional.
+        fun action(iconRes: Int, label: String, intent: PendingIntent) =
+            NotificationCompat.Action.Builder(IconCompat.createWithResource(context, iconRes), label, intent).build()
+
         val notification = NotificationCompat.Builder(context, PlaybackService.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_lark)
             .setContentTitle(title)
@@ -139,10 +146,28 @@ class LarkMediaNotificationProvider(
             .setContentIntent(contentIntent(flags))
             .setCustomContentView(views)
             .setCustomBigContentView(views)
+            .addAction(action(DesignR.drawable.ic_lark_prev, "Anterior", serviceIntent(PlaybackService.ACTION_PREV, -1L, flags)))
+            .addAction(
+                action(
+                    if (isPlaying) DesignR.drawable.ic_lark_pause else DesignR.drawable.ic_lark_play,
+                    if (isPlaying) "Pausar" else "Reproducir",
+                    serviceIntent(if (isPlaying) PlaybackService.ACTION_PAUSE else PlaybackService.ACTION_PLAY, -1L, flags),
+                ),
+            )
+            .addAction(action(DesignR.drawable.ic_lark_next, "Siguiente", serviceIntent(PlaybackService.ACTION_NEXT, -1L, flags)))
+            .addAction(action(DesignR.drawable.ic_lark_heart_outline, "Favorito", serviceIntent(PlaybackService.ACTION_FAVORITE, songId, flags)))
+            .addAction(
+                action(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    "Cerrar reproducción",
+                    serviceIntent(PlaybackService.ACTION_CLOSE_NOTIFICATION, -1L, flags),
+                ),
+            )
+            .setShowWhen(false)
             .setStyle(
                 androidx.media.app.NotificationCompat.MediaStyle()
                     .setMediaSession(session.sessionCompatToken)
-                    .setShowActionsInCompactView(),
+                    .setShowActionsInCompactView(0, 1, 2),
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

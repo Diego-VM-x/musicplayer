@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -43,6 +45,7 @@ fun LyricsScreen(
 ) {
     val playerState by playerViewModel.uiState.collectAsStateWithLifecycle()
     val lyrics by lyricsViewModel.lyrics.collectAsStateWithLifecycle()
+    val offsetMs by lyricsViewModel.offset.collectAsStateWithLifecycle()
 
     // Reload when the track identity changes, not only when the title changes:
     // the controller can be reattached with the same title but a different id.
@@ -58,15 +61,13 @@ fun LyricsScreen(
         }
     }
 
-    // Synced lyrics use real timestamps. Plain lyrics (no [mm:ss] tags) are
-    // distributed evenly across the track so they still follow the song.
+    // Manual offset corrects the residual early/late drift of a given file.
+    val effectivePosition = (playerState.position + offsetMs).coerceAtLeast(0L)
     val active = if (lyrics.isSynced) {
-        LrcParser.activeIndex(lyrics, playerState.position)
-    } else if (lyrics.lines.isNotEmpty() && playerState.duration > 0L) {
-        ((playerState.position.toFloat() / playerState.duration) * lyrics.lines.size)
-            .toInt()
-            .coerceIn(0, lyrics.lines.lastIndex)
-    } else -1
+        LrcParser.activeIndex(lyrics, effectivePosition)
+    } else {
+        LrcParser.activeIndexForPlain(lyrics, effectivePosition, playerState.duration)
+    }
     val listState = rememberLazyListState()
 
     LaunchedEffect(active, lyrics.songId) {
@@ -147,5 +148,33 @@ fun LyricsScreen(
             onClick = onBack,
             modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
         )
+
+        // Manual sync trim: ±0.5 s per tap, remembered per song.
+        Row(
+            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "−0.5s",
+                color = ApplePalette.TextSecondary,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clickable { lyricsViewModel.adjustOffset(-500) }
+                    .padding(8.dp),
+            )
+            Text(
+                "${offsetMs} ms",
+                color = ApplePalette.TextPrimary,
+                fontSize = 12.sp,
+            )
+            Text(
+                "+0.5s",
+                color = ApplePalette.TextSecondary,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clickable { lyricsViewModel.adjustOffset(500) }
+                    .padding(8.dp),
+            )
+        }
     }
 }
