@@ -4,6 +4,14 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-23 - Fase 58: color elegido por el usuario en toda la app (v51)
+
+- Se eliminó el color adaptativo derivado de la carátula: reproductor completo, mini-player, cola y detalle de playlist usan ahora el acento elegido por el usuario (`SettingsDataStore.accentColor`), igual que el resto de la app. La biblioteca dejó de usar un azul fijo.
+- El tema ya no deja que el color dinámico del sistema sobrescriba la elección (el acento del usuario siempre gana).
+- Apariencia: **20 colores predefinidos** (5 tonos × 4 matices: azul, verde, rosa/rojo, naranja/amarillo y morado) y un selector **personalizado** con código `#RRGGBB`, vista previa y validación.
+- `versionCode` 51 / `1.0.50-clean`; `assembleRelease` → BUILD SUCCESSFUL.
+- Publicada la release `v1.0.50` con `musicplayer-51.apk` (3.485.180 bytes, SHA-256 `182A2E53C35DB4941070E9E41CBF4E2571988740F1FFBF254C8C115F4A87E4FE`), verificada con `aapt` (`versionCode=51`).
+
 ## 2026-11-23 - Fase 57: latencia del visualizador, botones reales y auto-sync de letras (v50)
 
 - **Investigación del original** (`jadx_full/sources`, versión real 2027.1.8): el Lark Player **no detecta frases por audio**. Solo usa timestamps del `.lrc`/USLT, elige la última línea con `startTime <= posición` (`o/ck5.java:758-800`) con un tick de 150 ms (`o/r96.java:47`) y transición de 300 ms. Ni siquiera aplica `[offset:]` (lo parsea en `o/ot4.java:61-64` y lo descarta). La FFT del original es solo del visualizador.

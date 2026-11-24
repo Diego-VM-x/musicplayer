@@ -13,7 +13,6 @@ import com.larkplayer.core.common.LyricsTextUtils
 import com.larkplayer.core.common.MediaFileUtils
 import com.larkplayer.core.datastore.SettingsDataStore
 import com.larkplayer.core.model.Song
-import com.larkplayer.feature.player.AlbumColorRepository
 import com.larkplayer.feature.player.EmbeddedLyricsReader
 import com.larkplayer.feature.player.PlayerRepository
 import com.larkplayer.feature.player.PlayerRepository.Companion.MODE_NORMAL
@@ -29,6 +28,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -60,7 +60,6 @@ data class PlayerUiState(
 class PlayerViewModel @Inject constructor(
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
     private val repository: PlayerRepository,
-    private val albumColors: AlbumColorRepository,
     private val settings: SettingsDataStore,
     private val playlistDao: PlaylistDao,
     private val songDao: SongDao,
@@ -69,8 +68,10 @@ class PlayerViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
-    /** Accent extracted from the current artwork, shared by player + mini-player + library. */
-    val accent: StateFlow<Int> = albumColors.accent
+    /** User-chosen accent (never derived from the artwork). */
+    val accent: StateFlow<Int> = settings.accentColor
+        .map { it.toInt() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0xFF0A84FF.toInt())
 
     private var listener: Player.Listener? = null
     private var observedController: MediaController? = null
@@ -156,9 +157,6 @@ class PlayerViewModel @Inject constructor(
                     hasLyrics = false,
                     currentLyricsLine = null,
                 )
-                viewModelScope.launch {
-                    albumColors.load(meta?.artworkUri?.toString())
-                }
                 lyricsLoadJob = viewModelScope.launch {
                     // All I/O in one withContext; the result is applied back on
                     // the main dispatcher, where the ticker reads activeLyricsLines.

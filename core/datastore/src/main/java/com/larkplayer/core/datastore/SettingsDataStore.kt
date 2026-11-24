@@ -81,6 +81,11 @@ class SettingsDataStore @Inject constructor(
         )
     }
 
+    /** User-selected accent colour, shared by the whole app including playback. */
+    val accentColor: Flow<Long> = context.settingsDataStore.data.map { p ->
+        p[Keys.ACCENT_COLOR] ?: 0xFF0A84FF
+    }
+
     val shuffle: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.SHUFFLE] ?: false }
     // REPEAT_MODE_ALL: finishing a queue starts it again instead of stopping.
     val repeatMode: Flow<Int> = context.settingsDataStore.data.map { p -> p[Keys.REPEAT_MODE] ?: 1 }

@@ -43,7 +43,9 @@ fun LarkTheme(
         1 -> true
         else -> systemDark
     }
-    val dynamic = config.useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    // The user's chosen accent always wins; no adaptive/system colour takeover.
+    @Suppress("UNUSED_VARIABLE")
+    val dynamic = false && config.useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val base = when {
         dynamic && dark -> dynamicDarkColorScheme(context)
         dynamic -> dynamicLightColorScheme(context)

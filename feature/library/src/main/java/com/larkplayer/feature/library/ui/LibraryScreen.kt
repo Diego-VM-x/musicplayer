@@ -63,6 +63,7 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -133,9 +134,8 @@ fun LibraryScreen(
     playerViewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // The library keeps a stable look; the artwork accent is used only by the
-    // full player and the floating mini-player.
-    val accent = ApplePalette.Blue
+    // The whole app follows the accent the user picked in Appearance.
+    val accent = MaterialTheme.colorScheme.primary
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 

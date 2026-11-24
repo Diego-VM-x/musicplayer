@@ -138,12 +138,6 @@ fun PlaylistDetailScreen(
         onDispose { MiniPlayerOverlay.setVisible(true) }
     }
 
-    LaunchedEffect(state.playlist?.coverUri, state.songs.firstOrNull()?.albumId) {
-        val uri = state.playlist?.coverUri
-            ?: state.songs.firstOrNull()?.let { MediaFileUtils.albumArtUri(it.albumId).toString() }
-        viewModel.loadAccent(uri)
-    }
-
     val share: (List<Song>) -> Unit = { songs ->
         songs.firstOrNull()?.let { song ->
             runCatching {

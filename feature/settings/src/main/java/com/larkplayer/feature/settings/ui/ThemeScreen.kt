@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -75,23 +77,26 @@ private val SIZE_OPTIONS = listOf(
     ThemeSizeOption(2, "Grande", Icons.Rounded.GridView),
 )
 
+/** 20 presets: five hues in four tones each, so every user can pick a shade. */
 private val ACCENTS = listOf(
-    Color(0xFF0A84FF),
-    Color(0xFF34C759),
-    Color(0xFFE84A8A),
-    Color(0xFFFF9500),
-    Color(0xFFB08CFF),
-    Color(0xFFFFD60A),
+    // Azul
+    Color(0xFF0A84FF), Color(0xFF64D2FF), Color(0xFF3D6FE0), Color(0xFF0A4FA8),
+    // Verde
+    Color(0xFF34C759), Color(0xFF6EE07A), Color(0xFF1FA845), Color(0xFF0E6B2E),
+    // Rosa / rojo
+    Color(0xFFE84A8A), Color(0xFFFF7BA8), Color(0xFFD63447), Color(0xFF8A1C4A),
+    // Naranja / amarillo
+    Color(0xFFFF9500), Color(0xFFFFC044), Color(0xFFD96A00), Color(0xFF9A4A00),
+    // Morado
+    Color(0xFFB08CFF), Color(0xFFD0B8FF), Color(0xFF7D5AE8), Color(0xFF4F35A8),
 )
 
-private val CUSTOM_ACCENTS = ACCENTS + listOf(
-    Color(0xFFFF3B30),
-    Color(0xFF64D2FF),
-    Color(0xFF5E5CE6),
-    Color(0xFF30D158),
-    Color(0xFFBF5AF2),
-    Color(0xFF8E8E93),
-)
+private fun parseHexColor(input: String): Color? {
+    val raw = input.trim().removePrefix("#")
+    if (raw.length != 6) return null
+    val value = raw.toLongOrNull(16) ?: return null
+    return Color((0xFF000000L or value).toInt())
+}
 
 /** "Tema" — live previews, light/dark/system selector and accent colours. */
 @Composable
@@ -110,7 +115,7 @@ fun ThemeScreen(
         if (uri != null) viewModel.setAppBackgroundImage(context, uri)
     }
 
-    Column(Modifier.fillMaxSize().background(Color.Transparent)) {
+    Column(Modifier.fillMaxSize().background(Color.Transparent).verticalScroll(rememberScrollState())) {
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -161,39 +166,57 @@ fun ThemeScreen(
 
         Spacer(Modifier.height(18.dp))
 
+        Text(
+            "Color de acento",
+            color = Color.White,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        Spacer(Modifier.height(10.dp))
+
+        ACCENTS.chunked(5).forEach { row ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                row.forEach { color ->
+                    AccentCircle(
+                        color = color,
+                        selected = color.toArgb() == accent.toArgb(),
+                        accent = accent,
+                    ) { viewModel.setAccentColor(color.toArgbLong()) }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(6.dp))
         Row(
             Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(horizontal = 16.dp)
+                .height(52.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF1B1B1E))
+                .border(1.dp, Color(0xFF2D2D31), RoundedCornerShape(16.dp))
+                .clickable { customDialog = true },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Custom colour picker
-            Box(
-                Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF1B1B1E))
-                    .border(1.dp, Color(0xFF2D2D31), CircleShape)
-                    .clickable { customDialog = true },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Rounded.Palette, "Color personalizado", tint = Color.White, modifier = Modifier.size(21.dp))
-                Box(
-                    Modifier.align(Alignment.BottomEnd).padding(5.dp).size(13.dp).clip(CircleShape).background(accent),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Rounded.Add, null, tint = Color.Black, modifier = Modifier.size(9.dp))
-                }
+            Icon(
+                Icons.Rounded.Palette,
+                "Color personalizado",
+                tint = Color.White,
+                modifier = Modifier.padding(start = 14.dp).size(20.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Color personalizado", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("Elige cualquier tono con código #RRGGBB", color = Color(0xFF8E8E93), fontSize = 11.sp)
             }
-            ACCENTS.forEach { color ->
-                AccentCircle(
-                    color = color,
-                    selected = color.toArgb() == accent.toArgb(),
-                    accent = accent,
-                ) { viewModel.setAccentColor(color.toArgbLong()) }
-            }
+            Box(Modifier.padding(end = 14.dp).size(24.dp).clip(CircleShape).background(accent))
         }
 
         Spacer(Modifier.height(22.dp))
@@ -273,22 +296,53 @@ fun ThemeScreen(
     }
 
     if (customDialog) {
+        var hex by remember {
+            mutableStateOf(String.format("#%06X", accent.toArgb() and 0xFFFFFF))
+        }
+        val preview = parseHexColor(hex)
         AlertDialog(
             onDismissRequest = { customDialog = false },
             containerColor = ApplePalette.SurfaceElevated,
-            title = { Text("Color de acento", color = Color.White) },
+            title = { Text("Color personalizado", color = Color.White) },
             text = {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CUSTOM_ACCENTS.take(6).forEach { color ->
-                        AccentCircle(color, color.toArgb() == accent.toArgb(), accent) {
-                            viewModel.setAccentColor(color.toArgbLong())
-                            customDialog = false
-                        }
+                Column {
+                    Text("Escribe un código hexadecimal para elegir cualquier color.", color = Color(0xFFB7B7BD), fontSize = 13.sp)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = hex,
+                        onValueChange = { hex = it },
+                        singleLine = true,
+                        label = { Text("#RRGGBB") },
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(preview ?: accent)
+                                .border(2.dp, Color.White, CircleShape),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            if (preview != null) "Vista previa" else "Código no válido",
+                            color = if (preview != null) Color.White else Color(0xFFFF9A9A),
+                            fontSize = 13.sp,
+                        )
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { customDialog = false }) { Text("Cerrar") }
+                TextButton(
+                    enabled = preview != null,
+                    onClick = {
+                        preview?.let { viewModel.setAccentColor(it.toArgbLong()) }
+                        customDialog = false
+                    },
+                ) { Text("Aplicar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { customDialog = false }) { Text("Cancelar") }
             },
         )
     }

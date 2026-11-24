@@ -10,7 +10,7 @@ import com.larkplayer.core.datastore.SettingsDataStore
 import com.larkplayer.core.model.Song
 import com.larkplayer.feature.library.LibraryRepository
 import com.larkplayer.feature.library.PlaylistRepository
-import com.larkplayer.feature.player.AlbumColorRepository
+
 import com.larkplayer.feature.player.PlayerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +28,7 @@ data class PlaylistDetailUiState(
     val sortMode: Int = 0,
     val selectionMode: Boolean = false,
     val selectedIds: Set<Long> = emptySet(),
-    val accent: Int = AlbumColorRepository.DEFAULT,
+    val accent: Int = 0xFF0A84FF.toInt(),
 )
 
 /** Backs the playlist detail screen: songs, sorting, selection and edits. */
@@ -38,7 +38,6 @@ class PlaylistDetailViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
     private val player: PlayerRepository,
     private val dataStore: SettingsDataStore,
-    private val albumColors: AlbumColorRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -53,7 +52,7 @@ class PlaylistDetailViewModel @Inject constructor(
     private var playlists: List<PlaylistWithCover> = emptyList()
     private var hidden: Set<Long> = emptySet()
     private var counts: Map<Long, Int> = emptyMap()
-    private var accent: Int = AlbumColorRepository.DEFAULT
+    private var accent: Int = 0xFF0A84FF.toInt()
     private var sortMode = 0
     private var selectionMode = false
     private var selectedIds: Set<Long> = emptySet()
@@ -62,11 +61,6 @@ class PlaylistDetailViewModel @Inject constructor(
         viewModelScope.launch {
             playlistRepository.playlist(playlistId).collect { value ->
                 playlist = value
-                val art = value?.coverUri
-                    ?: playlistRepository.songsOnce(playlistId).firstOrNull()?.let { song ->
-                        com.larkplayer.core.common.MediaFileUtils.albumArtUri(song.albumId).toString()
-                    }
-                loadAccent(art)
                 publish()
             }
         }
@@ -101,8 +95,8 @@ class PlaylistDetailViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            albumColors.accent.collect { color ->
-                accent = color
+            dataStore.accentColor.collect { color ->
+                accent = color.toInt()
                 publish()
             }
         }
@@ -133,10 +127,6 @@ class PlaylistDetailViewModel @Inject constructor(
             selectedIds = selectedIds,
             accent = accent,
         )
-    }
-
-    fun loadAccent(uri: String?) = viewModelScope.launch {
-        runCatching { albumColors.load(uri) }
     }
 
     fun setSort(mode: Int) {
