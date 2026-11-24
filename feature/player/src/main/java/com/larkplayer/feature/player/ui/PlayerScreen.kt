@@ -2,6 +2,8 @@ package com.larkplayer.feature.player.ui
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -27,6 +29,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -86,6 +89,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -96,7 +100,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.Coil
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import androidx.compose.ui.res.painterResource
 import com.larkplayer.core.designsystem.R as DesignR
 import com.larkplayer.core.common.MediaFileUtils
@@ -110,6 +117,9 @@ import com.larkplayer.core.designsystem.component.LarkSheet
 import com.larkplayer.core.designsystem.component.LarkTextField
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.player.PlayerRepository
+import androidx.palette.graphics.Palette
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.abs
 
@@ -247,18 +257,69 @@ fun PlayerScreen(
     val currentMode = viewModel.currentPlaybackMode()
     val speedVisible = abs(state.playbackSpeed - 1f) > 0.01f
 
-    // Solid colour derived from the current artwork, used only by the player.
-    val playerBackground = androidx.compose.ui.graphics.lerp(
-        Color(0xFF101014),
-        accent,
-        0.55f,
-    )
-    NavBarTint(color = playerBackground, active = true)
+    // Sample the cover so the backdrop grows out of the artwork. When there is
+    // no cover the user's accent alone drives the gradient (empty state intact).
+    var artworkTint by remember(state.albumArt) { mutableStateOf<Color?>(null) }
+    LaunchedEffect(state.albumArt) {
+        artworkTint = null
+        val uri = state.albumArt
+        if (uri.isNullOrBlank()) return@LaunchedEffect
+        val rgb = withContext(Dispatchers.IO) {
+            val request = ImageRequest.Builder(context).data(uri).build()
+            val drawable = (Coil.imageLoader(context).execute(request) as? SuccessResult)?.drawable
+            val bitmap = (drawable as? BitmapDrawable)?.bitmap ?: drawable?.let { d ->
+                // Coil may return a non-BitmapDrawable; rasterise it if needed.
+                val b = Bitmap.createBitmap(
+                    d.intrinsicWidth.coerceAtLeast(1),
+                    d.intrinsicHeight.coerceAtLeast(1),
+                    Bitmap.Config.ARGB_8888,
+                )
+                android.graphics.Canvas(b).let { canvas ->
+                    d.setBounds(0, 0, b.width, b.height)
+                    d.draw(canvas)
+                }
+                b
+            }
+            bitmap?.let { art ->
+                Palette.from(art).generate().let { palette ->
+                    palette.vibrantSwatch?.rgb
+                        ?: palette.dominantSwatch?.rgb
+                        ?: palette.mutedSwatch?.rgb
+                }
+            }
+        }
+        artworkTint = rgb?.let { Color(it) }
+    }
+
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val darkTheme = when (themeMode) {
+        0 -> false
+        1 -> true
+        else -> isSystemInDarkTheme()
+    }
+    // Full-screen gradient: chosen accent (gently blended with the cover) at
+    // the top, fading to black in dark mode or white in light mode.
+    val coverColor = artworkTint?.let { lerp(accent, it, 0.28f) } ?: accent
+    val edgeColor = if (darkTheme) Color.Black else Color.White
+    val topColor = if (darkTheme) {
+        lerp(coverColor, Color.Black, 0.30f)
+    } else {
+        lerp(coverColor, Color.White, 0.12f)
+    }
+    val midColor = lerp(topColor, edgeColor, 0.5f)
+    val playerGradient = Brush.verticalGradient(listOf(topColor, midColor, edgeColor))
+    // Pick ink per band so text/icons stay legible over any accent or theme.
+    val titleInk = inkOn(midColor)
+    val secondaryInk = titleInk.copy(alpha = 0.72f)
+    val controlInk = inkOn(lerp(midColor, edgeColor, 0.45f))
+    val bottomInk = inkOn(edgeColor).copy(alpha = 0.78f)
+
+    NavBarTint(color = edgeColor, active = true)
 
     Box(
         Modifier
             .fillMaxSize()
-            .background(playerBackground)
+            .background(playerGradient)
     ) {
         Column(
             Modifier
@@ -362,7 +423,7 @@ fun PlayerScreen(
                     ) { titleText ->
                         Text(
                             titleText.uppercase(Locale.getDefault()),
-                            color = Color.White,
+                            color = titleInk,
                             fontSize = 21.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -373,7 +434,7 @@ fun PlayerScreen(
                     Spacer(Modifier.height(3.dp))
                     Text(
                         (state.artist.ifBlank { "Desconocido" }).uppercase(Locale.getDefault()),
-                        color = Color(0xFF8E8E93),
+                        color = secondaryInk,
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
@@ -397,7 +458,7 @@ fun PlayerScreen(
                             else DesignR.drawable.ic_lark_heart_outline
                         ),
                         contentDescription = if (state.isFavorite) "Quitar de favoritos" else "Favorito",
-                        tint = if (state.isFavorite) Color(0xFFFF4D67) else Color(0xFFE0E0E0),
+                        tint = if (state.isFavorite) Color(0xFFFF4D67) else titleInk,
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -415,7 +476,7 @@ fun PlayerScreen(
                     Icon(
                         painter = painterResource(DesignR.drawable.ic_lark_more),
                         contentDescription = "Más opciones",
-                        tint = Color(0xFFE0E0E0),
+                        tint = titleInk,
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -493,9 +554,9 @@ fun PlayerScreen(
                     },
                     valueRange = 0f..state.duration.toFloat().coerceAtLeast(1f),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color(0xFFE0E0E0),
-                        inactiveTrackColor = Color(0xFF444444),
+                        thumbColor = controlInk,
+                        activeTrackColor = controlInk.copy(alpha = 0.85f),
+                        inactiveTrackColor = controlInk.copy(alpha = 0.30f),
                     ),
                     modifier = Modifier.fillMaxWidth().height(16.dp),
                 )
@@ -505,12 +566,12 @@ fun PlayerScreen(
                 ) {
                     Text(
                         formatTime(state.position),
-                        color = Color(0xFF8E8E93),
+                        color = secondaryInk,
                         fontSize = 11.5.sp,
                     )
                     Text(
                         formatTime(state.duration),
-                        color = Color(0xFF8E8E93),
+                        color = secondaryInk,
                         fontSize = 11.5.sp,
                     )
                 }
@@ -535,7 +596,7 @@ fun PlayerScreen(
                     Icon(
                         painter = painterResource(DesignR.drawable.ic_lark_prev),
                         contentDescription = "Anterior",
-                        tint = Color(0xFFE6E6E6),
+                        tint = controlInk,
                         modifier = Modifier.size(46.dp),
                     )
                 }
@@ -554,7 +615,7 @@ fun PlayerScreen(
                             else DesignR.drawable.ic_lark_play
                         ),
                         contentDescription = if (state.isPlaying) "Pausar" else "Reproducir",
-                        tint = Color(0xFFE6E6E6),
+                        tint = controlInk,
                         modifier = Modifier.size(62.dp),
                     )
                 }
@@ -570,7 +631,7 @@ fun PlayerScreen(
                     Icon(
                         painter = painterResource(DesignR.drawable.ic_lark_next),
                         contentDescription = "Siguiente",
-                        tint = Color(0xFFE6E6E6),
+                        tint = controlInk,
                         modifier = Modifier.size(46.dp),
                     )
                 }
@@ -585,7 +646,6 @@ fun PlayerScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .background(playerBackground)
                 .padding(horizontal = 24.dp, vertical = 14.dp),
         ) {
             Row(
@@ -604,7 +664,7 @@ fun PlayerScreen(
                     Icon(
                         painter = painterResource(DesignR.drawable.ic_lark_equalizer),
                         contentDescription = "Ecualizador",
-                        tint = Color(0xFF8E8E93),
+                        tint = bottomInk,
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -619,7 +679,7 @@ fun PlayerScreen(
                 ) {
                     Text(
                         "Letras",
-                        color = Color(0xFF8E8E93),
+                        color = bottomInk,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                     )
@@ -638,7 +698,7 @@ fun PlayerScreen(
                     Icon(
                         painter = painterResource(DesignR.drawable.ic_lark_queue),
                         contentDescription = "A continuación",
-                        tint = Color(0xFF8E8E93),
+                        tint = bottomInk,
                         modifier = Modifier.size(24.dp),
                     )
                     if (currentMode != PlayerRepository.MODE_REPEAT_ALL) {
@@ -906,6 +966,12 @@ private fun AnimatedTransportButton(
     ) {
         Icon(icon, description, tint = tint, modifier = Modifier.size(iconSize))
     }
+}
+
+/** Foreground colour with enough contrast on a sampled gradient band. */
+private fun inkOn(color: Color): Color {
+    val brightness = 0.2126f * color.red + 0.7152f * color.green + 0.0722f * color.blue
+    return if (brightness > 0.58f) Color(0xFF17171B) else Color.White
 }
 
 private fun formatSpeed(speed: Float): String {

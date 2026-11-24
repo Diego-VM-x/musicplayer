@@ -22,12 +22,22 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** Library tab indices. Must stay in sync with TABS in LibraryScreen. */
+internal const val TAB_VIDEOS = 0
+internal const val TAB_SONGS = 1
+internal const val TAB_PLAYLISTS = 2
+internal const val TAB_FOLDERS = 3
+internal const val TAB_ARTISTS = 4
+internal const val TAB_ALBUMS = 5
+/** Clean startup always lands on Canciones, never on Videos. */
+internal const val DEFAULT_LIBRARY_TAB = TAB_SONGS
+
 data class LibraryUiState(
     val songs: List<Song> = emptyList(),
     val hiddenSongs: List<Song> = emptyList(),
     val playlists: List<PlaylistWithCover> = emptyList(),
     val query: String = "",
-    val tab: Int = 0,
+    val tab: Int = DEFAULT_LIBRARY_TAB,
     val sortMode: Int = 0,
     /** Playlists tab: 0 = manual (Room position), 1 = nombre, 2 = creación. */
     val playlistSortMode: Int = 0,
@@ -60,7 +70,7 @@ class LibraryViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
-    private val tab = MutableStateFlow(1) // 1 = Canciones, same as Lark
+    private val tab = MutableStateFlow(DEFAULT_LIBRARY_TAB) // Canciones, nunca Videos en el arranque
     private val sortMode = MutableStateFlow(0)
     private val playlistSortMode = MutableStateFlow(0)
     private val isScanning = MutableStateFlow(false)
@@ -103,7 +113,13 @@ class LibraryViewModel @Inject constructor(
             dataStore.librarySortMode.collect { sortMode.value = it }
         }
         viewModelScope.launch {
-            dataStore.libraryTab.collect { tab.value = it.coerceIn(0, TAB_COUNT - 1) }
+            // Restores the last tab, but a clean start (and any saved Videos)
+            // must resolve to Canciones. Normalizing the stored value keeps the
+            // persisted index and the displayed tab in sync.
+            val saved = dataStore.libraryTab.first().coerceIn(TAB_VIDEOS, TAB_ALBUMS)
+            val restored = if (saved == TAB_VIDEOS) DEFAULT_LIBRARY_TAB else saved
+            tab.value = restored
+            if (restored != saved) runCatching { dataStore.setLibraryTab(restored) }
         }
         viewModelScope.launch {
             dataStore.playlistSortMode.collect { playlistSortMode.value = it.coerceIn(0, 2) }
@@ -126,8 +142,9 @@ class LibraryViewModel @Inject constructor(
 
     fun onQueryChange(value: String) { query.value = value }
     fun onTabChange(index: Int) {
-        tab.value = index
-        viewModelScope.launch { runCatching { dataStore.setLibraryTab(index) } }
+        val next = index.coerceIn(TAB_VIDEOS, TAB_ALBUMS)
+        tab.value = next
+        viewModelScope.launch { runCatching { dataStore.setLibraryTab(next) } }
     }
     fun cycleSort() { setSort((sortMode.value + 1) % 3) }
     fun setSort(mode: Int) {
@@ -225,10 +242,6 @@ class LibraryViewModel @Inject constructor(
             2 -> list.sortedBy { it.playlist.createdAt }
             else -> list.sortedBy { it.playlist.position }
         }
-
-    companion object {
-        private const val TAB_COUNT = 6
-    }
 
     private fun SongEntity.toDomain() = Song(
         id = id, title = title, artist = artist, album = album, albumId = albumId,

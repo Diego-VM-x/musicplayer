@@ -2,9 +2,12 @@ package com.larkplayer.feature.settings.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,26 +44,34 @@ import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.larkplayer.core.designsystem.component.BackgroundVariants
 import com.larkplayer.core.designsystem.component.CircleIconButton
@@ -91,11 +102,43 @@ private val ACCENTS = listOf(
     Color(0xFFB08CFF), Color(0xFFD0B8FF), Color(0xFF7D5AE8), Color(0xFF4F35A8),
 )
 
-private fun parseHexColor(input: String): Color? {
-    val raw = input.trim().removePrefix("#")
-    if (raw.length != 6) return null
-    val value = raw.toLongOrNull(16) ?: return null
-    return Color((0xFF000000L or value).toInt())
+/** HSV (hue in degrees, saturation/value in 0..1) to ARGB Color. */
+private fun hsvToColor(hue: Float, saturation: Float, value: Float): Color {
+    val h = ((hue % 360f) + 360f) % 360f
+    val c = value * saturation
+    val x = c * (1f - abs(h / 60f % 2f - 1f))
+    val m = value - c
+    val (r, g, b) = when ((h / 60f).toInt()) {
+        0 -> Triple(c, x, 0f)
+        1 -> Triple(x, c, 0f)
+        2 -> Triple(0f, c, x)
+        3 -> Triple(0f, x, c)
+        4 -> Triple(x, 0f, c)
+        else -> Triple(c, 0f, x)
+    }
+    return Color(
+        red = (r + m).coerceIn(0f, 1f),
+        green = (g + m).coerceIn(0f, 1f),
+        blue = (b + m).coerceIn(0f, 1f),
+    )
+}
+
+/** ARGB Color to HSV (hue in degrees, saturation/value in 0..1). */
+private fun rgbToHsv(color: Color): Triple<Float, Float, Float> {
+    val r = color.red
+    val g = color.green
+    val b = color.blue
+    val max = maxOf(r, g, b)
+    val min = minOf(r, g, b)
+    val delta = max - min
+    val hue = when {
+        delta == 0f -> 0f
+        max == r -> ((60f * (g - b) / delta) % 360f + 360f) % 360f
+        max == g -> 60f * (b - r) / delta + 120f
+        else -> 60f * (r - g) / delta + 240f
+    }
+    val saturation = if (max == 0f) 0f else delta / max
+    return Triple(hue, saturation, max)
 }
 
 /** "Tema" — live previews, light/dark/system selector and accent colours. */
@@ -214,7 +257,7 @@ fun ThemeScreen(
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text("Color personalizado", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text("Elige cualquier tono con código #RRGGBB", color = Color(0xFF8E8E93), fontSize = 11.sp)
+                Text("Elige cualquier tono con la rueda de colores", color = Color(0xFF8E8E93), fontSize = 11.sp)
             }
             Box(Modifier.padding(end = 14.dp).size(24.dp).clip(CircleShape).background(accent))
         }
@@ -296,59 +339,207 @@ fun ThemeScreen(
     }
 
     if (customDialog) {
-        var hex by remember {
-            mutableStateOf(String.format("#%06X", accent.toArgb() and 0xFFFFFF))
-        }
-        val preview = parseHexColor(hex)
-        AlertDialog(
-            onDismissRequest = { customDialog = false },
-            containerColor = ApplePalette.SurfaceElevated,
-            title = { Text("Color personalizado", color = Color.White) },
-            text = {
-                Column {
-                    Text("Escribe un código hexadecimal para elegir cualquier color.", color = Color(0xFFB7B7BD), fontSize = 13.sp)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = hex,
-                        onValueChange = { hex = it },
-                        singleLine = true,
-                        label = { Text("#RRGGBB") },
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(preview ?: accent)
-                                .border(2.dp, Color.White, CircleShape),
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            if (preview != null) "Vista previa" else "Código no válido",
-                            color = if (preview != null) Color.White else Color(0xFFFF9A9A),
-                            fontSize = 13.sp,
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = preview != null,
-                    onClick = {
-                        preview?.let { viewModel.setAccentColor(it.toArgbLong()) }
-                        customDialog = false
-                    },
-                ) { Text("Aplicar") }
-            },
-            dismissButton = {
-                TextButton(onClick = { customDialog = false }) { Text("Cancelar") }
+        ColorWheelDialog(
+            initialColor = accent,
+            onDismiss = { customDialog = false },
+            onApply = { color ->
+                viewModel.setAccentColor(color.toArgbLong())
+                customDialog = false
             },
         )
     }
 }
 
 private fun Color.toArgbLong(): Long = toArgb().toLong() and 0xFFFFFFFFL
+
+/**
+ * Photo-editor style colour picker: the disc maps hue to the pointer angle and
+ * saturation to the distance from the centre; a separate bar controls value
+ * (brightness). Everything is drawn with Compose Canvas and converted to ARGB
+ * before being handed back to the caller.
+ */
+@Composable
+private fun ColorWheelDialog(
+    initialColor: Color,
+    onDismiss: () -> Unit,
+    onApply: (Color) -> Unit,
+) {
+    val initial = remember { rgbToHsv(initialColor) }
+    var hue by remember { mutableFloatStateOf(initial.first) }
+    var saturation by remember { mutableFloatStateOf(initial.second) }
+    var value by remember { mutableFloatStateOf(initial.third) }
+    val color = hsvToColor(hue, saturation, value)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = ApplePalette.SurfaceElevated,
+        title = { Text("Color personalizado", color = Color.White) },
+        text = {
+            Column {
+                Text(
+                    "Arrastra el círculo para elegir matiz y saturación, y usa la barra para ajustar el brillo.",
+                    color = Color(0xFFB7B7BD),
+                    fontSize = 13.sp,
+                )
+                Spacer(Modifier.height(14.dp))
+                Canvas(
+                    Modifier
+                        .size(208.dp)
+                        .align(Alignment.CenterHorizontally)
+                        .pointerInput(Unit) {
+                            val radius = minOf(size.width, size.height) / 2f
+                            val apply: (Offset) -> Unit = { offset ->
+                                val dx = offset.x - radius
+                                val dy = offset.y - radius
+                                saturation = (sqrt(dx * dx + dy * dy) / radius).coerceIn(0f, 1f)
+                                val degrees = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                                hue = ((degrees % 360f) + 360f) % 360f
+                            }
+                            detectTapGestures(onTap = apply)
+                        }
+                        .pointerInput(Unit) {
+                            val radius = minOf(size.width, size.height) / 2f
+                            val apply: (Offset) -> Unit = { offset ->
+                                val dx = offset.x - radius
+                                val dy = offset.y - radius
+                                saturation = (sqrt(dx * dx + dy * dy) / radius).coerceIn(0f, 1f)
+                                val degrees = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                                hue = ((degrees % 360f) + 360f) % 360f
+                            }
+                            detectDragGestures(
+                                onDragStart = apply,
+                                onDrag = { change, _ ->
+                                    change.consume()
+                                    apply(change.position)
+                                },
+                            )
+                        }
+                ) {
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val radius = size.minDimension / 2f
+
+                    // Hue cone: one wedge per slice, in clockwise screen-angle order.
+                    val step = 1.5f
+                    var angle = 0f
+                    while (angle < 360f) {
+                        drawArc(
+                            color = hsvToColor(angle, 1f, 1f),
+                            startAngle = angle,
+                            sweepAngle = step + 0.6f,
+                            useCenter = true,
+                        )
+                        angle += step
+                    }
+                    // Saturation: opaque white at the centre fading to nothing at the rim.
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color.White, Color.White.copy(alpha = 0f)),
+                            center = center,
+                            radius = radius,
+                        ),
+                        radius = radius,
+                        center = center,
+                    )
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.28f),
+                        radius = radius,
+                        center = center,
+                        style = Stroke(width = 1.dp.toPx()),
+                    )
+
+                    // Draggable marker at (hue angle, saturation radius).
+                    val radians = Math.toRadians(hue.toDouble())
+                    val marker = Offset(
+                        center.x + radius * saturation * cos(radians).toFloat(),
+                        center.y + radius * saturation * sin(radians).toFloat(),
+                    )
+                    drawCircle(
+                        color = Color.White,
+                        radius = 10.dp.toPx(),
+                        center = marker,
+                        style = Stroke(width = 2.dp.toPx()),
+                    )
+                    drawCircle(color = color, radius = 8.dp.toPx(), center = marker)
+                    drawCircle(
+                        color = Color.Black.copy(alpha = 0.35f),
+                        radius = 8.dp.toPx(),
+                        center = marker,
+                        style = Stroke(width = 1.dp.toPx()),
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+                Text("Brillo", color = Color(0xFFB7B7BD), fontSize = 12.sp)
+                Spacer(Modifier.height(6.dp))
+                Canvas(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(26.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .pointerInput(Unit) {
+                            val width = size.width.toFloat()
+                            val apply: (Offset) -> Unit = { offset ->
+                                value = (offset.x / width).coerceIn(0f, 1f)
+                            }
+                            detectTapGestures(onTap = apply)
+                        }
+                        .pointerInput(Unit) {
+                            val width = size.width.toFloat()
+                            detectDragGestures(
+                                onDragStart = { offset -> value = (offset.x / width).coerceIn(0f, 1f) },
+                                onDrag = { change, _ ->
+                                    change.consume()
+                                    value = (change.position.x / width).coerceIn(0f, 1f)
+                                },
+                            )
+                        }
+                ) {
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            listOf(Color.Black, hsvToColor(hue, saturation, 1f)),
+                        ),
+                    )
+                    val x = value * size.width
+                    drawLine(
+                        color = Color.White,
+                        start = Offset(x, 0f),
+                        end = Offset(x, size.height),
+                        strokeWidth = 2.dp.toPx(),
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                            .border(2.dp, Color.White, CircleShape),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            "Vista previa",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            "Matiz ${hue.toInt()}°  ·  Saturación ${(saturation * 100).toInt()}%  ·  Brillo ${(value * 100).toInt()}%",
+                            color = Color(0xFF8E8E93),
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onApply(color) }) { Text("Aplicar") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
 
 @Composable
 private fun SizeOption(

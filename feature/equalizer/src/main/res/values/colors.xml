@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The original Lark vectors use this single fill colour and are tinted at runtime. -->
+    <color name="svg_default_fill">#FFFFFFFF</color>
+</resources>

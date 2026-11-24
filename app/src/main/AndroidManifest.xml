@@ -87,9 +87,11 @@
             android:exported="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <!-- AppWidgetProvider needs exported=true so the system launcher can
+             deliver APPWIDGET_UPDATE / APPWIDGET_OPTIONS_CHANGED broadcasts. -->
         <receiver
             android:name="com.larkplayer.feature.widget.LarkWidgetProvider"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.larkplayer.action.UPDATE_WIDGET" />
@@ -97,6 +99,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/lark_widget_info" />
+        </receiver>
+
+        <!-- Horizontal 2x3 / 2x4 now-playing widget. -->
+        <receiver
+            android:name="com.larkplayer.feature.widget.LarkWideWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.larkplayer.action.UPDATE_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/lark_wide_widget_info" />
         </receiver>
 
         <receiver

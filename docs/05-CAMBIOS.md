@@ -4,6 +4,18 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-24 - v1.1.0: rueda de color, widgets, degradado, ecualizador original y arranque en Canciones
+
+Tareas delegadas a cinco subagentes e integradas:
+
+- **Selector circular**: reemplazado el diálogo de código `#RRGGBB` por una rueda HSV de 208 dp con marcador arrastrable (matiz por ángulo, saturación por radio) y barra de brillo separada; los 20 presets se mantienen.
+- **Widgets**: proveedor 2x2 adaptable (compacto/normal/horizontal según tamaño) y proveedor horizontal 2x3/2x4, con carátula, controles, progreso, acento del usuario y tap que abre el reproductor. Ambos registrados en el manifest.
+- **Reproductor**: fondo con degradado vertical que cubre toda la pantalla, del color elegido (con 28 % de carátula) a negro o blanco según el tema, con tinta adaptada para conservar legibilidad.
+- **Ecualizador**: 16 presets exactos del original (`o/k20.java:42`), iconos vectoriales copiados de `jadx_full/resources/res/drawable/ic_eq_*.xml`, rejilla de 2 columnas, sliders por banda, audiofx `Equalizer` real y persistencia. Se conserva además un `EqualizerAudioProcessor` Media3 como espejo.
+- **Arranque**: la biblioteca abre siempre en «Canciones»; se normaliza un `0` (Videos) guardado, sin afectar la apertura del reproductor desde la notificación.
+- `versionCode` 52 / `1.1.0`; `:app:compileDebugKotlin` → BUILD SUCCESSFUL.
+- `assembleRelease` → BUILD SUCCESSFUL. Publicada la release `v1.1.0` con `musicplayer-52.apk` (3.534.858 bytes, SHA-256 `1DFAE97B13FD1CC5AB8F6D8E157B19C1C52523FA8FD3389D561EE0014547FCF2`), verificada con `aapt` (`versionName=1.1.0`).
+
 ## 2026-11-23 - Fase 58: color elegido por el usuario en toda la app (v51)
 
 - Se eliminó el color adaptativo derivado de la carátula: reproductor completo, mini-player, cola y detalle de playlist usan ahora el acento elegido por el usuario (`SettingsDataStore.accentColor`), igual que el resto de la app. La biblioteca dejó de usar un azul fijo.

@@ -17,4 +17,9 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.media3.session)
+
+    // Accent colour comes from the same DataStore the rest of the app uses.
+    implementation(project(":core:datastore"))
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.coroutines.android)
 }

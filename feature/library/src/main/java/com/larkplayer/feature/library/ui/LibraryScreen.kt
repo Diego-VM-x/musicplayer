@@ -119,6 +119,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** 0 = Videos, 1 = Canciones; indices are shared with LibraryViewModel. */
 private val TABS = listOf("Videos", "Canciones", "Playlists", "Carpetas", "Artistas", "Álbumes")
 
 /**
@@ -309,7 +310,7 @@ fun LibraryScreen(
                                 dragged += amount
                                 if (kotlin.math.abs(dragged) >= 72f) {
                                     val next = (state.tab + if (dragged < 0f) 1 else -1)
-                                        .coerceIn(0, TABS.lastIndex)
+                                        .coerceIn(TAB_VIDEOS, TAB_ALBUMS)
                                     if (next != state.tab) viewModel.onTabChange(next)
                                     dragged = 0f
                                 }
@@ -324,12 +325,12 @@ fun LibraryScreen(
                         },
                     ) { tab ->
                         when (tab) {
-                            0 -> EmptyTab(
+                            TAB_VIDEOS -> EmptyTab(
                             icon = Icons.Rounded.Album,
                             title = "No hay videos",
                             subtitle = "Los videos locales aparecerán aquí.",
                         )
-                        1 -> SongsTab(
+                        TAB_SONGS -> SongsTab(
                             songs = state.songs,
                             themeSize = state.themeSize,
                             accent = accent,
@@ -348,7 +349,7 @@ fun LibraryScreen(
                             },
                             onRescan = { viewModel.scan(force = true) },
                         )
-                        2 -> PlaylistsTab(
+                        TAB_PLAYLISTS -> PlaylistsTab(
                             playlists = state.playlists,
                             sortMode = state.playlistSortMode,
                             onSort = viewModel::setPlaylistSort,
@@ -356,14 +357,14 @@ fun LibraryScreen(
                             onOpen = { playlist -> onOpenPlaylist(playlist.playlist.id) },
                             onLongPress = { playlistToDelete = it },
                         )
-                        3 -> FoldersTab(
+                        TAB_FOLDERS -> FoldersTab(
                             songs = state.songs,
                             onPlay = { list, index ->
                                 viewModel.play(list, index)
                                 onOpenPlayer()
                             },
                         )
-                        4 -> ArtistsTab(
+                        TAB_ARTISTS -> ArtistsTab(
                             songs = state.songs,
                             onPlay = { list, index ->
                                 viewModel.play(list, index)

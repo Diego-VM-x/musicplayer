@@ -73,6 +73,11 @@ class PlayerViewModel @Inject constructor(
         .map { it.toInt() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0xFF0A84FF.toInt())
 
+    /** Effective theme mode: 0 = light, 1 = dark, 2 = follow system. */
+    val themeMode: StateFlow<Int> = settings.themeConfig
+        .map { it.themeMode }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 1)
+
     private var listener: Player.Listener? = null
     private var observedController: MediaController? = null
 
