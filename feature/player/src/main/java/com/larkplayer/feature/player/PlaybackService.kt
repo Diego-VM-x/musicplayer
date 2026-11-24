@@ -15,6 +15,7 @@ import android.os.Build
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ShuffleOrder
 import androidx.media3.session.CommandButton
@@ -62,6 +63,10 @@ class PlaybackService : MediaSessionService() {
     /** Set by the notification X: suppress the notification until playback resumes. */
     @Volatile private var shuttingDown = false
 
+    /** Fixed order chosen in the UI; kept across playlist/timeline changes. */
+    @Volatile private var shuffleIds: List<String> = emptyList()
+    @Volatile private var installingOrder = false
+
     private var wakeLock: PowerManager.WakeLock? = null
 
     // ---- Real crossfade: two players mixed by the system audio mixer --------
@@ -100,6 +105,13 @@ class PlaybackService : MediaSessionService() {
                 player.duration > 0L && player.currentPosition >= player.duration - 800L
             }.getOrDefault(false)
             if (!crossfadeInProgress || !atEndOfTrack) cancelCrossfade()
+        }
+
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            // setMediaItems/add/remove/move make ExoPlayer rebuild its shuffle
+            // order from the clone hooks (which is not our fixed sequence).
+            // Re-install it so "next" always matches the visible queue.
+            if (!installingOrder) installShuffleOrderIfStale()
         }
     }
 
@@ -215,21 +227,38 @@ class PlaybackService : MediaSessionService() {
 
     /** Applies the order shown in the UI to Media3's internal shuffle engine. */
     private fun applyShuffleOrder(ids: List<String>) {
-        if (ids.isEmpty()) {
+        shuffleIds = ids
+        installShuffleOrderIfStale()
+    }
+
+    /**
+     * Installs the persisted order whenever the playlist changed and Media3
+     * replaced our custom ShuffleOrder with a default/natural one. Comparing
+     * the indices keeps this idempotent and avoids a timeline-change loop.
+     */
+    private fun installShuffleOrderIfStale() {
+        if (shuffleIds.isEmpty()) {
             runCatching { player.shuffleModeEnabled = false }
             return
         }
         val indexById = (0 until player.mediaItemCount).associate { index ->
             player.getMediaItemAt(index).mediaId to index
         }
-        val indices = ids.mapNotNull { indexById[it] }.toIntArray()
-        if (indices.isEmpty()) {
-            runCatching { player.shuffleModeEnabled = false }
+        val indices = shuffleIds.mapNotNull { indexById[it] }.toIntArray()
+        if (indices.size != player.mediaItemCount || indices.isEmpty()) {
+            // Stale ids (the media items have not been applied yet): the
+            // timeline listener will retry once the new queue is in place.
             return
         }
-        runCatching {
-            player.setShuffleOrder(VisibleShuffleOrder(indices))
-            player.shuffleModeEnabled = true
+        // setShuffleOrder can itself emit a timeline event; guard against a loop.
+        installingOrder = true
+        try {
+            runCatching {
+                player.setShuffleOrder(VisibleShuffleOrder(indices))
+                player.shuffleModeEnabled = true
+            }
+        } finally {
+            installingOrder = false
         }
     }
 

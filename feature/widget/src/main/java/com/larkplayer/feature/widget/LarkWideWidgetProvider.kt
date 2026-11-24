@@ -32,7 +32,10 @@ class LarkWideWidgetProvider : AppWidgetProvider() {
     }
 
     private fun updateOne(context: Context, manager: AppWidgetManager, id: Int) {
-        runCatching {
+        val state = runCatching { WidgetState.readState(context) }.getOrNull()
+        val accent = runCatching { WidgetState.accent(context) }
+            .getOrDefault(WidgetState.DEFAULT_ACCENT)
+        val views = runCatching {
             val options = runCatching { manager.getAppWidgetOptions(id) }.getOrNull()
             val width = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
             val layout = if (width >= 300) {
@@ -40,25 +43,27 @@ class LarkWideWidgetProvider : AppWidgetProvider() {
             } else {
                 R.layout.widget_lark_wide
             }
-            manager.updateAppWidget(
-                id,
-                WidgetState.buildViews(
-                    context = context,
-                    layoutRes = layout,
-                    state = WidgetState.readState(context),
-                    accent = WidgetState.accent(context),
-                    requestCodeOffset = 100,
-                ),
+            WidgetState.buildViews(
+                context = context,
+                layoutRes = layout,
+                state = state ?: WidgetState.readState(context),
+                accent = accent,
+                requestCodeOffset = 100,
             )
+        }.getOrElse {
+            WidgetState.fallbackViews(context, state?.title ?: "Lark Player", 100)
         }
+        runCatching { manager.updateAppWidget(id, views) }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
+        runCatching { super.onReceive(context, intent) }
         if (intent.action == WidgetState.ACTION_UPDATE) {
-            val manager = AppWidgetManager.getInstance(context)
-            val ids = manager.getAppWidgetIds(ComponentName(context, LarkWideWidgetProvider::class.java))
-            onUpdate(context, manager, ids)
+            runCatching {
+                val manager = AppWidgetManager.getInstance(context)
+                val ids = manager.getAppWidgetIds(ComponentName(context, LarkWideWidgetProvider::class.java))
+                onUpdate(context, manager, ids)
+            }
         }
     }
 

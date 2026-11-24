@@ -148,13 +148,16 @@ object MediaFileUtils {
         ).map { it.trim() }.filter { it.isNotBlank() }.distinct()
         val embedded = EmbeddedLyrics.read(context, song)?.takeIf { it.isNotBlank() }
         val local = findLocalLyrics(song.path, stems.toTypedArray())
+        val localLrc = findLocalLyrics(song.path, stems.toTypedArray(), listOf("lrc", "LRC"))
 
-        // Real timestamps win: a plain USLT/.txt can only be distributed
-        // proportionally and made the highlight drift from the actual singing.
-        listOf(
-            findLocalLyrics(song.path, stems.toTypedArray(), listOf("lrc", "LRC")),
-            embedded,
-        ).firstOrNull { it != null && LyricsTextUtils.hasTimestamps(it) }?.let { return it }
+        // Richer timing wins: SYLT / enhanced .lrc (word marks) > plain .lrc
+        // (line marks) > untimed USLT/.txt. A tie favours the local .lrc.
+        val ranked = mutableListOf<Pair<Int, String>>()
+        fun offer(text: String?, bonus: Int) {
+            if (!text.isNullOrBlank()) ranked += (LyricsTextUtils.timedScore(text) + bonus) to text
+        }
+        offer(localLrc, 1)
+        offer(embedded, 0)
 
         // Scoped storage: search MediaStore by file name. A generic LIKE on the
         // extension avoids escaping problems with brackets/quotes in song names.
@@ -178,20 +181,22 @@ object MediaFileUtils {
             }
         }
         val normalizedStems = stems.map { normalizeLyricName(it) }
-        val ranked = candidates.sortedBy { rankOfLyric(it.second, normalizedStems) }
-        var timedLrc: String? = null
+        val ordered = candidates.sortedBy { rankOfLyric(it.second, normalizedStems) }
         var anyLyrics: String? = null
-        for ((id, name) in ranked) {
+        for ((id, name) in ordered) {
             if (rankOfLyric(name, normalizedStems) > 1) break
             if (name.substringAfterLast('.').lowercase() !in setOf("lrc", "txt")) continue
             val uri = ContentUris.withAppendedId(collection, id)
             val text = LyricsTextUtils.readUri(context, uri) ?: continue
-            if (name.substringAfterLast('.').equals("lrc", ignoreCase = true) &&
-                LyricsTextUtils.hasTimestamps(text) && timedLrc == null
-            ) timedLrc = text
+            offer(text, 0)
             if (anyLyrics == null) anyLyrics = text
         }
-        if (timedLrc != null) return timedLrc
+
+        // Highest score wins; first candidate wins a tie (local .lrc is offered
+        // first). Scores <= 0 are untimed and are handled by the fallback below.
+        ranked.maxByOrNull { it.first }?.let { (score, text) ->
+            if (score > 0) return text
+        }
 
         // Last resort: unsynchronized text, in the old priority order.
         return local ?: embedded ?: anyLyrics

@@ -32,11 +32,9 @@ class LyricsRepository @Inject constructor(
         }
         if (localMatch != null && localMatch.id > 0) {
             val cached = loadForSongId(localMatch.id)
-            // Plain cached text cannot follow the audio; keep looking for a
-            // synchronized source (SYLT / .lrc) before accepting it.
-            if (cached.hasText && LyricsTextUtils.hasTimestamps(cached.plainText)) {
-                return@withContext cached
-            }
+            // [loadForSongId] already refreshes a plain cache with a timed
+            // source when one exists, so its result is final here.
+            if (cached.hasText) return@withContext cached
         }
 
         val library = MediaFileUtils.queryAudio(context)
@@ -77,40 +75,37 @@ class LyricsRepository @Inject constructor(
                     path = c.getString(3).orEmpty(),
                 )
             }
-        }.getOrNull() ?: return@withContext Lyrics(0)
-        resolve(song)
+        }.getOrNull()
+        if (song == null) {
+            // Untimed embedded text is still valid lyrics: keep it plain so the
+            // UI can show the "no timing" indicator instead of guessing times.
+            return@withContext cached?.let { LrcParser.parse(id, it) } ?: Lyrics(0)
+        }
+        resolve(song, cached)
     }
 
-    /** Embedded tags → local/MediaStore files, then cache the raw text in Room. */
-    private suspend fun resolve(song: Song): Lyrics {
-        val cached = if (song.id > 0) songDao.lyricsFor(song.id) else null
-        if (!cached.isNullOrBlank() && LyricsTextUtils.hasTimestamps(cached)) {
-            return LrcParser.parse(song.id, cached)
-        }
-
-        val raw = MediaFileUtils.findLyricsText(context, song)
+    /**
+     * Embedded tags / local .lrc files, then cache the raw text in Room.
+     *
+     * The previous version generated fake timestamps from the audio energy of
+     * untimed lyrics. That made the highlight drift (the onset detector is not
+     * a singer) and hid the honest "unsynchronized" state, so it is no longer
+     * applied here: plain lyrics stay plain and scroll freely.
+     */
+    private suspend fun resolve(song: Song, cachedOverride: String? = null): Lyrics {
+        val cached = cachedOverride ?: if (song.id > 0) songDao.lyricsFor(song.id) else null
+        val fresh = MediaFileUtils.findLyricsText(context, song)
             ?.let { LyricsTextUtils.clean(it) }
             ?.takeIf { it.isNotBlank() }
+
+        val useFresh = fresh != null &&
+            (cached.isNullOrBlank() || LyricsTextUtils.timedScore(fresh) > LyricsTextUtils.timedScore(cached))
+        val chosen = if (useFresh) fresh else cached
             ?: return Lyrics(song.id)
 
-        var parsed = LrcParser.parse(song.id, raw)
-        var toCache = raw
-
-        // No timestamps in the file: derive them once from the song's own
-        // energy envelope instead of asking the user to adjust anything.
-        if (!parsed.isSynced && parsed.lines.isNotEmpty() && song.path.isNotBlank()) {
-            val duration = LyricsAutoSync.durationMs(song.path)
-            val aligned = runCatching {
-                LyricsAutoSync.align(song.path, parsed.lines, duration)
-            }.getOrNull()
-            if (!aligned.isNullOrEmpty()) {
-                toCache = LyricsAutoSync.toLrc(aligned)
-                parsed = LrcParser.parse(song.id, toCache)
-            }
-        }
-
-        if (song.id > 0 && (cached.isNullOrBlank() || toCache != cached)) {
-            runCatching { songDao.updateLyrics(song.id, toCache) }
+        val parsed = LrcParser.parse(song.id, chosen)
+        if (useFresh && song.id > 0 && chosen != cached) {
+            runCatching { songDao.updateLyrics(song.id, chosen) }
         }
         return parsed
     }

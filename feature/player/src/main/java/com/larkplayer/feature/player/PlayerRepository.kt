@@ -122,10 +122,10 @@ class PlayerRepository @Inject constructor(
         scope.launch {
             settings.shuffle.collect { enabled ->
                 desiredShuffle = enabled
-                // Do not rebuild while the controller is still connecting: an
-                // empty queue would overwrite the saved order with an empty value.
-                if (enabled) rebuildShuffleOrder() else visibleOrder = emptyList()
-                // Applied when the controller connects (see connect() onSuccess).
+                // The fixed mix is installed explicitly by setShuffle()/connect().
+                // Rebuilding here would rotate it around the current track and
+                // make the visible order differ from the service's order.
+                if (!enabled) visibleOrder = emptyList()
             }
         }
         scope.launch {
@@ -162,9 +162,12 @@ class PlayerRepository @Inject constructor(
             connecting = false
             runCatching { future.get() }
                 .onSuccess { controller ->
-                    // Restore the user's shuffle/repeat preferences on every reconnect.
+                    // Restore repeat, but keep Media3's shuffle OFF until the
+                    // persisted order is installed. Enabling it first lets
+                    // DefaultShuffleOrder pick a random current item while the
+                    // queue is being restored.
                     runCatching {
-                        controller.shuffleModeEnabled = desiredShuffle
+                        controller.shuffleModeEnabled = false
                         controller.repeatMode = desiredRepeat
                         controller.volume = 1f
                         controller.setPlaybackParameters(
@@ -196,7 +199,9 @@ class PlayerRepository @Inject constructor(
                     // killed while the app was closed.
                     restoreQueueIfEmpty(controller)
                     if (desiredShuffle) {
-                        rebuildShuffleOrder()
+                        // Reuse the exact sequence saved in DataStore; only a new
+                        // tap of the shuffle button may create a different mix.
+                        rebuildShuffleOrder(force = false)
                         sendShuffleOrder(controller, enabled = true)
                     }
                     attachWidgetListener(controller)
@@ -506,7 +511,13 @@ class PlayerRepository @Inject constructor(
 
     fun setShuffle(on: Boolean) {
         desiredShuffle = on
-        if (!on) visibleOrder = emptyList()
+        if (on) {
+            // Reuse the saved mix for this exact queue. A brand-new order is
+            // created only by setPlaybackMode() on a fresh shuffle tap.
+            rebuildShuffleOrder(force = false)
+        } else {
+            visibleOrder = emptyList()
+        }
         withController { controller -> sendShuffleOrder(controller, on) }
         scope.launch { runCatching { settings.setShuffle(on) } }
     }
@@ -526,8 +537,10 @@ class PlayerRepository @Inject constructor(
         if (!force) {
             val saved = savedShuffleOrder?.split(',')?.filter { it.isNotBlank() }
             if (saved != null && saved.toSet() == ids) {
-                visibleOrder = listOfNotNull(currentId) + saved.filter { it != currentId }
-                persistShuffleOrder()
+                // Reuse the persisted sequence verbatim. Rotating it around the
+                // current track would change the mix on every reopen and the
+                // queue would stop matching the service's playback order.
+                visibleOrder = saved
                 return
             }
         }
@@ -580,7 +593,8 @@ class PlayerRepository @Inject constructor(
     /** Mutually exclusive playback option: only one mode can be active. */
     fun setPlaybackMode(mode: Int) {
         val shuffle = mode == MODE_SHUFFLE
-        // Pressing shuffle while it is already active generates a fresh order.
+        // Only a NEW tap while shuffle is already active generates a fresh mix.
+        // Turning it on from another mode reuses the persisted order.
         if (shuffle) rebuildShuffleOrder(force = desiredShuffle)
         setRepeat(
             when (mode) {

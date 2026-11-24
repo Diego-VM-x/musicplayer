@@ -15,6 +15,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -82,6 +84,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun QueueScreen(
     onBack: () -> Unit,
+    onOpenPlayer: () -> Unit,
     viewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -91,10 +94,13 @@ fun QueueScreen(
     val current = viewModel.currentIndex()
 
     // Local copy so drag-to-reorder animates smoothly; synced from the player.
+    // Keyed on the media-id sequence, not on list identity: the progress ticker
+    // rebuilds `queue` four times a second but the rows must keep their places.
     var displayOrder by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     var dragging by remember { mutableStateOf(false) }
     var draggingId by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(queue) {
+    val queueSignature = queue.joinToString(",") { it.mediaId.orEmpty() }
+    LaunchedEffect(queueSignature) {
         if (!dragging) displayOrder = queue
     }
     val density = LocalDensity.current
@@ -129,7 +135,8 @@ fun QueueScreen(
                     state = state,
                     accent = accentColor,
                     onPlayPause = viewModel::togglePlayPause,
-                    onClose = onBack,
+                    onSeek = viewModel::seek,
+                    onOpenPlayer = onOpenPlayer,
                 )
                 QueueHeader(
                     count = queue.size,
@@ -454,7 +461,8 @@ private fun QueueMiniPlayer(
     state: PlayerUiState,
     accent: Color,
     onPlayPause: () -> Unit,
-    onClose: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onOpenPlayer: () -> Unit,
 ) {
     val progress = if (state.duration > 0L) state.position.toFloat() / state.duration.toFloat() else 0f
     Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
@@ -517,35 +525,64 @@ private fun QueueMiniPlayer(
                 )
             }
         }
-        Spacer(Modifier.height(9.dp))
+        Spacer(Modifier.height(6.dp))
+        // Thin timeline with a generous touch target: tapping any point maps
+        // the x offset to a fraction of the duration and seeks there.
         Box(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 18.dp)
-                .height(2.dp)
-                .clip(RoundedCornerShape(50))
-                .background(Color.White.copy(alpha = 0.18f)),
+                .height(20.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .pointerInput(state.duration, onSeek) {
+                    detectTapGestures { offset ->
+                        val duration = state.duration
+                        if (duration > 0L && size.width > 0) {
+                            val fraction = (offset.x / size.width).coerceIn(0f, 1f)
+                            onSeek((fraction * duration).toLong())
+                        }
+                    }
+                },
+            contentAlignment = Alignment.Center,
         ) {
             Box(
                 Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.30f)),
+            )
+            Box(
+                Modifier
                     .fillMaxWidth(progress.coerceIn(0f, 1f))
-                    .fillMaxHeight()
+                    .height(3.dp)
                     .clip(RoundedCornerShape(50))
                     .background(accent),
             )
         }
+        // No chevron. Tapping this strip or swiping down opens the full player.
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(22.dp)
-                .clickable(onClick = onClose),
+                .height(26.dp)
+                .clickable(onClick = onOpenPlayer)
+                .pointerInput(onOpenPlayer) {
+                    var swipedDown = false
+                    detectVerticalDragGestures(
+                        onDragStart = { swipedDown = false },
+                        onDragEnd = { if (swipedDown) onOpenPlayer() },
+                        onDragCancel = { swipedDown = false },
+                    ) { _, dragAmount ->
+                        if (dragAmount > 4f) swipedDown = true
+                    }
+                },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                painterResource(FeatureR.drawable.ic_lark_chevron_down),
-                "Cerrar cola",
-                tint = Color.White.copy(alpha = 0.52f),
-                modifier = Modifier.size(16.dp),
+            Box(
+                Modifier
+                    .size(width = 36.dp, height = 3.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.30f)),
             )
         }
     }

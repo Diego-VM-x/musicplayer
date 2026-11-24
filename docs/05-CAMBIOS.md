@@ -4,6 +4,14 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-24 - v1.1.2: widgets, orden aleatorio fijo y letras karaoke (3 subagentes)
+
+- **Widgets**: causa real del fallo era `RemoteViews.setColorStateList` (API 31) con minSdk 24 → `NoSuchMethodError` y widget vacío. Se usa `setColorFilter`, con fallback de carátula y RemoteViews mínima. Tamaños 2x2 adaptable y 2x3/2x4 intactos.
+- **Aleatorio / cola**: `rebuildShuffleOrder()` rotaba la mezcla persistida y se reconstruía dos veces, además de activar shuffle antes de instalar el orden (Media3 elegía al azar). Ahora la mezcla se reutiliza literal, solo un nuevo tap genera otra y el servicio reinstala `VisibleShuffleOrder` en cada `onTimelineChanged`. Filas con keys estables y sin auto-scroll por cambio de posición; línea de tiempo clicable para seek; chevron eliminado y franja inferior tappable/swipe para abrir el reproductor.
+- **Lyrics karaoke**: extracción reforzada (ID3 USLT/SYLT con marcas por palabra, extended header, unsynchronisation, Vorbis/Opus, M4A ©lyr, codificaciones), selección de fuente por riqueza temporal, reloj `withFrameNanos` que interpola el ticker de 250 ms con snap en seek, fill por palabra/sílaba vía `clipRect`, auto-scroll con suspensión manual de 2,5 s, indicador «Letra sin sincronización temporal» y pulso opcional de ±2 % ligado al visualizador (nunca altera tiempos). Se eliminó el falso auto-sync por energía.
+- `versionCode` 54 / `1.1.2`; `:app:compileDebugKotlin` → BUILD SUCCESSFUL.
+- `assembleRelease` → BUILD SUCCESSFUL. Publicada la release `v1.1.2` con `musicplayer-54.apk` (3.557.334 bytes, SHA-256 `A5031FA6B0644A2959FC0244B677091894180F9A3B482C07C809BF5B0C81639A`), verificada con `aapt` (`versionName=1.1.2`).
+
 ## 2026-11-24 - v1.1.1: fix del reproductor y diseño según capturas (4 subagentes)
 
 - **Reproductor**: corregido el crash al abrir (muestreo Coil/Palette dentro de la composición sin `runCatching`). El color se calcula ahora en `PlayerViewModel` en `Dispatchers.IO` con `size(160)`, validación de componentes y fallback neutro. El degradado a pantalla completa va del **color principal de la canción** a negro/blanco según el tema; el acento del usuario queda solo en controles.

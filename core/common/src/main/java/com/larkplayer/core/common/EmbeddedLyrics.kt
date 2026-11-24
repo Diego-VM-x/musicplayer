@@ -3,6 +3,8 @@ package com.larkplayer.core.common
 import android.content.Context
 import android.net.Uri
 import java.io.BufferedInputStream
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.PushbackInputStream
@@ -12,18 +14,24 @@ import java.util.Locale
 /**
  * Reads lyrics embedded in the audio file itself. No third-party tag library.
  *
+ * This is the Android/Kotlin metadata reader used when MediaStore (and the
+ * platform metadata retriever) does not expose the tag at all — which is the
+ * usual case for USLT/SYLT and for custom Vorbis comment keys.
+ *
  * Supported containers:
- *  - MP3 / ID3v2.2-2.4: USLT/ULT (plain) and SYLT/SLT (synchronized, converted
- *    to LRC timestamps so the rest of the app can parse it uniformly).
+ *  - MP3 / ID3v2.2-2.4: USLT/ULT (plain) and SYLT/SLT (synchronized). SYLT
+ *    entries are converted to enhanced LRC with `<mm:ss.xx>` word marks so the
+ *    word-level karaoke survives the trip through Room (plain text column).
  *  - FLAC: Vorbis comment fields LYRICS / UNSYNCEDLYRICS / LYRICS_LRC.
- *  - OGG Vorbis / Opus: the Vorbis-comment packet.
- *  - MP4/M4A: the ©lyr (0xA9 "lyr") ilst atom.
+ *  - OGG Vorbis / Opus: the Vorbis-comment packet (all occurrences are tried).
+ *  - MP4/M4A: the ©lyr (0xA9 "lyr") ilst atom, UTF-8 and UTF-16 payloads.
  *
  * Every string is decoded through [LyricsTextUtils], so UTF-8, ISO-8859-1 and
  * UTF-16 (with or without BOM) all work and API 24 is supported.
  */
 object EmbeddedLyrics {
     private const val MAX_TAG_BYTES = 4 * 1024 * 1024
+    private const val MAX_SCAN_BYTES = 256 * 1024
 
     fun read(context: Context, song: com.larkplayer.core.model.Song): String? {
         val uris = listOfNotNull(
@@ -58,25 +66,55 @@ object EmbeddedLyrics {
         }.getOrNull()
     }
 
-    private fun parse(input: InputStream): String? {
-        val push = PushbackInputStream(BufferedInputStream(input), 16)
-        val head = LyricsTextUtils.readFully(push, 12) ?: return null
-        push.unread(head)
+    private fun parse(input: InputStream): String? =
+        parse(PushbackInputStream(BufferedInputStream(input), 16), allowRescan = true)
+
+    private fun parse(input: PushbackInputStream, allowRescan: Boolean): String? {
+        val head = LyricsTextUtils.readFully(input, 12) ?: return null
+        input.unread(head)
         return when {
-            head[0] == 'I'.code.toByte() && head[1] == 'D'.code.toByte() &&
-                head[2] == '3'.code.toByte() -> parseId3(push)
+            isId3(head, 0) -> parseId3(input)
 
-            head[0] == 'f'.code.toByte() && head[1] == 'L'.code.toByte() &&
-                head[2] == 'a'.code.toByte() && head[3] == 'C'.code.toByte() -> parseFlac(push)
+            isFlac(head, 0) -> parseFlac(input)
 
-            head[0] == 'O'.code.toByte() && head[1] == 'g'.code.toByte() &&
-                head[2] == 'g'.code.toByte() && head[3] == 'S'.code.toByte() -> parseOgg(push)
+            head.size >= 4 && head[0] == 'O'.code.toByte() && head[1] == 'g'.code.toByte() &&
+                head[2] == 'g'.code.toByte() && head[3] == 'S'.code.toByte() -> parseOgg(input)
 
-            isMp4(head) -> parseMp4(push)
+            isMp4(head, 0) -> parseMp4(input)
+
+            // Some files carry junk, an APEv2 footer or a large cover before the
+            // ID3 header. A bounded rescan recovers the tag the platform reader
+            // silently misses.
+            allowRescan -> rescanId3(input)
 
             else -> null
         }
     }
+
+    private fun rescanId3(input: PushbackInputStream): String? {
+        val prefix = LyricsTextUtils.readBytes(input, MAX_SCAN_BYTES)
+        for (i in 0..prefix.size - 3) {
+            if (isId3(prefix, i)) {
+                parse(
+                    PushbackInputStream(
+                        BufferedInputStream(ByteArrayInputStream(prefix, i, prefix.size - i)), 16,
+                    ),
+                    false,
+                )?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun isId3(bytes: ByteArray, at: Int): Boolean =
+        at >= 0 && at + 3 <= bytes.size &&
+            bytes[at] == 'I'.code.toByte() && bytes[at + 1] == 'D'.code.toByte() &&
+            bytes[at + 2] == '3'.code.toByte()
+
+    private fun isFlac(bytes: ByteArray, at: Int): Boolean =
+        at >= 0 && at + 4 <= bytes.size &&
+            bytes[at] == 'f'.code.toByte() && bytes[at + 1] == 'L'.code.toByte() &&
+            bytes[at + 2] == 'a'.code.toByte() && bytes[at + 3] == 'C'.code.toByte()
 
     // ------------------------------------------------------------------ ID3
 
@@ -84,20 +122,34 @@ object EmbeddedLyrics {
         val header = LyricsTextUtils.readFully(input, 10) ?: return null
         val version = header[3].toInt() and 0xFF
         if (version !in 2..4) return null
+        val flags = header[5].toInt() and 0xFF
         val tagSize = synchsafe(header[6], header[7], header[8], header[9])
         if (tagSize <= 0 || tagSize > MAX_TAG_BYTES) return null
-        // Read exactly the tag; with no extended header handling in the stream
-        // we avoid the off-by-one that broke tags carrying an extended header.
-        val tag = LyricsTextUtils.readFully(input, tagSize.toInt()) ?: return null
+        var tag = LyricsTextUtils.readFully(input, tagSize.toInt()) ?: return null
+
+        // ID3v2.4 unsynchronisation escapes 0xFF 0x00; without removing the
+        // extra zero every frame after it is parsed at the wrong offset.
+        if ((flags and 0x80) != 0) tag = unsynchronize(tag)
+
+        var framePos = 0
+        if ((flags and 0x40) != 0 && tag.size >= 4) {
+            // v2.3 extended-header size includes its own 4 bytes; v2.4 does not.
+            val extSize = if (version == 4) {
+                synchsafe(tag[0], tag[1], tag[2], tag[3]).toInt()
+            } else {
+                LyricsTextUtils.be32(tag, 0).toInt()
+            }
+            framePos = (if (version == 4) 4 + extSize else extSize).coerceIn(0, tag.size)
+        }
 
         val idLen = if (version == 2) 3 else 4
         val sizeLen = if (version == 2) 3 else 4
-        // A file can carry both a plain USLT and a synchronized SYLT. The old
-        // code returned the first frame it found (usually USLT), throwing away
-        // real timestamps and making the highlight drift from the audio.
+        // A file can carry both a plain USLT and a synchronized SYLT. Returning
+        // the first frame (usually USLT) threw away real timestamps and made the
+        // highlight drift from the audio.
         var plainLyrics: String? = null
         var syncedLyrics: String? = null
-        var pos = 0
+        var pos = framePos
         while (pos + idLen + sizeLen + 2 <= tag.size) {
             val id = String(tag, pos, idLen, StandardCharsets.ISO_8859_1)
                 .trim('\u0000').uppercase(Locale.US)
@@ -110,32 +162,33 @@ object EmbeddedLyrics {
 
                 else -> LyricsTextUtils.be32(tag, pos + idLen)
             }
-            val frameStart = pos + idLen + sizeLen + 2
-            if (rawSize <= 0 || frameStart + rawSize > tag.size) break
+            val bodyStart = pos + idLen + sizeLen + 2
+            if (rawSize <= 0 || bodyStart + rawSize > tag.size) break
 
-            var bodyStart = frameStart
-            var bodySize = rawSize.toInt()
+            var start = bodyStart
+            var size = rawSize.toInt()
             if (version == 4) {
-                val flags = ((tag[frameStart - 2].toInt() and 0xFF) shl 8) or
-                    (tag[frameStart - 1].toInt() and 0xFF)
+                val frameFlags = ((tag[bodyStart - 2].toInt() and 0xFF) shl 8) or
+                    (tag[bodyStart - 1].toInt() and 0xFF)
                 // Data-length-indicator: first 4 bytes of the body are a counter.
-                if ((flags and 0x0001) != 0 && bodySize >= 4) {
-                    bodyStart += 4
-                    bodySize -= 4
+                if ((frameFlags and 0x0001) != 0 && size >= 4) {
+                    start += 4
+                    size -= 4
                 }
             }
 
             if (id == "USLT" || id == "ULT" || id == "SYLT" || id == "SLT") {
-                val text = parseId3LyricsFrame(tag, bodyStart, bodySize, id.startsWith("S"))
+                val synchronized = id.startsWith("S")
+                val text = parseId3LyricsFrame(tag, start, size, synchronized)
                 if (!text.isNullOrBlank()) {
-                    if (id.startsWith("S")) {
+                    if (synchronized) {
                         if (LyricsTextUtils.hasTimestamps(text)) syncedLyrics = text
                     } else if (plainLyrics == null) {
                         plainLyrics = text
                     }
                 }
             }
-            pos = frameStart + rawSize.toInt()
+            pos = bodyStart + rawSize.toInt()
         }
         return syncedLyrics ?: plainLyrics
     }
@@ -157,11 +210,12 @@ object EmbeddedLyrics {
         }
         val width = if (encoding == 1 || encoding == 2) 2 else 1
         val end = start + size
-        // encoding(1) + language(3), then description terminated by a NUL of
-        // the frame's character width.
-        var pos = findTerminator(tag, start + 4, end, width) ?: return null
-        pos += width
-        if (pos + width <= end) {
+        // encoding(1) + language(3); SYLT adds timestamp format + content type
+        // before the description. The old code started at +5 for SYLT and ate
+        // the content-type byte as part of the description.
+        val descriptionStart = start + if (synchronized) 6 else 4
+        var pos = findTerminator(tag, descriptionStart, end, width)?.plus(width) ?: return null
+        if (width == 2 && pos + 1 < end) {
             val b0 = tag[pos].toInt() and 0xFF
             val b1 = tag[pos + 1].toInt() and 0xFF
             if ((b0 == 0xFE && b1 == 0xFF) || (b0 == 0xFF && b1 == 0xFE)) pos += 2
@@ -169,17 +223,18 @@ object EmbeddedLyrics {
         if (pos >= end) return null
 
         if (!synchronized) {
-            return LyricsTextUtils.decode(tag.copyOfRange(pos, end)).takeIf { it.isNotBlank() }
+            return LyricsTextUtils.decode(tag.copyOfRange(pos, end), charset)
+                .takeIf { it.isNotBlank() }
         }
 
         // SYLT: encoding, language, timestamp format, content type,
         // description<NUL>, then repeated <text<NUL><4-byte timestamp>.
         val timestampFormat = tag[start + 4].toInt() and 0xFF
-        var p = findTerminator(tag, start + 5, end, width)?.plus(width) ?: return null
         val entries = mutableListOf<Pair<Long, String>>()
+        var p = pos
         while (p < end) {
             val separator = findTerminator(tag, p, end, width) ?: break
-            val text = LyricsTextUtils.decode(tag.copyOfRange(p, separator))
+            val text = LyricsTextUtils.decode(tag.copyOfRange(p, separator), charset)
             p = separator + width
             if (p + 4 > end) break
             val stamp = LyricsTextUtils.be32(tag, p)
@@ -189,10 +244,49 @@ object EmbeddedLyrics {
             if (text.isNotBlank()) entries += ms to text
         }
         if (entries.isEmpty()) {
-            return LyricsTextUtils.decode(tag.copyOfRange(pos, end)).takeIf { it.isNotBlank() }
+            return LyricsTextUtils.decode(tag.copyOfRange(pos, end), charset)
+                .takeIf { it.isNotBlank() }
         }
-        return entries.sortedBy { it.first }
-            .joinToString("\n") { "[${lrcTime(it.first)}]${it.second}" }
+        return syltToLrc(entries.sortedBy { it.first })
+    }
+
+    /**
+     * Groups SYLT fragments into singable lines and keeps every fragment as an
+     * enhanced-LRC word mark. A gap, punctuation or a long line starts a new
+     * line; consecutive words keep their exact individual timestamps.
+     */
+    private fun syltToLrc(entries: List<Pair<Long, String>>): String {
+        val lines = mutableListOf<Pair<Long, String>>()
+        var current = StringBuilder()
+        var currentStart = 0L
+        var words = 0
+        var previousMs = Long.MIN_VALUE
+
+        fun flush() {
+            if (current.isNotBlank()) lines += currentStart to current.toString().trim()
+            current = StringBuilder()
+            words = 0
+        }
+
+        entries.forEach { (ms, raw) ->
+            val token = raw.trim()
+            if (token.isEmpty()) return@forEach
+            val gap = if (previousMs == Long.MIN_VALUE) 0L else ms - previousMs
+            val endsPhrase = token.lastOrNull()?.let {
+                it == '.' || it == '!' || it == '?' || it == '…' || it == ';' || it == ':'
+            } ?: false
+            if (current.isNotEmpty() && (gap > 1_200L || words >= 10 || current.length > 90 || endsPhrase)) {
+                flush()
+            }
+            if (current.isEmpty()) currentStart = ms
+            // Literal '<' / '>' would be mistaken for enhanced-LRC marks.
+            val safe = token.replace('<', '(').replace('>', ')')
+            current.append('<').append(lrcTime(ms)).append('>').append(safe).append(' ')
+            words++
+            previousMs = ms
+        }
+        flush()
+        return lines.joinToString("\n") { "[${lrcTime(it.first)}]${it.second}" }
     }
 
     private fun findTerminator(tag: ByteArray, from: Int, end: Int, width: Int): Int? {
@@ -215,13 +309,23 @@ object EmbeddedLyrics {
         )
     }
 
+    private fun unsynchronize(data: ByteArray): ByteArray {
+        val out = ByteArrayOutputStream(data.size)
+        var i = 0
+        while (i < data.size) {
+            val b = data[i].toInt() and 0xFF
+            out.write(b)
+            if (b == 0xFF && i + 1 < data.size && data[i + 1] == 0.toByte()) i++
+            i++
+        }
+        return out.toByteArray()
+    }
+
     // ----------------------------------------------------------------- FLAC
 
     private fun parseFlac(input: InputStream): String? {
         val head = LyricsTextUtils.readFully(input, 4) ?: return null
-        if (head[0] != 'f'.code.toByte() || head[1] != 'L'.code.toByte() ||
-            head[2] != 'a'.code.toByte() || head[3] != 'C'.code.toByte()
-        ) return null
+        if (!isFlac(head, 0)) return null
         while (true) {
             val blockHeader = LyricsTextUtils.readFully(input, 4) ?: return null
             val last = (blockHeader[0].toInt() and 0x80) != 0
@@ -255,53 +359,67 @@ object EmbeddedLyrics {
             val len = LyricsTextUtils.le32(block, pos).toInt()
             pos += 4
             if (len < 0 || pos + len > block.size) return@repeat
-            val entry = String(block, pos, len, StandardCharsets.UTF_8)
+            val entry = LyricsTextUtils.decode(
+                block.copyOfRange(pos, pos + len), StandardCharsets.UTF_8,
+            )
             pos += len
             val eq = entry.indexOf('=')
             if (eq <= 0) return@repeat
             val key = entry.substring(0, eq).trim().uppercase(Locale.US)
             if (key in LYRIC_KEYS) {
-                LyricsTextUtils.clean(entry.substring(eq + 1)).takeIf { it.isNotBlank() }
-                    ?.let { found += it }
+                entry.substring(eq + 1).takeIf { it.isNotBlank() }?.let { found += it }
             }
         }
         return found.joinToString("\n").takeIf { it.isNotBlank() }
     }
 
     private val LYRIC_KEYS = setOf(
-        "LYRICS", "UNSYNCEDLYRICS", "LYRICS_LRC", "LYRICS_SYLT", "LYRIC", "SYLT",
+        "LYRICS", "UNSYNCEDLYRICS", "LYRICS_LRC", "LYRICS_SYLT", "SYNCEDLYRICS",
+        "LYRIC", "SYLT",
     )
 
     // ------------------------------------------------------------------ OGG
 
     private fun parseOgg(input: InputStream): String? {
         val data = LyricsTextUtils.readBytes(input, 512 * 1024)
-        val vorbis = bytePattern("\u0003vorbis".toByteArray(StandardCharsets.ISO_8859_1))
-        val opus = bytePattern("OpusTags".toByteArray(StandardCharsets.US_ASCII))
-        val index = indexOf(data, vorbis)?.let { it + vorbis.size }
-            ?: indexOf(data, opus)?.let { it + opus.size }
-            ?: return null
-        return parseVorbisComment(data, index)
+        val patterns = listOf(
+            "\u0003vorbis".toByteArray(StandardCharsets.ISO_8859_1),
+            "OpusTags".toByteArray(StandardCharsets.US_ASCII),
+        )
+        // The first "\x03vorbis" is the identification packet, not the comment
+        // packet. Try every occurrence until the Vorbis-comment layout parses.
+        for (pattern in patterns) {
+            var from = 0
+            while (true) {
+                val index = indexOf(data, pattern, from) ?: break
+                parseVorbisComment(data, index + pattern.size)?.let { return it }
+                from = index + 1
+            }
+        }
+        return null
     }
 
-    private fun bytePattern(value: ByteArray): ByteArray = value
-
-    private fun indexOf(haystack: ByteArray, needle: ByteArray): Int? {
+    private fun indexOf(haystack: ByteArray, needle: ByteArray, from: Int = 0): Int? {
         if (needle.isEmpty() || needle.size > haystack.size) return null
-        outer@ for (i in 0..haystack.size - needle.size) {
+        for (i in from.coerceAtLeast(0)..haystack.size - needle.size) {
+            var matches = true
             for (j in needle.indices) {
-                if (haystack[i + j] != needle[j]) continue@outer
+                if (haystack[i + j] != needle[j]) {
+                    matches = false
+                    break
+                }
             }
-            return i
+            if (matches) return i
         }
         return null
     }
 
     // --------------------------------------------------------------- MP4/M4A
 
-    private fun isMp4(head: ByteArray): Boolean =
-        head.size >= 12 && head[4] == 'f'.code.toByte() && head[5] == 't'.code.toByte() &&
-            head[6] == 'y'.code.toByte() && head[7] == 'p'.code.toByte()
+    private fun isMp4(bytes: ByteArray, at: Int): Boolean =
+        at >= 0 && at + 12 <= bytes.size &&
+            bytes[at + 4] == 'f'.code.toByte() && bytes[at + 5] == 't'.code.toByte() &&
+            bytes[at + 6] == 'y'.code.toByte() && bytes[at + 7] == 'p'.code.toByte()
 
     private fun parseMp4(input: InputStream): String? {
         val data = LyricsTextUtils.readBytes(input, MAX_TAG_BYTES)
@@ -341,15 +459,22 @@ object EmbeddedLyrics {
 
     private fun parseMp4DataAtom(data: ByteArray, from: Int, end: Int): String? {
         var pos = from
-        while (pos + 8 <= end) {
+        while (pos + 16 <= end) {
             val size = LyricsTextUtils.be32(data, pos).toInt()
             val type = String(data, pos + 4, 4, StandardCharsets.ISO_8859_1)
-            if (size <= 8 || pos + size > end) return null
+            if (size <= 16 || pos + size > end) return null
             if (type == "data") {
-                val textStart = pos + 8 + 8
-                if (textStart >= pos + size) return null
+                // version(1) + flags(3) where flags = data type (1 UTF-8, 2 UTF-16).
+                val dataType = ((data[pos + 9].toInt() and 0xFF) shl 16) or
+                    ((data[pos + 10].toInt() and 0xFF) shl 8) or (data[pos + 11].toInt() and 0xFF)
+                val charset = when (dataType) {
+                    1 -> StandardCharsets.UTF_8
+                    2 -> StandardCharsets.UTF_16BE
+                    else -> null
+                }
+                val textStart = pos + 16
                 return LyricsTextUtils.decode(
-                    data.copyOfRange(textStart, pos + size),
+                    data.copyOfRange(textStart, pos + size), charset,
                 ).takeIf { it.isNotBlank() }
             }
             pos += size

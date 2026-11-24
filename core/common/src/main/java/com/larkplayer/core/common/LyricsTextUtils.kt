@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.nio.ByteBuffer
+import java.nio.charset.Charset
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 
@@ -47,7 +48,14 @@ object LyricsTextUtils {
     }
 
     /** UTF-8 / UTF-16 with BOM, strict UTF-8, then ISO-8859-1 as last resort. */
-    fun decode(bytes: ByteArray): String {
+    fun decode(bytes: ByteArray): String = decode(bytes, null)
+
+    /**
+     * Same decoding with an optional charset hint coming from the container
+     * itself (ID3 encoding byte, MP4 ilst data type). A BOM always wins over
+     * the hint, so UTF-16 text is never mangled into Latin-1.
+     */
+    fun decode(bytes: ByteArray, charset: Charset?): String {
         if (bytes.isEmpty()) return ""
         val text = when {
             bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() &&
@@ -58,6 +66,8 @@ object LyricsTextUtils {
 
             bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte() ->
                 String(bytes, 2, bytes.size - 2, StandardCharsets.UTF_16BE)
+
+            charset != null -> String(bytes, charset)
 
             else -> runCatching {
                 val decoder = StandardCharsets.UTF_8.newDecoder()
@@ -110,6 +120,21 @@ object LyricsTextUtils {
      */
     fun hasTimestamps(text: String): Boolean =
         Regex("""\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\]""").containsMatchIn(text)
+
+    /** True for enhanced LRC / SYLT word (or syllable) marks. */
+    fun hasWordTimestamps(text: String): Boolean =
+        Regex("""<\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?>""").containsMatchIn(text)
+
+    /**
+     * Richness of a lyrics source: 2 = word timing, 1 = line timing, 0 = plain.
+     * Used to prefer a SYLT tag or an enhanced .lrc over a plain USLT/.txt.
+     */
+    fun timedScore(text: String?): Int = when {
+        text.isNullOrBlank() -> -1
+        hasWordTimestamps(text) -> 2
+        hasTimestamps(text) -> 1
+        else -> 0
+    }
 
     /** Big-endian 32-bit helper used by the tag parsers. */
     fun be32(bytes: ByteArray, offset: Int): Long {

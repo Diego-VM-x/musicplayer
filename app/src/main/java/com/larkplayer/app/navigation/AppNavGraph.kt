@@ -246,7 +246,12 @@ fun AppNavGraph(
         composable(Routes.LYRICS) {
             LyricsScreen(onBack = { navController.exitToLibrary() })
         }
-        composable(Routes.QUEUE) { QueueScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.QUEUE) {
+            QueueScreen(
+                onBack = { navController.exitToLibrary() },
+                onOpenPlayer = { navController.go(Routes.PLAYER) },
+            )
+        }
         composable(Routes.SLEEP) { SleepTimerScreen(onBack = { navController.exitToLibrary() }) }
         composable(Routes.EQUALIZER) { EqualizerScreen(onBack = { navController.exitToLibrary() }) }
         composable(Routes.SETTINGS) {

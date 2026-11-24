@@ -43,8 +43,8 @@ internal object WidgetState {
     private const val KEY_ARTIST = "widget_artist"
     private const val KEY_PLAYING = "widget_playing"
 
-    private val DEFAULT_ACCENT = 0xFF0A84FF.toInt()
-    private val SECONDARY_TEXT = 0xFFC9C9D5.toInt()
+    internal const val DEFAULT_ACCENT = 0xFF0A84FF.toInt()
+    private const val SECONDARY_TEXT = 0xFFC9C9D5.toInt()
 
     @Volatile
     private var accentCache: Int? = null
@@ -145,51 +145,52 @@ internal object WidgetState {
         requestCodeOffset: Int,
     ): RemoteViews {
         val views = RemoteViews(context.packageName, layoutRes)
-        views.setTextViewText(R.id.widget_title, state.title)
-        views.setTextViewText(R.id.widget_artist, state.artist)
 
-        views.setImageViewResource(
+        setText(views, R.id.widget_title, state.title)
+        setText(views, R.id.widget_artist, state.artist)
+
+        // RemoteViews.setColorStateList() was added in API 31 but this module
+        // supports API 24+. ImageView.setColorFilter(int) is a
+        // @RemotableViewMethod present on every supported version, so tint the
+        // icons that way instead of throwing NoSuchMethodError on older phones.
+        setTintedIcon(
+            views,
             R.id.widget_play,
             if (state.playing) R.drawable.widget_ic_pause else R.drawable.widget_ic_play,
+            accent,
         )
-        views.setColorStateList(
-            R.id.widget_play,
-            "setImageTintList",
-            ColorStateList.valueOf(accent),
-        )
-        listOf(R.id.widget_prev, R.id.widget_next).forEach { id ->
-            views.setImageViewResource(
-                id,
-                if (id == R.id.widget_prev) R.drawable.widget_ic_prev else R.drawable.widget_ic_next,
-            )
-            views.setColorStateList(id, "setImageTintList", ColorStateList.valueOf(SECONDARY_TEXT))
-        }
+        setTintedIcon(views, R.id.widget_prev, R.drawable.widget_ic_prev, SECONDARY_TEXT)
+        setTintedIcon(views, R.id.widget_next, R.drawable.widget_ic_next, SECONDARY_TEXT)
 
-        val artwork = loadArtwork(context, state.albumId, state.songId)
-        if (artwork != null) {
-            views.setImageViewBitmap(R.id.widget_art, artwork)
+        // Artwork is optional: any failure falls back to the tinted music icon.
+        val artwork = runCatching { loadArtwork(context, state.albumId, state.songId) }.getOrNull()
+        if (artwork != null &&
+            runCatching { views.setImageViewBitmap(R.id.widget_art, artwork) }.isSuccess
+        ) {
+            // Bitmap installed.
         } else {
-            views.setImageViewResource(R.id.widget_art, R.drawable.widget_ic_music)
-            views.setColorStateList(
-                R.id.widget_art,
-                "setImageTintList",
-                ColorStateList.valueOf(accent),
-            )
+            setTintedIcon(views, R.id.widget_art, R.drawable.widget_ic_music, accent)
         }
 
-        views.setProgressBar(R.id.widget_progress, 1000, state.progress, false)
-        views.setColorStateList(
-            R.id.widget_progress,
-            "setProgressTintList",
-            ColorStateList.valueOf(accent),
-        )
-        views.setInt(R.id.widget_accent, "setBackgroundColor", accent)
+        runCatching { views.setProgressBar(R.id.widget_progress, 1000, state.progress, false) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            runCatching {
+                views.setColorStateList(
+                    R.id.widget_progress,
+                    "setProgressTintList",
+                    ColorStateList.valueOf(accent),
+                )
+            }
+        }
+        runCatching { views.setInt(R.id.widget_accent, "setBackgroundColor", accent) }
 
-        views.setOnClickPendingIntent(
+        click(
+            views,
             R.id.widget_prev,
             serviceIntent(context, "com.larkplayer.action.PREV", requestCodeOffset + 1),
         )
-        views.setOnClickPendingIntent(
+        click(
+            views,
             R.id.widget_play,
             serviceIntent(
                 context,
@@ -197,14 +198,34 @@ internal object WidgetState {
                 requestCodeOffset + 2,
             ),
         )
-        views.setOnClickPendingIntent(
+        click(
+            views,
             R.id.widget_next,
             serviceIntent(context, "com.larkplayer.action.NEXT", requestCodeOffset + 3),
         )
 
         val openPlayer = openPlayerIntent(context, requestCodeOffset + 4)
-        listOf(R.id.widget_root, R.id.widget_art, R.id.widget_title, R.id.widget_artist).forEach { id ->
-            views.setOnClickPendingIntent(id, openPlayer)
+        listOf(R.id.widget_root, R.id.widget_art, R.id.widget_title, R.id.widget_artist)
+            .forEach { click(views, it, openPlayer) }
+        return views
+    }
+
+    /**
+     * Last-resort RemoteViews used when even building the normal layout fails.
+     * It only contains a TextView, so it can be inflated by any launcher.
+     */
+    internal fun fallbackViews(
+        context: Context,
+        label: String = "Lark Player",
+        requestCodeOffset: Int = 0,
+    ): RemoteViews {
+        val views = RemoteViews(context.packageName, android.R.layout.simple_list_item_1)
+        runCatching {
+            views.setTextViewText(android.R.id.text1, label)
+            views.setOnClickPendingIntent(
+                android.R.id.text1,
+                openPlayerIntent(context, requestCodeOffset + 900),
+            )
         }
         return views
     }
@@ -214,6 +235,24 @@ internal object WidgetState {
         runCatching {
             context.sendBroadcast(Intent(ACTION_UPDATE).setPackage(context.packageName))
         }
+    }
+
+    private fun setText(views: RemoteViews, id: Int, text: String) {
+        runCatching { views.setTextViewText(id, text) }
+    }
+
+    private fun setTintedIcon(views: RemoteViews, id: Int, resId: Int, color: Int) {
+        runCatching {
+            views.setImageViewResource(id, resId)
+            views.setInt(id, "setColorFilter", color)
+        }.onFailure {
+            // Colour is cosmetic; never let it prevent the widget from loading.
+            runCatching { views.setImageViewResource(id, resId) }
+        }
+    }
+
+    private fun click(views: RemoteViews, id: Int, intent: PendingIntent) {
+        runCatching { views.setOnClickPendingIntent(id, intent) }
     }
 
     private fun flags(): Int =
