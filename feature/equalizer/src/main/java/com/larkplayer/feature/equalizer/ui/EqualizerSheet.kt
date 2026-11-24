@@ -3,30 +3,39 @@ package com.larkplayer.feature.equalizer.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -34,16 +43,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.larkplayer.core.designsystem.component.CircleIconButton
-import com.larkplayer.core.designsystem.component.LarkCard
-import com.larkplayer.core.designsystem.component.LarkSectionLabel
+import com.larkplayer.core.designsystem.component.LarkGradientBackground
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.equalizer.EqPresets
 import com.larkplayer.feature.equalizer.EqualizerViewModel
+import kotlin.math.roundToInt
 
 /**
- * Flat equalizer screen. Presets, names and vector icons are the ones shipped
- * with Lark Player 2027.1.8 (see EqPresets for the decompiled evidence).
+ * The original Lark equalizer sheet: a header with the on/off switch, ten vertical
+ * bands and a two-column grid of presets with their shipped icons and Spanish labels.
  */
 @Composable
 fun EqualizerScreen(
@@ -54,178 +62,263 @@ fun EqualizerScreen(
     val accentArgb by viewModel.accent.collectAsStateWithLifecycle()
     val accent = Color(accentArgb)
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(ApplePalette.Background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
-    ) {
-        Spacer(Modifier.height(12.dp))
-        CircleIconButton(onClick = onBack)
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Ecualizador",
-            color = Color.White,
-            fontSize = 25.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = (-0.5).sp,
-            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
-        )
-        Text(
-            "Presets, nombres e iconos del Lark Player original. Los cambios se aplican en tiempo real.",
-            color = ApplePalette.TextSecondary,
-            fontSize = 11.5.sp,
-            lineHeight = 16.sp,
-            modifier = Modifier.padding(start = 4.dp, bottom = 18.dp),
-        )
-
-        LarkCard(Modifier.fillMaxWidth()) {
+    LarkGradientBackground(accent = accent, strength = 0.24f) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+        ) {
+            Spacer(Modifier.height(14.dp))
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Ecualizador", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        if (state.available) "Efectos de audio en la sesión actual"
-                        else "Esperando a que el reproductor esté activo",
-                        color = ApplePalette.TextSecondary,
-                        fontSize = 10.5.sp,
-                    )
-                }
+                Text(
+                    "Ecualizador",
+                    color = Color.White,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp,
+                    modifier = Modifier.weight(1f),
+                )
                 Switch(
                     checked = state.enabled,
                     onCheckedChange = viewModel::setEnabled,
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = accent,
-                        checkedTrackColor = accent.copy(alpha = 0.55f),
-                        uncheckedThumbColor = Color(0xFF9A9AA2),
-                        uncheckedTrackColor = Color.White.copy(alpha = 0.14f),
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = accent,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color.White.copy(alpha = 0.22f),
                     ),
                 )
             }
-        }
-        Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(22.dp))
 
-        LarkCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                LarkSectionLabel("PRESETS")
-                Spacer(Modifier.height(12.dp))
-                EqPresets.ALL.chunked(2).forEach { row ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        row.forEach { preset ->
-                            PresetChip(
-                                preset = preset,
-                                selected = state.presetId == preset.id,
-                                enabled = true,
-                                accent = accent,
-                                onClick = { viewModel.selectPreset(preset.id) },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        if (row.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.height(9.dp))
-                }
-            }
-        }
-        Spacer(Modifier.height(14.dp))
-
-        LarkCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-                LarkSectionLabel("BANDAS")
-                Spacer(Modifier.height(6.dp))
-                if (!state.available) {
-                    Text(
-                        "Este dispositivo no expone el efecto de audio del sistema. " +
-                            "Los presets y los niveles se conservan para cuando esté disponible.",
-                        color = ApplePalette.TextSecondary,
-                        fontSize = 11.sp,
-                        lineHeight = 15.sp,
+            // Ten vertical bands: dB value on top, hairline track and frequency below.
+            val levels = tenLevels(state.levels)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                repeat(EQ_BAND_COUNT) { index ->
+                    BandColumn(
+                        label = frequencyLabel(EqPresets.CUTOFFS_10[index]),
+                        level = levels[index],
+                        min = state.minLevel,
+                        max = state.maxLevel,
+                        accent = accent,
+                        gestureKey = state.bandCount,
+                        onValueChange = { level ->
+                            viewModel.setLevel(realBandIndex(index, state.levels.size), level)
+                        },
+                        modifier = Modifier.weight(1f),
                     )
                 }
-                state.levels.forEachIndexed { index, level ->
-                    val hz = state.cutoffs.getOrNull(index) ?: 0
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            if (hz >= 1_000) "${hz / 1_000} kHz" else "$hz Hz",
-                            color = Color(0xFFC9C9CF),
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Medium,
+            }
+            Spacer(Modifier.height(24.dp))
+
+            EQ_GRID_ORDER.forEachIndexed { rowIndex, ids ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    ids.forEach { id ->
+                        val preset = EqPresets.preset(id)
+                        PresetCard(
+                            preset = preset,
+                            selected = state.presetId == preset.id,
+                            accent = accent,
+                            onClick = { viewModel.selectPreset(preset.id) },
                             modifier = Modifier.weight(1f),
                         )
-                        Text(
-                            if (level > 0) "+$level dB" else "$level dB",
-                            color = ApplePalette.TextSecondary,
-                            fontSize = 10.5.sp,
-                        )
                     }
-                    Slider(
-                        value = level.toFloat().coerceIn(state.minLevel.toFloat(), state.maxLevel.toFloat()),
-                        onValueChange = { viewModel.setLevel(index, it.toInt()) },
-                        valueRange = state.minLevel.toFloat()..state.maxLevel.toFloat(),
-                        enabled = state.enabled && state.available,
-                        colors = SliderDefaults.colors(
-                            thumbColor = accent,
-                            activeTrackColor = accent,
-                            inactiveTrackColor = Color.White.copy(alpha = 0.16f),
-                            disabledThumbColor = accent.copy(alpha = 0.45f),
-                            disabledActiveTrackColor = accent.copy(alpha = 0.45f),
-                        ),
-                    )
-                    Spacer(Modifier.height(2.dp))
                 }
+                if (rowIndex < EQ_GRID_ORDER.lastIndex) Spacer(Modifier.height(10.dp))
             }
+            Spacer(Modifier.height(24.dp))
         }
-        Spacer(Modifier.height(20.dp))
-        Text(
-            "La selección se guarda y se restaura al volver a abrir la app.",
-            color = Color(0xFF6F6F77),
-            fontSize = 11.sp,
-            lineHeight = 16.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
-        )
-        Spacer(Modifier.height(28.dp))
     }
 }
 
 @Composable
-private fun PresetChip(
-    preset: EqPresets.Preset,
-    selected: Boolean,
-    enabled: Boolean,
+private fun BandColumn(
+    label: String,
+    level: Int,
+    min: Int,
+    max: Int,
     accent: Color,
-    onClick: () -> Unit,
+    gestureKey: Any,
+    onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(14.dp)
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(if (selected) accent.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f))
-            .border(1.dp, if (selected) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.07f), shape)
-            .clickable(enabled = enabled) { onClick() }
-            .padding(vertical = 12.dp, horizontal = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(
-            painter = painterResource(preset.iconRes),
-            contentDescription = preset.name,
-            tint = if (selected) accent else Color(0xFFC9C9CF),
-            modifier = Modifier.size(26.dp),
-        )
-        Spacer(Modifier.height(7.dp))
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            preset.name,
+            if (level > 0) "+$level" else "$level",
             color = Color.White,
-            fontSize = 10.5.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(4.dp))
+        VerticalBandSlider(
+            value = level,
+            min = min,
+            max = max,
+            accent = accent,
+            gestureKey = gestureKey,
+            onValueChange = onValueChange,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            label,
+            color = ApplePalette.TextSecondary,
+            fontSize = 10.sp,
             textAlign = TextAlign.Center,
             maxLines = 1,
         )
     }
 }
+
+/** Thin vertical track with a round white thumb; dragging up raises the band. */
+@Composable
+private fun VerticalBandSlider(
+    value: Int,
+    min: Int,
+    max: Int,
+    accent: Color,
+    gestureKey: Any,
+    onValueChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val current = remember { mutableIntStateOf(value) }
+    current.intValue = value
+    val heightPx = remember { mutableFloatStateOf(0f) }
+    val fraction = if (max > min) {
+        ((value - min).toFloat() / (max - min)).coerceIn(0f, 1f)
+    } else {
+        0.5f
+    }
+    val trackHeight = 112.dp
+    val thumbSize = 18.dp
+
+    Box(
+        modifier = modifier
+            .height(132.dp)
+            .fillMaxWidth()
+            .onSizeChanged { heightPx.floatValue = it.height.toFloat() }
+            .pointerInput(gestureKey, min, max) {
+                detectVerticalDragGestures { change, dragAmount ->
+                    change.consume()
+                    val pxPerUnit = heightPx.floatValue / (max - min).coerceAtLeast(1)
+                    if (pxPerUnit <= 0f) return@detectVerticalDragGestures
+                    val delta = (-dragAmount / pxPerUnit).roundToInt()
+                    if (delta == 0) return@detectVerticalDragGestures
+                    val next = (current.intValue + delta).coerceIn(min, max)
+                    current.intValue = next
+                    onValueChange(next)
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .width(2.dp)
+                .height(trackHeight)
+                .clip(RoundedCornerShape(1.dp))
+                .background(if (value >= 0) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.26f)),
+        )
+        Box(Modifier.height(trackHeight).width(thumbSize)) {
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (trackHeight - thumbSize) * (1f - fraction))
+                    .size(thumbSize)
+                    .clip(CircleShape)
+                    .background(Color.White),
+            )
+        }
+    }
+}
+
+/** Translucent, thin-bordered card with the icon top-left and the label bottom-left. */
+@Composable
+private fun PresetCard(
+    preset: EqPresets.Preset,
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = modifier
+            .heightIn(min = 84.dp)
+            .clip(shape)
+            .background(if (selected) accent.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.05f))
+            .border(
+                width = 1.dp,
+                color = if (selected) accent.copy(alpha = 0.80f) else Color.White.copy(alpha = 0.10f),
+                shape = shape,
+            )
+            .clickable { onClick() }
+            .padding(14.dp),
+        horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Icon(
+            painter = painterResource(preset.iconRes),
+            contentDescription = null,
+            tint = if (selected) accent else Color.White,
+            modifier = Modifier.size(26.dp),
+        )
+        Text(
+            preset.label,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            textAlign = TextAlign.Start,
+            maxLines = 2,
+        )
+    }
+}
+
+private const val EQ_BAND_COUNT = 10
+
+/** Captured order first, then the remaining canonical presets. */
+private val EQ_GRID_ORDER: List<List<Int>> = listOf(
+    listOf(0, 1),       // Personalizado, Aumento de graves
+    listOf(2, 3),       // Aumento de voz, Aumento de agudos
+    listOf(15, 10),     // Normal, Pop
+    listOf(4, 5),       // Rock, Clásico
+    listOf(6, 7),       // Electrónica, HipHop
+    listOf(8, 9),       // Baile, Jazz
+    listOf(11, 12),     // R&B, Heavy metal
+    listOf(13, 14),     // Folk, Latín
+)
+
+private fun frequencyLabel(hz: Int): String =
+    if (hz >= 1_000) "${hz / 1_000}K" else hz.toString()
+
+/** The sheet always shows ten bands, even when the platform effect exposes fewer. */
+private fun tenLevels(source: IntArray): IntArray {
+    if (source.size == EQ_BAND_COUNT) return source
+    if (source.isEmpty()) return IntArray(EQ_BAND_COUNT)
+    return IntArray(EQ_BAND_COUNT) { i ->
+        val pos = i.toFloat() * (source.size - 1) / (EQ_BAND_COUNT - 1)
+        val lo = pos.toInt().coerceIn(0, source.lastIndex)
+        val hi = (lo + 1).coerceAtMost(source.lastIndex)
+        val f = pos - lo
+        (source[lo] * (1f - f) + source[hi] * f).roundToInt()
+    }
+}
+
+/** Maps a displayed band onto a real one when the device has fewer than ten bands. */
+private fun realBandIndex(index: Int, bandCount: Int): Int =
+    if (bandCount >= EQ_BAND_COUNT) {
+        index
+    } else {
+        (index.toFloat() * (bandCount - 1) / (EQ_BAND_COUNT - 1))
+            .roundToInt()
+            .coerceIn(0, maxOf(0, bandCount - 1))
+    }

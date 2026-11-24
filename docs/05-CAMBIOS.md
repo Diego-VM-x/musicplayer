@@ -4,6 +4,15 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-24 - v1.1.1: fix del reproductor y diseño según capturas (4 subagentes)
+
+- **Reproductor**: corregido el crash al abrir (muestreo Coil/Palette dentro de la composición sin `runCatching`). El color se calcula ahora en `PlayerViewModel` en `Dispatchers.IO` con `size(160)`, validación de componentes y fallback neutro. El degradado a pantalla completa va del **color principal de la canción** a negro/blanco según el tema; el acento del usuario queda solo en controles.
+- **Detalle de playlist**: carátula cuadrada de 280 dp, título con lápiz, botones Reproducir/Aleatorio, filas de 48 dp con badge «LETRAS», icono verificado y color dominante de la carátula como degradado. Iconos nuevos: back, ordenar, editar, verificado.
+- **Cola «Fila»**: mini-player superior con chevron, cabecera con iconos diana/escoba, filas con tirador de arrastre y tres botones de modo abajo. Iconos nuevos: diana, escoba, líneas, chevron, verificado.
+- **Ecualizador**: cabecera con switch, 10 sliders verticales con frecuencias 31…16K y rejilla de 2 columnas con los 16 iconos originales y etiquetas en español del `values-es` del original.
+- `versionCode` 53 / `1.1.1`; `:app:compileDebugKotlin` → BUILD SUCCESSFUL.
+- `assembleRelease` → BUILD SUCCESSFUL. Publicada la release `v1.1.1` con `musicplayer-53.apk` (3.557.846 bytes, SHA-256 `27F9819FCF3D91554935429EF4B8A1E67525B2BCBFBB5882FD030BFA5B376A19`), verificada con `aapt` (`versionName=1.1.1`).
+
 ## 2026-11-24 - v1.1.0: rueda de color, widgets, degradado, ecualizador original y arranque en Canciones
 
 Tareas delegadas a cinco subagentes e integradas:

@@ -2,8 +2,6 @@ package com.larkplayer.feature.player.ui
 
 import android.app.Activity
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -100,10 +98,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.Coil
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import coil.request.SuccessResult
 import androidx.compose.ui.res.painterResource
 import com.larkplayer.core.designsystem.R as DesignR
 import com.larkplayer.core.common.MediaFileUtils
@@ -117,9 +112,6 @@ import com.larkplayer.core.designsystem.component.LarkSheet
 import com.larkplayer.core.designsystem.component.LarkTextField
 import com.larkplayer.core.designsystem.theme.ApplePalette
 import com.larkplayer.feature.player.PlayerRepository
-import androidx.palette.graphics.Palette
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.abs
 
@@ -257,39 +249,11 @@ fun PlayerScreen(
     val currentMode = viewModel.currentPlaybackMode()
     val speedVisible = abs(state.playbackSpeed - 1f) > 0.01f
 
-    // Sample the cover so the backdrop grows out of the artwork. When there is
-    // no cover the user's accent alone drives the gradient (empty state intact).
-    var artworkTint by remember(state.albumArt) { mutableStateOf<Color?>(null) }
-    LaunchedEffect(state.albumArt) {
-        artworkTint = null
-        val uri = state.albumArt
-        if (uri.isNullOrBlank()) return@LaunchedEffect
-        val rgb = withContext(Dispatchers.IO) {
-            val request = ImageRequest.Builder(context).data(uri).build()
-            val drawable = (Coil.imageLoader(context).execute(request) as? SuccessResult)?.drawable
-            val bitmap = (drawable as? BitmapDrawable)?.bitmap ?: drawable?.let { d ->
-                // Coil may return a non-BitmapDrawable; rasterise it if needed.
-                val b = Bitmap.createBitmap(
-                    d.intrinsicWidth.coerceAtLeast(1),
-                    d.intrinsicHeight.coerceAtLeast(1),
-                    Bitmap.Config.ARGB_8888,
-                )
-                android.graphics.Canvas(b).let { canvas ->
-                    d.setBounds(0, 0, b.width, b.height)
-                    d.draw(canvas)
-                }
-                b
-            }
-            bitmap?.let { art ->
-                Palette.from(art).generate().let { palette ->
-                    palette.vibrantSwatch?.rgb
-                        ?: palette.dominantSwatch?.rgb
-                        ?: palette.mutedSwatch?.rgb
-                }
-            }
-        }
-        artworkTint = rgb?.let { Color(it) }
-    }
+    // The backdrop comes from the current song's artwork (sampled in the
+    // ViewModel on IO), never from the user's accent. Interactive accents below
+    // keep using the user's colour.
+    val songColorArgb by viewModel.songColor.collectAsStateWithLifecycle()
+    val songColor = sanitizedColor(Color(songColorArgb))
 
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val darkTheme = when (themeMode) {
@@ -297,22 +261,18 @@ fun PlayerScreen(
         1 -> true
         else -> isSystemInDarkTheme()
     }
-    // Full-screen gradient: chosen accent (gently blended with the cover) at
-    // the top, fading to black in dark mode or white in light mode.
-    val coverColor = artworkTint?.let { lerp(accent, it, 0.28f) } ?: accent
+    // Full-screen gradient: the song's dominant colour at the top, fading to
+    // black in dark mode or white in light mode. Every colour is validated
+    // before lerp/copy/Brush so a bad sample can never crash composition.
     val edgeColor = if (darkTheme) Color.Black else Color.White
-    val topColor = if (darkTheme) {
-        lerp(coverColor, Color.Black, 0.30f)
-    } else {
-        lerp(coverColor, Color.White, 0.12f)
-    }
-    val midColor = lerp(topColor, edgeColor, 0.5f)
+    val topColor = songColor
+    val midColor = safeLerp(topColor, edgeColor, 0.5f)
     val playerGradient = Brush.verticalGradient(listOf(topColor, midColor, edgeColor))
-    // Pick ink per band so text/icons stay legible over any accent or theme.
+    // Pick ink per band so text/icons stay legible over any cover and theme.
     val titleInk = inkOn(midColor)
-    val secondaryInk = titleInk.copy(alpha = 0.72f)
-    val controlInk = inkOn(lerp(midColor, edgeColor, 0.45f))
-    val bottomInk = inkOn(edgeColor).copy(alpha = 0.78f)
+    val secondaryInk = withAlpha(titleInk, 0.72f)
+    val controlInk = inkOn(safeLerp(midColor, edgeColor, 0.45f))
+    val bottomInk = withAlpha(inkOn(edgeColor), 0.78f)
 
     NavBarTint(color = edgeColor, active = true)
 
@@ -555,8 +515,8 @@ fun PlayerScreen(
                     valueRange = 0f..state.duration.toFloat().coerceAtLeast(1f),
                     colors = SliderDefaults.colors(
                         thumbColor = controlInk,
-                        activeTrackColor = controlInk.copy(alpha = 0.85f),
-                        inactiveTrackColor = controlInk.copy(alpha = 0.30f),
+                        activeTrackColor = withAlpha(controlInk, 0.85f),
+                        inactiveTrackColor = withAlpha(controlInk, 0.30f),
                     ),
                     modifier = Modifier.fillMaxWidth().height(16.dp),
                 )
@@ -968,9 +928,34 @@ private fun AnimatedTransportButton(
     }
 }
 
+/** Neutral backdrop while the cover is loading or cannot be sampled. */
+private val NeutralBackdrop = Color(0xFF6E6E78)
+
+private fun Float.isValidComponent(): Boolean =
+    !isNaN() && !isInfinite() && this in 0f..1f
+
+private fun Color.isUsable(): Boolean =
+    red.isValidComponent() && green.isValidComponent() &&
+        blue.isValidComponent() && alpha.isValidComponent()
+
+/** Never let a malformed colour reach lerp/copy/Brush. */
+private fun sanitizedColor(color: Color): Color =
+    if (color.isUsable()) color else NeutralBackdrop
+
+private fun safeLerp(from: Color, to: Color, fraction: Float): Color {
+    val t = if (fraction.isValidComponent()) fraction else 0f
+    return sanitizedColor(lerp(sanitizedColor(from), sanitizedColor(to), t))
+}
+
+private fun withAlpha(color: Color, alpha: Float): Color {
+    val a = if (alpha.isValidComponent()) alpha else 1f
+    return sanitizedColor(color).copy(alpha = a)
+}
+
 /** Foreground colour with enough contrast on a sampled gradient band. */
 private fun inkOn(color: Color): Color {
-    val brightness = 0.2126f * color.red + 0.7152f * color.green + 0.0722f * color.blue
+    val safe = sanitizedColor(color)
+    val brightness = 0.2126f * safe.red + 0.7152f * safe.green + 0.0722f * safe.blue
     return if (brightness > 0.58f) Color(0xFF17171B) else Color.White
 }
 

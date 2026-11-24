@@ -2,6 +2,7 @@ package com.larkplayer.feature.library.ui
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -10,6 +11,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,25 +29,21 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.QueuePlayNext
 import androidx.compose.material.icons.rounded.Reorder
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,12 +59,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,14 +76,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.palette.graphics.Palette
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.imageLoader
 import com.larkplayer.core.common.MediaFileUtils
-import com.larkplayer.core.designsystem.component.GlassClusterIcon
 import com.larkplayer.core.designsystem.component.GlassDivider
 import com.larkplayer.core.designsystem.component.GlassIconButton
-import com.larkplayer.core.designsystem.component.GlassIconCluster
-import com.larkplayer.core.designsystem.component.GlassMenuItem
 import com.larkplayer.core.designsystem.component.GlassMenu
+import com.larkplayer.core.designsystem.component.GlassMenuItem
 import com.larkplayer.core.designsystem.component.GlassPillButton
 import com.larkplayer.core.designsystem.component.GlassSelectionBar
 import com.larkplayer.core.designsystem.component.GlassSheetColor
@@ -92,14 +96,18 @@ import com.larkplayer.core.designsystem.component.LarkTextField
 import com.larkplayer.core.designsystem.component.SelectionAction
 import com.larkplayer.core.designsystem.component.SoftCheck
 import com.larkplayer.core.designsystem.theme.ApplePalette
+import com.larkplayer.core.designsystem.R as DesignR
 import com.larkplayer.core.model.Song
+import com.larkplayer.feature.library.R
 import com.larkplayer.feature.player.ui.MiniPlayerOverlay
+import com.larkplayer.feature.player.ui.PlayerUiState
+import com.larkplayer.feature.player.ui.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Lark-style playlist detail: floating glass controls, borderless song list,
- * multi-selection and an inline name/cover editor.
+ * Lark-style playlist detail: a cover-tinted vertical wash, large artwork,
+ * two big playback pills, a borderless song list and an inline mini-player.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -107,10 +115,16 @@ fun PlaylistDetailScreen(
     onBack: () -> Unit,
     onOpenPlayer: () -> Unit,
     viewModel: PlaylistDetailViewModel = hiltViewModel(),
+    playerViewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val playerState by playerViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val accent = Color(state.accent)
+
+    val coverModel = state.playlist?.coverUri
+        ?: state.songs.firstOrNull()?.let { MediaFileUtils.albumArtUri(it.albumId).toString() }
+    val coverAccent = rememberCoverAccent(coverModel, accent)
 
     var editing by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
@@ -151,72 +165,83 @@ fun PlaylistDetailScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        LarkGradientBackground(accent = accent, strength = 0.36f) {
-            Column(Modifier.fillMaxSize()) {
-                if (state.selectionMode) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        GlassIconButton(
-                            Icons.Rounded.Close,
-                            "Cancelar selección",
-                            onClick = { viewModel.clearSelection() },
-                        )
-                        Spacer(Modifier.width(14.dp))
-                        Text(
-                            "${state.selectedIds.size} seleccionado${if (state.selectedIds.size == 1) "" else "s"}",
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                        )
-                    }
-                }
+    val showMini = !editing && !state.selectionMode && playerState.id > 0L
+    val topColor = lerp(Color(0xFF08171C), coverAccent, 0.52f)
+    val midColor = lerp(Color(0xFF050609), coverAccent, 0.16f)
+    val detailBackground = Brush.verticalGradient(
+        0f to topColor,
+        0.34f to midColor,
+        0.72f to Color(0xFF030304),
+        1f to Color.Black,
+    )
 
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(bottom = 96.dp),
+    Box(Modifier.fillMaxSize().background(detailBackground)) {
+        Column(Modifier.fillMaxSize()) {
+            if (state.selectionMode) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    item {
-                        PlaylistHero(
-                            state = state,
-                            accent = accent,
-                            sortMenu = sortMenu,
-                            onSortMenuChange = { sortMenu = it },
-                            moreMenu = moreMenu,
-                            onMoreMenuChange = { moreMenu = it },
-                            onBack = {
-                                if (state.selectionMode) viewModel.clearSelection() else onBack()
-                            },
-                            onSort = { mode ->
-                                viewModel.setSort(mode)
-                                sortMenu = false
-                            },
-                            onEdit = { editing = true },
-                            onAddSongs = { addSheet = true; moreMenu = false },
-                            onManage = { viewModel.enterSelection(); moreMenu = false },
-                            onDelete = { confirmDelete = true; moreMenu = false },
-                            onPlay = { viewModel.playAll(); onOpenPlayer() },
-                            onShuffle = { viewModel.shuffleAll(); onOpenPlayer() },
+                    GlassIconButton(
+                        Icons.Rounded.Close,
+                        "Cancelar selección",
+                        onClick = { viewModel.clearSelection() },
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        "${state.selectedIds.size} seleccionado${if (state.selectedIds.size == 1) "" else "s"}",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
+            }
+
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(bottom = 12.dp),
+            ) {
+                item {
+                    PlaylistHero(
+                        state = state,
+                        accent = accent,
+                        coverModel = coverModel,
+                        sortMenu = sortMenu,
+                        onSortMenuChange = { sortMenu = it },
+                        moreMenu = moreMenu,
+                        onMoreMenuChange = { moreMenu = it },
+                        onBack = {
+                            if (state.selectionMode) viewModel.clearSelection() else onBack()
+                        },
+                        onSort = { mode ->
+                            viewModel.setSort(mode)
+                            sortMenu = false
+                        },
+                        onEdit = { editing = true },
+                        onAddSongs = { addSheet = true; moreMenu = false },
+                        onManage = { viewModel.enterSelection(); moreMenu = false },
+                        onDelete = { confirmDelete = true; moreMenu = false },
+                        onPlay = { viewModel.playAll(); onOpenPlayer() },
+                        onShuffle = { viewModel.shuffleAll(); onOpenPlayer() },
+                    )
+                }
+                itemsIndexed(displayOrder, key = { _, song -> song.id }) { index, song ->
+                    val rowLifted = draggingId == song.id
+                    Box(
+                        Modifier.then(
+                            if (!rowLifted) {
+                                Modifier.animateItemPlacement(
+                                    spring(dampingRatio = 0.8f, stiffness = 500f),
+                                )
+                            } else Modifier
                         )
-                    }
-                    itemsIndexed(displayOrder, key = { _, song -> song.id }) { index, song ->
-                        val rowLifted = draggingId == song.id
-                        Box(
-                            Modifier.then(
-                                if (!rowLifted) {
-                                    Modifier.animateItemPlacement(
-                                        spring(dampingRatio = 0.8f, stiffness = 500f),
-                                    )
-                                } else Modifier
-                            )
-                        ) {
+                    ) {
                         DetailSongRow(
                             song = song,
                             accent = accent,
+                            playing = playerState.id == song.id,
                             manualOrder = state.sortMode == 3,
                             lifted = draggingId == song.id,
                             dragOffsetY = dragOffsetY,
@@ -257,63 +282,38 @@ fun PlaylistDetailScreen(
                                 displayOrder = state.songs
                             },
                         )
-                        }
                     }
-                    if (state.playlist != null && state.songs.isEmpty()) {
-                        item {
-                            Column(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 48.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                Icon(
-                                    Icons.Rounded.MusicNote,
-                                    null,
-                                    tint = Color(0xFF5A5A61),
-                                    modifier = Modifier.size(48.dp),
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                Text("Esta playlist está vacía", color = Color.White, fontSize = 15.sp)
-                                Spacer(Modifier.height(16.dp))
-                                GlassPillButton("Agregar canciones", onClick = { addSheet = true }, icon = Icons.Rounded.Add)
-                            }
+                }
+                if (state.playlist != null && state.songs.isEmpty()) {
+                    item {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Icon(
+                                Icons.Rounded.MusicNote,
+                                null,
+                                tint = Color(0xFF5A5A61),
+                                modifier = Modifier.size(48.dp),
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text("Esta playlist está vacía", color = Color.White, fontSize = 15.sp)
+                            Spacer(Modifier.height(16.dp))
+                            GlassPillButton("Agregar canciones", onClick = { addSheet = true }, icon = Icons.Rounded.Add)
                         }
                     }
                 }
             }
-        }
 
-        if (!state.selectionMode) {
-            // Fixed bottom actions replace the old empty gap reserved for the
-            // floating mini-player, which is hidden on this screen.
-            Row(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .background(ApplePalette.Background)
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                GlassPillButton(
-                    "Reproducir",
-                    onClick = { viewModel.playAll(); onOpenPlayer() },
-                    icon = Icons.Rounded.PlayArrow,
-                    accent = accent,
-                    filled = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(58.dp),
-                )
-                GlassPillButton(
-                    "Aleatorio",
-                    onClick = { viewModel.shuffleAll(); onOpenPlayer() },
-                    icon = Icons.Rounded.Shuffle,
-                    accent = accent,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(58.dp),
+            if (showMini) {
+                DetailMiniPlayer(
+                    state = playerState,
+                    coverAccent = coverAccent,
+                    onOpen = onOpenPlayer,
+                    onTogglePlay = { playerViewModel.togglePlayPause() },
+                    onToggleShuffle = { playerViewModel.toggleShuffle() },
                 )
             }
         }
@@ -521,10 +521,36 @@ fun PlaylistDetailScreen(
     }
 }
 
+/** Dominant cover colour, falling back to the user accent when there is no artwork. */
+@Composable
+private fun rememberCoverAccent(coverModel: String?, fallback: Color): Color {
+    val context = LocalContext.current
+    var color by remember { mutableStateOf(fallback) }
+    LaunchedEffect(coverModel, fallback) {
+        val model = coverModel
+        if (model.isNullOrBlank()) {
+            color = fallback
+            return@LaunchedEffect
+        }
+        val dominant = withContext(Dispatchers.IO) {
+            runCatching {
+                val request = ImageRequest.Builder(context).data(model).allowHardware(false).build()
+                val drawable = context.imageLoader.execute(request).drawable
+                (drawable as? BitmapDrawable)?.bitmap?.let { bitmap ->
+                    Palette.from(bitmap).generate().dominantSwatch?.rgb
+                }
+            }.getOrNull()
+        }
+        color = dominant?.let { Color(it) } ?: fallback
+    }
+    return color
+}
+
 @Composable
 private fun PlaylistHero(
     state: PlaylistDetailUiState,
     accent: Color,
+    coverModel: String?,
     sortMenu: Boolean,
     onSortMenuChange: (Boolean) -> Unit,
     moreMenu: Boolean,
@@ -545,12 +571,53 @@ private fun PlaylistHero(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            GlassIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Atrás", onBack)
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .clickable(onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lark_detail_back),
+                    contentDescription = "Atrás",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
             Spacer(Modifier.weight(1f))
             Box {
-                GlassIconCluster {
-                    GlassClusterIcon(Icons.Rounded.SwapVert, "Ordenar", { onSortMenuChange(true) })
-                    GlassClusterIcon(Icons.Rounded.MoreVert, "Más opciones", { onMoreMenuChange(true) }, dividerBefore = true)
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .padding(horizontal = 2.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { onSortMenuChange(true) }, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_lark_detail_sort),
+                            contentDescription = "Ordenar",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .padding(horizontal = 2.dp)
+                            .width(1.dp)
+                            .height(20.dp)
+                            .background(Color.White.copy(alpha = 0.12f)),
+                    )
+                    IconButton(onClick = { onMoreMenuChange(true) }, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            painter = painterResource(DesignR.drawable.ic_lark_more),
+                            contentDescription = "Más opciones",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
                 GlassMenu(expanded = sortMenu, onDismissRequest = { onSortMenuChange(false) }) {
                     listOf("Más recientes", "Más reproducido", "A a Z").forEachIndexed { index, label ->
@@ -577,13 +644,12 @@ private fun PlaylistHero(
             }
         }
 
-        Spacer(Modifier.height(28.dp))
-        val coverModel = state.playlist?.coverUri
-            ?: state.songs.firstOrNull()?.let { MediaFileUtils.albumArtUri(it.albumId).toString() }
+        Spacer(Modifier.height(24.dp))
         Box(
             Modifier
-                .size(210.dp)
-                .clip(RoundedCornerShape(26.dp))
+                .size(280.dp)
+                .shadow(20.dp, RoundedCornerShape(30.dp), clip = false)
+                .clip(RoundedCornerShape(30.dp))
                 .background(Color(0xFF222226)),
             contentAlignment = Alignment.Center,
         ) {
@@ -595,24 +661,35 @@ private fun PlaylistHero(
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        Spacer(Modifier.height(24.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.height(22.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 state.playlist?.name.orEmpty(),
                 color = Color.White,
-                fontSize = 24.sp,
+                fontSize = 27.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 250.dp),
             )
             Spacer(Modifier.width(8.dp))
-            IconButton(onClick = onEdit, modifier = Modifier.size(40.dp)) {
+            Box(
+                Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onEdit),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
-                    Icons.Rounded.Edit,
-                    "Editar nombre y portada",
-                    tint = Color(0xFFAFAFB6),
-                    modifier = Modifier.size(18.dp),
+                    painter = painterResource(R.drawable.ic_lark_detail_edit),
+                    contentDescription = "Editar nombre y portada",
+                    tint = Color(0xFFC2C2C9),
+                    modifier = Modifier.size(17.dp),
                 )
             }
         }
@@ -624,7 +701,165 @@ private fun PlaylistHero(
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(20.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            DetailPillButton(
+                text = "Reproducir",
+                icon = DesignR.drawable.ic_lark_play,
+                tint = accent,
+                onClick = onPlay,
+                modifier = Modifier.weight(1f),
+            )
+            DetailPillButton(
+                text = "Aleatorio",
+                icon = DesignR.drawable.ic_lark_shuffle,
+                tint = accent,
+                onClick = onShuffle,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+    }
+}
+
+/** Semi-transparent dark pill with blue label, as in the playlist detail view. */
+@Composable
+private fun DetailPillButton(
+    text: String,
+    icon: Int,
+    tint: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .height(52.dp)
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.09f))
+            .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(19.dp),
+        )
+        Spacer(Modifier.width(9.dp))
+        Text(text, color = tint, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** Mini-player pinned to the bottom of this screen (the global one is hidden here). */
+@Composable
+private fun DetailMiniPlayer(
+    state: PlayerUiState,
+    coverAccent: Color,
+    onOpen: () -> Unit,
+    onTogglePlay: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val barColor = lerp(Color(0xFF0E0F13), coverAccent, 0.42f)
+    val progress = if (state.duration > 0L) {
+        (state.position.toFloat() / state.duration.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    Column(
+        modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .background(barColor)
+            .clickable(onClick = onOpen),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(Color.White.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = state.albumArt,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    state.title,
+                    color = Color.White,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    state.artist.ifBlank { "Desconocido" },
+                    color = Color.White.copy(alpha = 0.68f),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onToggleShuffle),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(DesignR.drawable.ic_lark_shuffle),
+                    contentDescription = "Aleatorio",
+                    tint = if (state.shuffle) Color(0xFF6FB6FF) else Color.White.copy(alpha = 0.78f),
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.width(2.dp))
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.14f))
+                    .clickable(onClick = onTogglePlay),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(
+                        if (state.isPlaying) DesignR.drawable.ic_lark_pause else DesignR.drawable.ic_lark_play,
+                    ),
+                    contentDescription = if (state.isPlaying) "Pausar" else "Reproducir",
+                    tint = Color.White,
+                    modifier = Modifier.size(23.dp),
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+        }
+        Box(Modifier.fillMaxWidth().height(2.dp).background(Color.White.copy(alpha = 0.12f))) {
+            Box(
+                Modifier
+                    .fillMaxWidth(progress)
+                    .fillMaxHeight()
+                    .background(coverAccent),
+            )
+        }
     }
 }
 
@@ -633,6 +868,7 @@ private fun PlaylistHero(
 private fun DetailSongRow(
     song: Song,
     accent: Color,
+    playing: Boolean,
     manualOrder: Boolean,
     lifted: Boolean,
     dragOffsetY: Float,
@@ -688,7 +924,7 @@ private fun DetailSongRow(
                 onClick = onClick,
                 onLongClick = if (manualOrder) null else onLongClick,
             )
-            .height(64.dp),
+            .height(66.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selectionMode) {
@@ -697,8 +933,8 @@ private fun DetailSongRow(
         }
         Box(
             Modifier
-                .size(50.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .size(48.dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(Color(0xFF2A2A2E)),
             contentAlignment = Alignment.Center,
         ) {
@@ -709,25 +945,45 @@ private fun DetailSongRow(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+            if (playing) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.45f)),
+                )
+                Icon(
+                    painter = painterResource(DesignR.drawable.ic_lark_equalizer),
+                    contentDescription = "Reproduciéndose",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
         }
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
             Text(
                 song.title,
-                color = Color.White,
-                fontSize = 15.sp,
+                color = if (playing) accent else Color.White,
+                fontSize = 14.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(3.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (hasLyrics) {
                     GlassTag("LETRAS")
                     Spacer(Modifier.width(6.dp))
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lark_detail_verified),
+                        contentDescription = "Letras verificadas",
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
                 }
                 Text(
-                    song.artist,
+                    listOf(song.artist, song.album).filter { it.isNotBlank() }.joinToString(" - "),
                     color = ApplePalette.TextSecondary,
                     fontSize = 11.5.sp,
                     maxLines = 1,

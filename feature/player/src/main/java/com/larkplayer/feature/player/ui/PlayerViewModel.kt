@@ -1,10 +1,17 @@
 package com.larkplayer.feature.player.ui
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import androidx.palette.graphics.Palette
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import com.larkplayer.core.database.dao.PlaylistDao
 import com.larkplayer.core.database.dao.SongDao
 import com.larkplayer.core.database.entity.PlaylistEntity
@@ -72,6 +79,15 @@ class PlayerViewModel @Inject constructor(
     val accent: StateFlow<Int> = settings.accentColor
         .map { it.toInt() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0xFF0A84FF.toInt())
+
+    /**
+     * Dominant colour of the current song's artwork. This — not the user's
+     * accent — drives the full-screen player background.
+     */
+    private val _songColor = MutableStateFlow(DEFAULT_SONG_COLOR)
+    val songColor: StateFlow<Int> = _songColor.asStateFlow()
+
+    private var artworkColorJob: Job? = null
 
     /** Effective theme mode: 0 = light, 1 = dark, 2 = follow system. */
     val themeMode: StateFlow<Int> = settings.themeConfig
@@ -147,6 +163,7 @@ class PlayerViewModel @Inject constructor(
                 val title = meta?.title?.toString() ?: "Desconocido"
                 val artist = meta?.artist?.toString() ?: ""
                 val path = meta?.extras?.getString(PlayerRepository.EXTRA_SONG_PATH).orEmpty()
+                val artworkUri = meta?.artworkUri?.toString()
 
                 // Clear the previous track's lines immediately so a fast skip
                 // never shows a stale highlighted line.
@@ -157,11 +174,20 @@ class PlayerViewModel @Inject constructor(
                     title = title,
                     artist = artist,
                     album = meta?.albumTitle?.toString() ?: "",
-                    albumArt = meta?.artworkUri?.toString(),
+                    albumArt = artworkUri,
                     songPath = path,
                     hasLyrics = false,
                     currentLyricsLine = null,
                 )
+                // A new track starts from the neutral colour and samples its own
+                // cover; cancelling avoids a slow old decode overwriting it.
+                artworkColorJob?.cancel()
+                _songColor.value = DEFAULT_SONG_COLOR
+                artworkColorJob = viewModelScope.launch {
+                    val color = sampleSongColor(artworkUri)
+                    // A cancelled sample must never overwrite a newer track.
+                    if (isActive) _songColor.value = color
+                }
                 lyricsLoadJob = viewModelScope.launch {
                     // All I/O in one withContext; the result is applied back on
                     // the main dispatcher, where the ticker reads activeLyricsLines.
@@ -250,6 +276,8 @@ class PlayerViewModel @Inject constructor(
     fun cancelSleepTimer() = repository.cancelSleepTimer()
     fun clearQueue() {
         repository.clearQueue()
+        artworkColorJob?.cancel()
+        _songColor.value = DEFAULT_SONG_COLOR
         _uiState.value = PlayerUiState()
     }
 
@@ -266,6 +294,63 @@ class PlayerViewModel @Inject constructor(
             path = s.songPath,
         )
     }
+
+    /**
+     * Samples the current cover on IO and returns its dominant colour as ARGB.
+     * Every fallible step is contained: a missing, unreadable or recycled cover
+     * simply falls back to a neutral colour instead of crashing the player.
+     */
+    private suspend fun sampleSongColor(uri: String?): Int {
+        if (uri.isNullOrBlank()) return DEFAULT_SONG_COLOR
+        return runCatching {
+            withContext(Dispatchers.IO) {
+                val request = ImageRequest.Builder(context)
+                    .data(uri)
+                    .size(160)
+                    .allowHardware(false)
+                    .build()
+                val result = context.imageLoader.execute(request)
+                val drawable = (result as? SuccessResult)?.drawable
+                val bitmap: Bitmap? = when (drawable) {
+                    is BitmapDrawable -> drawable.bitmap
+                    else -> rasterize(drawable)
+                }
+                if (bitmap == null || bitmap.isRecycled) {
+                    DEFAULT_SONG_COLOR
+                } else {
+                    val palette = runCatching {
+                        Palette.from(bitmap).maximumColorCount(16).generate()
+                    }.getOrNull()
+                    val rgb = palette?.dominantSwatch?.rgb
+                        ?: palette?.vibrantSwatch?.rgb
+                        ?: palette?.mutedSwatch?.rgb
+                        ?: palette?.swatches?.maxByOrNull { it.population }?.rgb
+                    if (rgb == null) DEFAULT_SONG_COLOR else sanitizeRgb(rgb)
+                }
+            }
+        }.getOrDefault(DEFAULT_SONG_COLOR)
+    }
+
+    /** Last-resort rasterisation when Coil hands back a non-bitmap drawable. */
+    private fun rasterize(drawable: android.graphics.drawable.Drawable?): Bitmap? {
+        if (drawable == null) return null
+        return runCatching {
+            val width = drawable.intrinsicWidth.coerceIn(1, 512)
+            val height = drawable.intrinsicHeight.coerceIn(1, 512)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, width, height)
+            drawable.draw(canvas)
+            bitmap
+        }.getOrNull()
+    }
+
+    /** Palette returns valid ARGB ints, but clamp before they reach Compose. */
+    private fun sanitizeRgb(rgb: Int): Int = android.graphics.Color.rgb(
+        android.graphics.Color.red(rgb).coerceIn(0, 255),
+        android.graphics.Color.green(rgb).coerceIn(0, 255),
+        android.graphics.Color.blue(rgb).coerceIn(0, 255),
+    )
 
     fun hideCurrent() {
         val id = _uiState.value.id
@@ -368,7 +453,13 @@ class PlayerViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        artworkColorJob?.cancel()
         detachListener()
         super.onCleared()
+    }
+
+    companion object {
+        /** Neutral slate while there is no artwork or sampling fails. */
+        const val DEFAULT_SONG_COLOR = 0xFF6E6E78.toInt()
     }
 }
