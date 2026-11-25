@@ -156,15 +156,25 @@ fun AppNavGraph(
     if (openPlayerRequests != null) {
         LaunchedEffect(openPlayerRequests) {
             openPlayerRequests.collect {
-                navController.navigate(Routes.PLAYER) { launchSingleTop = true }
+                // Notification/widget taps must never stack a second player entry.
+                navController.go(Routes.PLAYER)
             }
         }
     }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    BackHandler(enabled = currentRoute != Routes.LIBRARY) {
-        navController.exitToLibrary()
+    // NavHost already owns system back and performs exactly one popBackStack()
+    // per press. Only handle the case it cannot: the player is the single root
+    // entry after a cold start from lark_open_player, where back must land on
+    // the library instead of finishing the activity.
+    BackHandler(
+        enabled = currentRoute == Routes.PLAYER && navController.previousBackStackEntry == null,
+    ) {
+        navController.navigate(Routes.LIBRARY) {
+            popUpTo(Routes.PLAYER) { inclusive = true }
+            launchSingleTop = true
+        }
     }
 
     // Delay the floating mini-player (and its PlayerViewModel/Hilt graph) until
@@ -226,7 +236,7 @@ fun AppNavGraph(
         }
         composable(Routes.PLAYER) {
             PlayerScreen(
-                onBack = { navController.exitToLibrary() },
+                onBack = { navController.backFromPlayer() },
                 onLyrics = { navController.go(Routes.LYRICS) },
                 onQueue = { navController.go(Routes.QUEUE) },
                 onSleepTimer = { navController.go(Routes.SLEEP) },
@@ -239,24 +249,24 @@ fun AppNavGraph(
             arguments = listOf(navArgument("playlistId") { type = NavType.LongType }),
         ) {
             PlaylistDetailScreen(
-                onBack = { navController.exitToLibrary() },
+                onBack = { navController.goBack() },
                 onOpenPlayer = { navController.go(Routes.PLAYER) },
             )
         }
         composable(Routes.LYRICS) {
-            LyricsScreen(onBack = { navController.exitToLibrary() })
+            LyricsScreen(onBack = { navController.goBack() })
         }
         composable(Routes.QUEUE) {
             QueueScreen(
-                onBack = { navController.exitToLibrary() },
+                onBack = { navController.goBack() },
                 onOpenPlayer = { navController.go(Routes.PLAYER) },
             )
         }
-        composable(Routes.SLEEP) { SleepTimerScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.EQUALIZER) { EqualizerScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.SLEEP) { SleepTimerScreen(onBack = { navController.goBack() }) }
+        composable(Routes.EQUALIZER) { EqualizerScreen(onBack = { navController.goBack() }) }
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                onBack = { navController.exitToLibrary() },
+                onBack = { navController.goBack() },
                 onPlayTime = { navController.go(Routes.PLAY_TIME) },
                 onBackup = { navController.go(Routes.BACKUP) },
                 onTheme = { navController.go(Routes.THEME) },
@@ -272,20 +282,20 @@ fun AppNavGraph(
                 onMemories = { navController.go(Routes.MEMORIES) },
             )
         }
-        composable(Routes.PLAY_TIME) { PlayTimeScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.BACKUP) { BackupScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.HIDDEN_FILES) { HiddenFilesScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.RECENTLY_DELETED) { RecentlyDeletedScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.PLAYBACK_SETTINGS) { PlaybackSettingsScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.NOTIFICATIONS) { NotificationSettingsScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.LANGUAGE) { LanguageScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.THEME) { ThemeScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.ABOUT) { AboutScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.FEEDBACK) { FeedbackScreen(onBack = { navController.exitToLibrary() }) }
-        composable(Routes.UPDATES) { UpdateSettingsScreen(onBack = { navController.exitToLibrary() }) }
+        composable(Routes.PLAY_TIME) { PlayTimeScreen(onBack = { navController.goBack() }) }
+        composable(Routes.BACKUP) { BackupScreen(onBack = { navController.goBack() }) }
+        composable(Routes.HIDDEN_FILES) { HiddenFilesScreen(onBack = { navController.goBack() }) }
+        composable(Routes.RECENTLY_DELETED) { RecentlyDeletedScreen(onBack = { navController.goBack() }) }
+        composable(Routes.PLAYBACK_SETTINGS) { PlaybackSettingsScreen(onBack = { navController.goBack() }) }
+        composable(Routes.NOTIFICATIONS) { NotificationSettingsScreen(onBack = { navController.goBack() }) }
+        composable(Routes.LANGUAGE) { LanguageScreen(onBack = { navController.goBack() }) }
+        composable(Routes.THEME) { ThemeScreen(onBack = { navController.goBack() }) }
+        composable(Routes.ABOUT) { AboutScreen(onBack = { navController.goBack() }) }
+        composable(Routes.FEEDBACK) { FeedbackScreen(onBack = { navController.goBack() }) }
+        composable(Routes.UPDATES) { UpdateSettingsScreen(onBack = { navController.goBack() }) }
         composable(Routes.MEMORIES) {
             MemoriesScreen(
-                onBack = { navController.exitToLibrary() },
+                onBack = { navController.goBack() },
                 onOpenPlayer = { navController.go(Routes.PLAYER) },
             )
         }
@@ -304,11 +314,28 @@ fun AppNavGraph(
     }
 }
 
-/** Back always leaves the current menu and returns to the library root. */
-private fun NavHostController.exitToLibrary() {
-    if (currentDestination?.route != Routes.LIBRARY) {
+/**
+ * Back from a secondary screen walks the stack down exactly one entry. Going
+ * back never pushes a destination: pushing a new library/player entry on top
+ * of the current one is what produced the queue <-> player loop.
+ */
+private fun NavHostController.goBack() {
+    if (!popBackStack()) {
+        // Defensive: this screen is the only entry (e.g. a restored stack).
+        val current = currentDestination?.route
         navigate(Routes.LIBRARY) {
-            popUpTo(Routes.LIBRARY) { inclusive = true }
+            if (current != null) popUpTo(current) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+}
+
+/** Back from the player always resolves to a single, clean library root. */
+private fun NavHostController.backFromPlayer() {
+    if (!popBackStack(Routes.LIBRARY, false)) {
+        // No library below the player (cold start from lark_open_player).
+        navigate(Routes.LIBRARY) {
+            popUpTo(Routes.PLAYER) { inclusive = true }
             launchSingleTop = true
         }
     }
@@ -368,11 +395,16 @@ private fun LibraryHome(navController: NavHostController) {
     }
 }
 
-/** Reuses existing destinations instead of stacking duplicates on every tap. */
+/**
+ * Opens a destination without ever stacking a duplicate of it: the previous
+ * instance (and anything above it) is popped before the new one is pushed.
+ * `restoreState` is deliberately off — nothing in this graph saves back-stack
+ * state, so restoring could resurrect a stale stack (e.g. an old PLAYLIST).
+ */
 private fun NavHostController.go(route: String) {
     navigate(route) {
+        popUpTo(route) { inclusive = true }
         launchSingleTop = true
-        restoreState = true
     }
 }
 

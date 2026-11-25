@@ -121,9 +121,10 @@ class PlayerViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(visualizerStyle = style)
             }
         }
-        // Playback mode is restored from DataStore even before the controller connects.
+        // Shuffle is a repository intent: Media3 always runs with shuffle off,
+        // because the mixed order is written into the media items themselves.
         viewModelScope.launch {
-            settings.shuffle.collect { enabled ->
+            repository.shuffleEnabled.collect { enabled ->
                 _uiState.value = _uiState.value.copy(shuffle = enabled)
             }
         }
@@ -229,9 +230,8 @@ class PlayerViewModel @Inject constructor(
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _uiState.value = _uiState.value.copy(isPlaying = isPlaying)
             }
-            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-                _uiState.value = _uiState.value.copy(shuffle = shuffleModeEnabled)
-            }
+            // No onShuffleModeEnabledChanged: the controller's shuffle flag is
+            // always false on purpose. The UI follows repository.shuffleEnabled.
             override fun onRepeatModeChanged(repeatMode: Int) {
                 _uiState.value = _uiState.value.copy(repeatMode = repeatMode)
             }
@@ -245,7 +245,6 @@ class PlayerViewModel @Inject constructor(
             l.onMediaItemTransition(c.currentMediaItem, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
             _uiState.value = _uiState.value.copy(
                 isPlaying = c.isPlaying,
-                shuffle = c.shuffleModeEnabled,
                 repeatMode = c.repeatMode,
                 playbackSpeed = c.playbackParameters.speed,
             )

@@ -14,8 +14,8 @@ android {
         applicationId = "com.larkplayer.clean"
         minSdk = 24
         targetSdk = 35
-        versionCode = 54
-        versionName = "1.1.2"
+        versionCode = 55
+        versionName = "1.1.3"
     }
 
     lint {
@@ -58,7 +58,6 @@ dependencies {
     implementation(project(":feature:equalizer"))
     implementation(project(":feature:backup"))
     implementation(project(":feature:settings"))
-    implementation(project(":feature:widget"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

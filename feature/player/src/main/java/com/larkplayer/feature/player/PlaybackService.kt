@@ -15,9 +15,7 @@ import android.os.Build
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
-import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.ShuffleOrder
 import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
@@ -63,10 +61,6 @@ class PlaybackService : MediaSessionService() {
     /** Set by the notification X: suppress the notification until playback resumes. */
     @Volatile private var shuttingDown = false
 
-    /** Fixed order chosen in the UI; kept across playlist/timeline changes. */
-    @Volatile private var shuffleIds: List<String> = emptyList()
-    @Volatile private var installingOrder = false
-
     private var wakeLock: PowerManager.WakeLock? = null
 
     // ---- Real crossfade: two players mixed by the system audio mixer --------
@@ -106,17 +100,14 @@ class PlaybackService : MediaSessionService() {
             }.getOrDefault(false)
             if (!crossfadeInProgress || !atEndOfTrack) cancelCrossfade()
         }
-
-        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-            // setMediaItems/add/remove/move make ExoPlayer rebuild its shuffle
-            // order from the clone hooks (which is not our fixed sequence).
-            // Re-install it so "next" always matches the visible queue.
-            if (!installingOrder) installShuffleOrderIfStale()
-        }
     }
 
     override fun onCreate() {
         super.onCreate()
+        // The mixed sequence is applied by rewriting the media items in
+        // PlayerRepository. Media3's own shuffle engine must stay off or it
+        // would pick its own random "next" instead of the visible queue row.
+        player.shuffleModeEnabled = false
         // Same channel id/semantics as the original app: a silent, non-badged
         // media channel keeps the foreground service alive reliably.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -175,10 +166,6 @@ class PlaybackService : MediaSessionService() {
                 ): ListenableFuture<SessionResult> {
                     when (customCommand.customAction) {
                         COMMAND_STOP_ALL -> stopPlaybackCompletely()
-                        COMMAND_SET_SHUFFLE_ORDER -> {
-                            val ids = args.getStringArray(EXTRA_SHUFFLE_ORDER)?.toList().orEmpty()
-                            applyShuffleOrder(ids)
-                        }
                         COMMAND_GET_AUDIO_SESSION -> {
                             val extras = Bundle().apply { putInt(EXTRA_AUDIO_SESSION_ID, player.audioSessionId) }
                             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, extras))
@@ -223,43 +210,6 @@ class PlaybackService : MediaSessionService() {
             }
         }
         Timber.d("PlaybackService created")
-    }
-
-    /** Applies the order shown in the UI to Media3's internal shuffle engine. */
-    private fun applyShuffleOrder(ids: List<String>) {
-        shuffleIds = ids
-        installShuffleOrderIfStale()
-    }
-
-    /**
-     * Installs the persisted order whenever the playlist changed and Media3
-     * replaced our custom ShuffleOrder with a default/natural one. Comparing
-     * the indices keeps this idempotent and avoids a timeline-change loop.
-     */
-    private fun installShuffleOrderIfStale() {
-        if (shuffleIds.isEmpty()) {
-            runCatching { player.shuffleModeEnabled = false }
-            return
-        }
-        val indexById = (0 until player.mediaItemCount).associate { index ->
-            player.getMediaItemAt(index).mediaId to index
-        }
-        val indices = shuffleIds.mapNotNull { indexById[it] }.toIntArray()
-        if (indices.size != player.mediaItemCount || indices.isEmpty()) {
-            // Stale ids (the media items have not been applied yet): the
-            // timeline listener will retry once the new queue is in place.
-            return
-        }
-        // setShuffleOrder can itself emit a timeline event; guard against a loop.
-        installingOrder = true
-        try {
-            runCatching {
-                player.setShuffleOrder(VisibleShuffleOrder(indices))
-                player.shuffleModeEnabled = true
-            }
-        } finally {
-            installingOrder = false
-        }
     }
 
     // ---- Crossfade ----------------------------------------------------------
@@ -458,58 +408,11 @@ class PlaybackService : MediaSessionService() {
         Timber.d("PlaybackService destroyed")
     }
 
-    /** Shuffle order that follows the list displayed in the queue screen. */
-    private class VisibleShuffleOrder(private val order: IntArray) : ShuffleOrder {
-        override fun getLength(): Int = order.size
-        override fun getFirstIndex(): Int = order.firstOrNull() ?: -1
-        override fun getLastIndex(): Int = order.lastOrNull() ?: -1
-        override fun getNextIndex(index: Int): Int {
-            val position = order.indexOf(index)
-            if (position < 0) return -1
-            return if (position < order.lastIndex) order[position + 1] else order.firstOrNull() ?: -1
-        }
-        override fun getPreviousIndex(index: Int): Int {
-            val position = order.indexOf(index)
-            if (position < 0) return -1
-            return if (position > 0) order[position - 1] else order.lastOrNull() ?: -1
-        }
-        override fun cloneAndInsert(insertionIndex: Int, insertionCount: Int): ShuffleOrder {
-            val insertionIndices = IntArray(insertionCount) { insertionIndex + it }
-            val newOrder = IntArray(order.size + insertionCount)
-            var indexInOld = 0
-            var indexInNew = 0
-            while (indexInNew < newOrder.size) {
-                if (indexInNew < order.size) {
-                    val oldVal = order[indexInOld++]
-                    newOrder[indexInNew] = if (oldVal >= insertionIndex) oldVal + insertionCount else oldVal
-                } else {
-                    newOrder[indexInNew] = insertionIndices[indexInNew - order.size]
-                }
-                indexInNew++
-            }
-            return VisibleShuffleOrder(newOrder)
-        }
-        override fun cloneAndRemove(removalIndex: Int, removalCount: Int): ShuffleOrder {
-            val newOrder = ArrayList<Int>(order.size)
-            for (item in order) {
-                if (item < removalIndex) {
-                    newOrder.add(item)
-                } else if (item >= removalIndex + removalCount) {
-                    newOrder.add(item - removalCount)
-                }
-            }
-            return VisibleShuffleOrder(newOrder.toIntArray())
-        }
-        override fun cloneAndClear(): ShuffleOrder = VisibleShuffleOrder(IntArray(0))
-    }
-
     companion object {
         const val CHANNEL_ID = "player_service_v2"
         const val NOTIFICATION_ID = 3
-        const val COMMAND_SET_SHUFFLE_ORDER = "com.larkplayer.command.SET_SHUFFLE_ORDER"
         const val COMMAND_GET_AUDIO_SESSION = "com.larkplayer.command.GET_AUDIO_SESSION"
         const val EXTRA_AUDIO_SESSION_ID = "lark_audio_session_id"
-        const val EXTRA_SHUFFLE_ORDER = "lark_shuffle_order"
         const val ACTION_PLAY = "com.larkplayer.action.PLAY"
         const val ACTION_PAUSE = "com.larkplayer.action.PAUSE"
         const val ACTION_NEXT = "com.larkplayer.action.NEXT"

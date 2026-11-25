@@ -49,8 +49,7 @@ lark-clean/
 │   ├── lyrics/         ← parser LRC + UI
 │   ├── equalizer/      ← audiofx nativo
 │   ├── backup/         ← export/import ZIP (+ opcional Drive)
-│   ├── settings/       ← ajustes + personalización
-│   └── widget/         ← widget + notificación multimedia
+│   └── settings/       ← ajustes + personalización
 └── app/                ← aplicación, navegación, Hilt
 ```
 

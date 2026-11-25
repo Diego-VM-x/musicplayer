@@ -201,21 +201,40 @@ object LrcParser {
         return maxOf(0L, minutes * 60_000L + seconds * 1_000L + millis)
     }
 
-    /** Index of the active line at a given position, or -1 for unsynced lyrics. */
-    fun activeIndex(lyrics: Lyrics, positionMs: Long): Int {
+    /**
+     * Index of the active line at a given position, or -1 for unsynced lyrics.
+     *
+     * The caller passes the *player* position; the manual sync correction is
+     * applied here (once) so it cannot drift apart from the karaoke fill.
+     */
+    fun activeIndex(lyrics: Lyrics, positionMs: Long, offsetMs: Int = 0): Int {
         if (!lyrics.isSynced) return -1
+        val effective = (positionMs + offsetMs).coerceAtLeast(0L)
         var low = 0
         var high = lyrics.lines.lastIndex
         var result = -1
         while (low <= high) {
             val mid = (low + high) / 2
-            if (lyrics.lines[mid].timestampMs <= positionMs) {
+            if (lyrics.lines[mid].timestampMs <= effective) {
                 result = mid
                 low = mid + 1
             } else {
                 high = mid - 1
             }
         }
-        return result
+        if (result < 0) return -1
+
+        // Enhanced LRC / SYLT can emit several lines with the same start tag.
+        // Use endMs to advance past the ones already finished, otherwise the
+        // highlight would sit on a stale duplicate until the next distinct tag.
+        var chosen = result
+        while (chosen + 1 < lyrics.lines.size &&
+            lyrics.lines[chosen + 1].timestampMs == lyrics.lines[chosen].timestampMs
+        ) {
+            val end = lyrics.lines[chosen].endMs
+            if (end > lyrics.lines[chosen].timestampMs && effective >= end) chosen++
+            else break
+        }
+        return chosen
     }
 }

@@ -204,12 +204,20 @@ private fun LyricLineRow(
         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
         textAlign = TextAlign.Center,
     )
+
+    // Read the clock in COMPOSITION, not only from the draw lambda. This makes
+    // every interpolated frame invalidate this row (and therefore its karaoke
+    // clip), instead of relying on draw-phase snapshot observation alone. Only
+    // the active row subscribes, so the rest of the list is not recomposed 60×/s.
+    val positionMs = if (isActive) clock.positionMs.value else 0L
+    val pulse = if (isActive) clock.pulse.value else 0f
+
     val rowModifier = Modifier
         .fillMaxWidth()
         .padding(vertical = 10.dp)
         .graphicsLayer {
-            // The optional energy pulse is subtle (max +2%) and draw-only.
-            val pulse = if (isActive) clock.pulse.value else 0f
+            // The optional energy pulse is subtle (max +2%) and never changes
+            // the timing: the value was already read during composition.
             val animated = scale * (1f + 0.02f * pulse)
             scaleX = animated
             scaleY = animated
@@ -230,14 +238,15 @@ private fun LyricLineRow(
                         color = if (isActive) Color.White.copy(alpha = 0.42f) else Color.White,
                     )
                     if (isActive) {
-                        // Reading the clock inside the draw phase invalidates
-                        // only the drawing of this word, not the whole screen.
+                        // Progress is a plain Float captured from composition.
+                        // The draw lambda no longer reads clock state, so the
+                        // clip is guaranteed to follow the recomposed value.
+                        val progress = clock.wordProgress(line, index, positionMs)
                         Text(
                             word.text,
                             style = style,
                             color = lineColor,
                             modifier = Modifier.drawWithContent {
-                                val progress = clock.wordProgress(line, index)
                                 if (progress > 0f) {
                                     drawContext.canvas.save()
                                     drawContext.canvas.clipRect(

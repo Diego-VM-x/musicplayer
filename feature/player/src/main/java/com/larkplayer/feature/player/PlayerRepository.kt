@@ -78,9 +78,21 @@ class PlayerRepository @Inject constructor(
     @Volatile private var gapUntil = 0L
     private var lastMediaId: String? = null
     private var lastPosition = 0L
+    /** The mixed order of media ids. When shuffle is on this IS the real Media3 timeline. */
     @Volatile private var visibleOrder: List<String> = emptyList()
+    /** Un-shuffled order, kept so turning shuffle off restores the original queue. */
+    @Volatile private var naturalOrder: List<String> = emptyList()
     /** Last shuffle order persisted in DataStore (legacy SharedPreferences on upgrade). */
     @Volatile private var savedShuffleOrder: String? = null
+
+    /**
+     * Shuffle is a repository-level intent: Media3 itself always runs with
+     * shuffleModeEnabled = false because the mixed order is applied to the
+     * media items directly. The UI must follow this flag, not the controller.
+     */
+    private val _shuffleEnabled = MutableStateFlow(false)
+    val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled.asStateFlow()
+
     private var pendingPlayMs = 0L
 
     private var connecting = false
@@ -122,10 +134,10 @@ class PlayerRepository @Inject constructor(
         scope.launch {
             settings.shuffle.collect { enabled ->
                 desiredShuffle = enabled
-                // The fixed mix is installed explicitly by setShuffle()/connect().
-                // Rebuilding here would rotate it around the current track and
-                // make the visible order differ from the service's order.
-                if (!enabled) visibleOrder = emptyList()
+                // Media3 always runs with shuffle off; the mix is applied by
+                // rewriting the media items in setShuffle()/connect(). Never
+                // rotate it here: only an explicit shuffle tap makes a new mix.
+                _shuffleEnabled.value = enabled
             }
         }
         scope.launch {
@@ -162,10 +174,10 @@ class PlayerRepository @Inject constructor(
             connecting = false
             runCatching { future.get() }
                 .onSuccess { controller ->
-                    // Restore repeat, but keep Media3's shuffle OFF until the
-                    // persisted order is installed. Enabling it first lets
-                    // DefaultShuffleOrder pick a random current item while the
-                    // queue is being restored.
+                    // The mixed sequence is written into the media items
+                    // themselves, so Media3's shuffle engine must stay off:
+                    // its DefaultShuffleOrder would otherwise pick its own
+                    // "next" and diverge from the list shown in the queue.
                     runCatching {
                         controller.shuffleModeEnabled = false
                         controller.repeatMode = desiredRepeat
@@ -198,11 +210,12 @@ class PlayerRepository @Inject constructor(
                     // Recover the last queue/position if the service process was
                     // killed while the app was closed.
                     restoreQueueIfEmpty(controller)
-                    if (desiredShuffle) {
+                    ensureNaturalOrder(controller)
+                    if (desiredShuffle && controller.mediaItemCount > 0) {
                         // Reuse the exact sequence saved in DataStore; only a new
                         // tap of the shuffle button may create a different mix.
                         rebuildShuffleOrder(force = false)
-                        sendShuffleOrder(controller, enabled = true)
+                        applyQueueOrder(controller, visibleOrder)
                     }
                     attachWidgetListener(controller)
                     pendingAction?.let { action ->
@@ -241,39 +254,10 @@ class PlayerRepository @Inject constructor(
         }
         widgetListener = listener
         runCatching { controller.addListener(listener) }
-        
-        // Automatic transitions must follow the order displayed in the queue.
-        // ExoPlayer may still pick its own random item if the custom order has
-        // not reached the service yet, so we correct the transition immediately.
-        var lastAutoId: String? = runCatching { controller.currentMediaItem?.mediaId }.getOrNull()
-        val shuffleSyncListener = object : Player.Listener {
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                val newId = mediaItem?.mediaId
-                if (desiredShuffle && visibleOrder.isNotEmpty() && newId != null &&
-                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
-                ) {
-                    val previousPosition = visibleOrder.indexOf(lastAutoId)
-                    val expected = when {
-                        previousPosition in 0 until visibleOrder.lastIndex ->
-                            visibleOrder[previousPosition + 1]
-                        desiredRepeat == Player.REPEAT_MODE_ALL -> visibleOrder.firstOrNull()
-                        else -> null
-                    }
-                    if (expected != null && expected != newId) {
-                        val index = currentQueue().indexOfFirst { it.mediaId == expected }
-                        if (index >= 0) {
-                            runCatching { controller.seekTo(index, 0L) }
-                            runCatching { controller.play() }
-                        }
-                    }
-                }
-                lastAutoId = newId
-                if (desiredShuffle && visibleOrder.isEmpty() && currentQueue().isNotEmpty()) {
-                    rebuildShuffleOrder()
-                }
-            }
-        }
-        runCatching { controller.addListener(shuffleSyncListener) }
+
+        // No transition "correction" listener is needed any more: the mixed
+        // sequence is the real Media3 timeline, so automatic transitions,
+        // notification buttons and crossfade all pick the visible next row.
 
         // Keep the on-disk playback cache in sync with the real session.
         val stateCacheListener = object : Player.Listener {
@@ -338,7 +322,7 @@ class PlayerRepository @Inject constructor(
     private fun persistQueue(c: MediaController, position: Long, playing: Boolean) {
         // MediaController must only be touched on the main thread: take the
         // snapshot here, serialize and write on IO.
-        val tracks = runCatching {
+        var tracks = runCatching {
             (0 until c.mediaItemCount).mapNotNull { i ->
                 val item = c.getMediaItemAt(i)
                 val meta = item.mediaMetadata
@@ -353,7 +337,18 @@ class PlayerRepository @Inject constructor(
                 )
             }
         }.getOrNull() ?: return
-        val index = runCatching { c.currentMediaItemIndex }.getOrDefault(0).coerceAtLeast(0)
+
+        // The live timeline is the mix; cache the *natural* order so a restart
+        // restores the original queue first and then re-applies the saved mix.
+        val currentId = runCatching { c.currentMediaItem?.mediaId }.getOrNull()
+        if (desiredShuffle && naturalOrder.isNotEmpty()) {
+            val byId = tracks.associateBy { it.id.toString() }
+            val reordered = naturalOrder.mapNotNull { byId[it] }
+            if (reordered.size == tracks.size) tracks = reordered
+        }
+        val index = tracks.indexOfFirst { it.id.toString() == currentId }
+            .let { if (it >= 0) it else runCatching { c.currentMediaItemIndex }.getOrDefault(0) }
+            .coerceAtLeast(0)
         ioScope.launch {
             runCatching {
                 val array = JSONArray()
@@ -409,6 +404,9 @@ class PlayerRepository @Inject constructor(
         val index = statePrefs.getInt("index", 0).coerceIn(0, songs.lastIndex)
         val position = statePrefs.getLong("position", 0L)
         val shouldPlay = statePrefs.getBoolean("playing", false)
+        // The cached queue is stored in its natural order; the mix is applied
+        // right after this by connect().
+        naturalOrder = songs.mapNotNull { it.id.toString() }
         c.setMediaItems(songs.map { it.toMediaItem() }, index, position)
         c.prepare()
         if (shouldPlay) c.play()
@@ -426,12 +424,22 @@ class PlayerRepository @Inject constructor(
         if (songs.isEmpty()) return
         val items = songs.map { it.toMediaItem() }
         val safeIndex = startIndex.coerceIn(0, items.lastIndex)
+        val startId = items[safeIndex].mediaId
+        // The natural (user) order is the source of truth for future re-mixes
+        // and for restoring the queue when shuffle is switched off.
+        naturalOrder = items.mapNotNull { it.mediaId }
         withController { c ->
-            c.setMediaItems(items, safeIndex, 0L)
-            if (desiredShuffle) {
-                rebuildShuffleOrder()
-                sendShuffleOrder(c, enabled = true)
-            }
+            val order = if (desiredShuffle) {
+                rebuildShuffleOrder(force = false, currentId = startId)
+                visibleOrder
+            } else naturalOrder
+            val byId = items.associateBy { it.mediaId }
+            val ordered = order.mapNotNull { byId[it] }
+            val finalItems = if (ordered.size == items.size) ordered else items
+            val index = finalItems.indexOfFirst { it.mediaId == startId }
+                .let { if (it >= 0) it else 0 }
+            c.setMediaItems(finalItems, index, 0L)
+            c.shuffleModeEnabled = false
             c.prepare()
             c.play()
             persistQueue(c, 0L, playing = true)
@@ -440,13 +448,23 @@ class PlayerRepository @Inject constructor(
 
     fun addToQueue(song: Song) = withController { c ->
         val item = song.toMediaItem()
+        val id = item.mediaId
         c.addMediaItem(item)
-        if (desiredShuffle) {
-            // Append at the end of the visible order instead of reshuffling
-            // everything the user is already listening to.
-            if (visibleOrder.isEmpty()) rebuildShuffleOrder()
-            else if (item.mediaId !in visibleOrder) visibleOrder = visibleOrder + item.mediaId
-            sendShuffleOrder(c, enabled = true)
+        c.shuffleModeEnabled = false
+        if (id != null) {
+            if (naturalOrder.isNotEmpty() && id !in naturalOrder) naturalOrder = naturalOrder + id
+            if (desiredShuffle) {
+                // Append at the end of the visible order instead of reshuffling
+                // everything the user is already listening to. The physical
+                // queue gets the same append, so "next" stays the visible row.
+                if (visibleOrder.isEmpty()) {
+                    rebuildShuffleOrder(currentId = id)
+                    applyQueueOrder(c, visibleOrder)
+                } else if (id !in visibleOrder) {
+                    visibleOrder = visibleOrder + id
+                    persistShuffleOrder()
+                }
+            }
         }
         persistQueue(c, c.currentPosition, c.isPlaying)
     }
@@ -455,98 +473,78 @@ class PlayerRepository @Inject constructor(
 
     fun togglePlayPause() = withController { c -> if (c.isPlaying) c.pause() else c.play() }
 
-    fun skipNext() = withController { controller ->
-        if (desiredShuffle && visibleOrder.isNotEmpty()) {
-            val currentId = runCatching { controller.currentMediaItem?.mediaId }.getOrNull()
-            val position = visibleOrder.indexOf(currentId)
-            val nextId = if (position in 0 until visibleOrder.lastIndex) {
-                visibleOrder[position + 1]
-            } else if (desiredRepeat == Player.REPEAT_MODE_ALL) {
-                visibleOrder.firstOrNull()
-            } else {
-                null
-            }
-            if (nextId != null) {
-                val index = currentQueue().indexOfFirst { it.mediaId == nextId }
-                if (index >= 0) {
-                    controller.seekTo(index, 0L)
-                    controller.play()
-                    return@withController
-                }
-            }
-        }
-        controller.seekToNextMediaItem()
-        controller.play()
+    /**
+     * Skips by an explicit index in the fixed timeline. Since the timeline IS
+     * the mixed order, this is the same row the queue shows as "next".
+     */
+    fun skipNext() = withController { c ->
+        val count = c.mediaItemCount
+        if (count == 0) return@withController
+        val current = c.currentMediaItemIndex.coerceIn(0, count - 1)
+        val target = if (current < count - 1) {
+            current + 1
+        } else if (c.repeatMode == Player.REPEAT_MODE_ALL) {
+            0
+        } else null
+        if (target != null) c.seekTo(target, 0L)
+        c.play()
     }
 
-    fun skipPrevious() = withController { controller ->
-        if (controller.currentPosition > 3_000L) {
-            controller.seekTo(0L)
+    fun skipPrevious() = withController { c ->
+        if (c.currentPosition > 3_000L) {
+            c.seekTo(0L)
+            c.play()
             return@withController
         }
-        if (desiredShuffle && visibleOrder.isNotEmpty()) {
-            val currentId = runCatching { controller.currentMediaItem?.mediaId }.getOrNull()
-            val position = visibleOrder.indexOf(currentId)
-            val previousId = if (position > 0) {
-                visibleOrder[position - 1]
-            } else if (desiredRepeat == Player.REPEAT_MODE_ALL) {
-                visibleOrder.lastOrNull()
-            } else {
-                null
-            }
-            if (previousId != null) {
-                val index = currentQueue().indexOfFirst { it.mediaId == previousId }
-                if (index >= 0) {
-                    controller.seekTo(index, 0L)
-                    controller.play()
-                    return@withController
-                }
-            }
-        }
-        controller.seekToPreviousMediaItem()
-        controller.play()
+        val count = c.mediaItemCount
+        if (count == 0) return@withController
+        val current = c.currentMediaItemIndex.coerceIn(0, count - 1)
+        val target = if (current > 0) {
+            current - 1
+        } else if (c.repeatMode == Player.REPEAT_MODE_ALL) {
+            count - 1
+        } else null
+        if (target != null) c.seekTo(target, 0L)
+        c.play()
     }
 
     fun seekTo(ms: Long) = withController { it.seekTo(ms) }
 
-    fun setShuffle(on: Boolean) {
+    fun setShuffle(on: Boolean) = setShuffleInternal(on, forceNewMix = false)
+
+    private fun setShuffleInternal(on: Boolean, forceNewMix: Boolean) {
         desiredShuffle = on
-        if (on) {
-            // Reuse the saved mix for this exact queue. A brand-new order is
-            // created only by setPlaybackMode() on a fresh shuffle tap.
-            rebuildShuffleOrder(force = false)
-        } else {
-            visibleOrder = emptyList()
+        _shuffleEnabled.value = on
+        if (on) rebuildShuffleOrder(force = forceNewMix)
+        withController { c ->
+            ensureNaturalOrder(c)
+            // The mixed sequence is written into the media items, so Media3's
+            // shuffle engine stays off and cannot pick a different "next".
+            applyQueueOrder(c, if (on) visibleOrder else naturalOrder)
+            c.shuffleModeEnabled = false
         }
-        withController { controller -> sendShuffleOrder(controller, on) }
         scope.launch { runCatching { settings.setShuffle(on) } }
     }
 
     /**
      * Current track first. When [force] is false an order saved in a previous
-     * session is reused if the queue still contains the same songs, so the
-     * mix survives app restarts. Pressing shuffle again forces a new order.
+     * session is reused verbatim if the queue still contains the same songs,
+     * so the mix survives app restarts without being rotated around the current
+     * track. Only a fresh shuffle tap ([force] = true) creates a new order.
      */
-    private fun rebuildShuffleOrder(force: Boolean = false) {
-        val items = currentQueue()
-        // The controller may not be connected yet on startup; keep the saved
-        // order intact instead of replacing it with an empty one.
-        if (items.isEmpty()) return
-        val currentId = runCatching { _controller.value?.currentMediaItem?.mediaId }.getOrNull()
-        val ids = items.mapNotNull { it.mediaId }.toSet()
+    private fun rebuildShuffleOrder(force: Boolean = false, currentId: String? = null) {
+        val ids = naturalOrder.filter { it.isNotBlank() }
+        if (ids.isEmpty()) return
         if (!force) {
             val saved = savedShuffleOrder?.split(',')?.filter { it.isNotBlank() }
-            if (saved != null && saved.toSet() == ids) {
-                // Reuse the persisted sequence verbatim. Rotating it around the
-                // current track would change the mix on every reopen and the
-                // queue would stop matching the service's playback order.
+            if (saved != null && saved.size == ids.size && saved.toSet() == ids.toSet()) {
                 visibleOrder = saved
                 return
             }
         }
-        val first = currentId?.takeIf { id -> ids.contains(id) }
-        val rest = ids.filter { it != first }.shuffled()
-        visibleOrder = listOfNotNull(first) + rest
+        val anchor = (currentId ?: runCatching { _controller.value?.currentMediaItem?.mediaId }.getOrNull())
+            ?.takeIf { it in ids }
+        visibleOrder = listOfNotNull(anchor) + ids.filter { it != anchor }.shuffled()
         persistShuffleOrder()
     }
 
@@ -556,25 +554,42 @@ class PlayerRepository @Inject constructor(
         scope.launch { runCatching { settings.setShuffleOrder(order) } }
     }
 
-    /** Sends the visible order to the service; the service owns Media3's shuffle state. */
-    private fun sendShuffleOrder(controller: MediaController, enabled: Boolean) {
-        if (enabled) {
-            val command = androidx.media3.session.SessionCommand(
-                PlaybackService.COMMAND_SET_SHUFFLE_ORDER,
-                Bundle.EMPTY,
-            )
-            val args = Bundle().apply {
-                putStringArray(
-                    PlaybackService.EXTRA_SHUFFLE_ORDER,
-                    visibleOrder.toTypedArray(),
-                )
-            }
-            // install the custom order BEFORE enabling shuffle: enabling first
-            // makes ExoPlayer generate a random default order and a track can
-            // already advance with it before our command is processed.
-            runCatching { controller.sendCustomCommand(command, args) }
+    /** Remembers the un-shuffled sequence when the session was restored by the service. */
+    private fun ensureNaturalOrder(c: MediaController) {
+        if (naturalOrder.isNotEmpty()) return
+        val ids = (0 until c.mediaItemCount).mapNotNull { i ->
+            runCatching { c.getMediaItemAt(i).mediaId }.getOrNull()
         }
-        runCatching { controller.shuffleModeEnabled = enabled }
+        if (ids.isNotEmpty()) naturalOrder = ids
+    }
+
+    /**
+     * Rewrites the real Media3 timeline in [order]. This is the core of the fix:
+     * once the mixed sequence is the timeline, automatic transitions, skip
+     * buttons, notification actions and crossfade all follow the visible queue,
+     * with Media3's own shuffle engine permanently disabled.
+     * The current media item and its position are preserved.
+     */
+    private fun applyQueueOrder(c: MediaController, order: List<String>) {
+        if (order.isEmpty()) return
+        val byId = (0 until c.mediaItemCount).mapNotNull { i ->
+            runCatching { c.getMediaItemAt(i) }.getOrNull()
+        }.associateBy { it.mediaId }
+        val ordered = order.mapNotNull { byId[it] }
+        if (ordered.size != c.mediaItemCount) return // stale ids; retried on next order change
+        val currentIds = (0 until c.mediaItemCount).mapNotNull { i ->
+            runCatching { c.getMediaItemAt(i).mediaId }.getOrNull()
+        }
+        if (currentIds == ordered.map { it.mediaId }) return // already exact; don't reset playback
+
+        val currentId = runCatching { c.currentMediaItem?.mediaId }.getOrNull()
+        val position = runCatching { c.currentPosition }.getOrDefault(0L)
+        val wasPlaying = runCatching { c.isPlaying }.getOrDefault(false)
+        val index = ordered.indexOfFirst { it.mediaId == currentId }.let { if (it >= 0) it else 0 }
+        c.setMediaItems(ordered, index, position.coerceAtLeast(0L))
+        c.shuffleModeEnabled = false
+        c.prepare()
+        if (wasPlaying) c.play()
     }
 
     fun setRepeat(mode: Int) {
@@ -595,7 +610,7 @@ class PlayerRepository @Inject constructor(
         val shuffle = mode == MODE_SHUFFLE
         // Only a NEW tap while shuffle is already active generates a fresh mix.
         // Turning it on from another mode reuses the persisted order.
-        if (shuffle) rebuildShuffleOrder(force = desiredShuffle)
+        val wasShuffle = desiredShuffle
         setRepeat(
             when (mode) {
                 MODE_REPEAT_ONE -> Player.REPEAT_MODE_ONE
@@ -603,7 +618,7 @@ class PlayerRepository @Inject constructor(
                 else -> Player.REPEAT_MODE_ALL
             },
         )
-        setShuffle(shuffle)
+        setShuffleInternal(shuffle, forceNewMix = shuffle && wasShuffle)
     }
 
     // ---- Queue ----
@@ -670,14 +685,31 @@ class PlayerRepository @Inject constructor(
         c.play()
     }
 
+    /** Moves [fromId] to [toId]'s slot in an id-ordered list. */
+    private fun moveId(order: List<String>, fromId: String, toId: String): List<String> {
+        val from = order.indexOf(fromId)
+        val to = order.indexOf(toId)
+        if (from < 0 || to < 0 || from == to) return order
+        return order.toMutableList().apply { add(to, removeAt(from)) }
+    }
+
     fun removeFromQueue(index: Int) = withController { c ->
         val safe = index.coerceIn(0, (c.mediaItemCount - 1).coerceAtLeast(0))
         val removedId = runCatching { c.getMediaItemAt(safe).mediaId }.getOrNull()
         c.removeMediaItem(safe)
-        if (desiredShuffle) {
-            // Keep the user's visible order; only drop the removed entry.
-            if (removedId != null) visibleOrder = visibleOrder - removedId
-            sendShuffleOrder(c, enabled = true)
+        c.shuffleModeEnabled = false
+        if (removedId != null) {
+            naturalOrder = naturalOrder.filter { it != removedId }
+            if (desiredShuffle) {
+                // Keep the user's visible order; only drop the removed entry.
+                visibleOrder = visibleOrder.filter { it != removedId }
+                if (visibleOrder.isEmpty() && c.mediaItemCount > 0) {
+                    rebuildShuffleOrder()
+                    applyQueueOrder(c, visibleOrder)
+                } else {
+                    persistShuffleOrder()
+                }
+            }
         }
         persistQueue(c, c.currentPosition, c.isPlaying)
     }
@@ -690,18 +722,14 @@ class PlayerRepository @Inject constructor(
         val fromId = runCatching { c.getMediaItemAt(safeFrom).mediaId }.getOrNull()
         val toId = runCatching { c.getMediaItemAt(safeTo).mediaId }.getOrNull()
         c.moveMediaItem(safeFrom, safeTo)
-        if (desiredShuffle) {
-            // Preserve the manual arrangement instead of reshuffling it away.
-            if (fromId != null && toId != null) {
-                val fromPos = visibleOrder.indexOf(fromId)
-                val toPos = visibleOrder.indexOf(toId)
-                if (fromPos >= 0 && toPos >= 0) {
-                    visibleOrder = visibleOrder.toMutableList().apply {
-                        add(toPos, removeAt(fromPos))
-                    }
-                }
+        c.shuffleModeEnabled = false
+        if (fromId != null && toId != null) {
+            naturalOrder = moveId(naturalOrder, fromId, toId)
+            if (desiredShuffle) {
+                // Preserve the manual arrangement instead of reshuffling it away.
+                visibleOrder = moveId(visibleOrder, fromId, toId)
+                persistShuffleOrder()
             }
-            sendShuffleOrder(c, enabled = true)
         }
         persistQueue(c, c.currentPosition, c.isPlaying)
     }
@@ -717,16 +745,13 @@ class PlayerRepository @Inject constructor(
         val toIdx   = items.indexOfFirst { it.mediaId == toId }
         if (fromIdx < 0 || toIdx < 0) return@withController
         c.moveMediaItem(fromIdx, toIdx)
+        c.shuffleModeEnabled = false
+        // Apply exactly the move requested by the queue screen to both the
+        // natural and the (possibly mixed) sequence.
+        naturalOrder = moveId(naturalOrder, fromId, toId)
         if (desiredShuffle) {
-            // Apply exactly the move requested by the queue screen.
-            val fromPos = visibleOrder.indexOf(fromId)
-            val toPos = visibleOrder.indexOf(toId)
-            if (fromPos >= 0 && toPos >= 0 && fromPos != toPos) {
-                visibleOrder = visibleOrder.toMutableList().apply {
-                    add(toPos, removeAt(fromPos))
-                }
-            }
-            sendShuffleOrder(c, enabled = true)
+            visibleOrder = moveId(visibleOrder, fromId, toId)
+            persistShuffleOrder()
         }
         persistQueue(c, c.currentPosition, c.isPlaying)
     }
@@ -736,6 +761,9 @@ class PlayerRepository @Inject constructor(
         c.stop()
         c.clearMediaItems()
         visibleOrder = emptyList()
+        naturalOrder = emptyList()
+        savedShuffleOrder = null
+        scope.launch { runCatching { settings.setShuffleOrder("") } }
         clearPersistedQueue()
     }
 

@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.larkplayer.app.navigation.AppNavGraph
 import com.larkplayer.core.common.MediaScanBus
 import com.larkplayer.core.datastore.SettingsDataStore
@@ -36,6 +37,7 @@ import com.larkplayer.core.update.UpdateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -62,6 +64,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         openPlayerOnStart = intent?.getBooleanExtra(EXTRA_OPEN_PLAYER, false) == true
+
+        // A cold start must stay on the Songs tab. LibraryViewModel restores the
+        // last tab from DataStore in its init block, which can jump to Playlists;
+        // normalize the persisted value here so the library opens on Canciones.
+        // (feature/ is deliberately left untouched, and the lark_open_player
+        // flow below is independent of this preference.)
+        lifecycleScope.launch {
+            settingsDataStore.setLibraryTab(1) // TAB_SONGS in LibraryViewModel
+        }
 
         // Draw behind the status bar but keep the UI below it: the gradient shows
         // through the transparent bar without shifting the whole interface up.

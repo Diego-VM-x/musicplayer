@@ -552,8 +552,11 @@ private fun QueueMiniPlayer(
                     .clip(RoundedCornerShape(50))
                     .background(Color.White.copy(alpha = 0.30f)),
             )
+            // Anchored to the start: without this, the parent's Center
+            // alignment grows the shorter bar from the middle outwards.
             Box(
                 Modifier
+                    .align(Alignment.CenterStart)
                     .fillMaxWidth(progress.coerceIn(0f, 1f))
                     .height(3.dp)
                     .clip(RoundedCornerShape(50))

@@ -4,6 +4,19 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-25 - v1.1.3: orden aleatorio real, barra izquierda→derecha, letras, navegación y widgets (4 subagentes)
+
+Código entregado por cuatro subagentes **sin compilar** e integrado/compilado por el agent principal.
+
+- **Aleatorio**: la mezcla pasa a ser el timeline real de Media3 con `shuffleModeEnabled=false`, de modo que el «siguiente» (automático, botones y notificación) sigue exactamente la fila visible; la mezcla guardada se reutiliza sin rotar y solo un nuevo tap genera otra.
+- **Barra de progreso de la cola**: se ancló con `align(CenterStart)` para que avance de izquierda a derecha en vez de desde el centro.
+- **Lyrics**: el reloj reasienta el anclaje en cada tick de 250 ms, interpola por frame, hace snap en seek/pausa/cambio de canción, aplica el offset a la posición y usa `endMs`; la fila activa lee posición y pulso en composición, con fill por palabra.
+- **Navegación**: un solo `BackHandler` (el de `NavHost`) y `goBack/backFromPlayer/go` sin `restoreState`, eliminando el ciclo cola→reproductor→cola; se quitó el salto automático a Playlist en el arranque (la preferencia `libraryTab` se fija en Canciones).
+- **Widgets**: eliminados por completo (módulo, manifest y dependencia).
+- Nota de integración: el `.kotlin_module` de `feature:player` quedó corrupto por compilación incremental (solo exponía `QueueScreenKt`); se regeneró con `--rerun-tasks` y `app` vuelve a ver `MiniPlayer`, `PlayerScreen` y `SleepTimerScreen`.
+- `versionCode` 55 / `1.1.3`; `:app:compileDebugKotlin` → BUILD SUCCESSFUL.
+- `assembleRelease` → BUILD SUCCESSFUL. Publicada la release `v1.1.3` con `musicplayer-55.apk` (3.548.117 bytes, SHA-256 `4261DD9A0087EF6F434687FA5E9E68DB21015D84994881F8BB08336701681253`), verificada con `aapt` (`versionName=1.1.3`).
+
 ## 2026-11-24 - v1.1.2: widgets, orden aleatorio fijo y letras karaoke (3 subagentes)
 
 - **Widgets**: causa real del fallo era `RemoteViews.setColorStateList` (API 31) con minSdk 24 → `NoSuchMethodError` y widget vacío. Se usa `setColorFilter`, con fallback de carátula y RemoteViews mínima. Tamaños 2x2 adaptable y 2x3/2x4 intactos.
