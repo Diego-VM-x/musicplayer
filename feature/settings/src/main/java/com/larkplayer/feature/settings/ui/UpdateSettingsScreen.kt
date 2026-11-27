@@ -45,7 +45,7 @@ fun UpdateSettingsScreen(onBack: () -> Unit) {
                     fontSize = 11.5.sp,
                 )
                 Text(
-                    "${UpdateManager.versionName} (${UpdateManager.versionCode})",
+                    UpdateManager.versionName,
                     color = Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,

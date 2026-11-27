@@ -69,6 +69,7 @@ fun SettingsScreen(
     onAbout: () -> Unit,
     onUpdates: () -> Unit,
     onMemories: () -> Unit,
+    versionName: String = "1.1.4",
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val config by viewModel.themeConfig.collectAsStateWithLifecycle(ThemeConfig())
@@ -196,7 +197,7 @@ fun SettingsScreen(
             SettingsRow(
                 icon = Icons.Rounded.Info,
                 title = "Sobre",
-                value = "2027.5",
+                value = versionName,
                 onClick = onAbout,
             )
         }

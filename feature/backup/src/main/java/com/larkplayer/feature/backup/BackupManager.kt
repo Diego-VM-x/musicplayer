@@ -324,6 +324,9 @@ class BackupManager @Inject constructor(
         if (ownJson != null) {
             val data = runCatching { gson.fromJson(ownJson, BackupData::class.java) }.getOrNull()
             if (data != null) {
+                // Unpack and index bundled audio BEFORE resolving playlist
+                // references: on a clean device those songs do not exist yet.
+                val restoredAudio = restoreBundledMusic(entries)
                 val songs = songDao.observeAll().first()
                 val byId = songs.associateBy { it.id }
 
@@ -338,7 +341,10 @@ class BackupManager @Inject constructor(
                         }
                     ParsedPlaylist(pl.name, pl.createdAt, pl.coverUri, refs, pl.position)
                 }
-                return storePlaylistsWithoutDuplicates(parsedPlaylists, "Copia de respaldo LarkClean")
+                val result = storePlaylistsWithoutDuplicates(parsedPlaylists, "Copia de respaldo LarkClean")
+                return if (restoredAudio > 0) {
+                    result.copy(message = "${result.message}, $restoredAudio canciones restauradas")
+                } else result
             }
         }
 
@@ -355,31 +361,30 @@ class BackupManager @Inject constructor(
         error("El archivo ZIP no contiene playlists válidas de Lark Player")
     }
 
+    /**
+     * Unpacks audio bundled in either supported ZIP format. Entry names are
+     * validated before use so a malicious archive cannot write outside the
+     * app's restore directory (Zip Slip).
+     */
+    private suspend fun restoreBundledMusic(zipEntries: Map<String, ByteArray>): Int {
+        val musicDir = File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "larkplayer/restore")
+            .apply { mkdirs() }
+        var copied = 0
+        zipEntries.forEach { (name, bytes) ->
+            val safeName = BackupPath.safeMusicFileName(name) ?: return@forEach
+            runCatching { File(musicDir, safeName).writeBytes(bytes) }
+                .onSuccess { copied++ }
+        }
+        if (copied > 0) mediaScanner.scan()
+        return copied
+    }
+
     private suspend fun mergeDrivePlaylists(
         infos: PlaylistInfos,
         zipEntries: Map<String, ByteArray>,
     ): UniversalImportResult {
-        var copiedFiles = 0
-        val musicDir = File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "larkplayer/restore")
-            .apply { mkdirs() }
-
-        // If audio files are bundled in ZIP, unpack them
-        if (zipEntries.isNotEmpty()) {
-            zipEntries.forEach { (name, bytes) ->
-                if (name.startsWith("Music/") && !name.endsWith("/")) {
-                    val fName = name.substringAfter("Music/")
-                    if (fName.isNotBlank()) {
-                        runCatching {
-                            File(musicDir, fName).writeBytes(bytes)
-                            copiedFiles++
-                        }
-                    }
-                }
-            }
-            if (copiedFiles > 0) {
-                mediaScanner.scan()
-            }
-        }
+        // If audio files are bundled in ZIP, unpack them (with Zip Slip checks).
+        val copiedFiles = restoreBundledMusic(zipEntries)
 
         val parsed = infos.playlistInfos.mapNotNull { bean ->
             val name = bean.playlistName.orEmpty()
@@ -548,6 +553,7 @@ class BackupManager @Inject constructor(
 
                     var copied = 0
                     if (includeSongs) {
+                        val usedMusicNames = HashSet<String>()
                         songs.forEach { song ->
                             runCatching {
                                 val songObj = Song(
@@ -560,7 +566,9 @@ class BackupManager @Inject constructor(
                                 )
                                 val sUri = MediaFileUtils.songUri(songObj)
                                 context.contentResolver.openInputStream(sUri)?.use { input ->
-                                    zip.putNextEntry(ZipEntry("Music/${File(song.path).name}"))
+                                    zip.putNextEntry(ZipEntry(
+                                        BackupPath.musicEntry(song.id, song.path, usedMusicNames)
+                                    ))
                                     input.copyTo(zip)
                                     zip.closeEntry()
                                     copied++

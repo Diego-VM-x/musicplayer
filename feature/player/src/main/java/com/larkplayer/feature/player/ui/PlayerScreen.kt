@@ -136,14 +136,8 @@ fun PlayerScreen(
     val context = LocalContext.current
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
 
-    // Keep the screen on while a track plays (was previously created at app start).
-    DisposableEffect(state.isPlaying) {
-        val activity = context as? Activity
-        val flag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-        if (state.isPlaying) activity?.window?.addFlags(flag)
-        else activity?.window?.clearFlags(flag)
-        onDispose { activity?.window?.clearFlags(flag) }
-    }
+    // Screen-on is owned by MainActivity and the "mantener pantalla encendida"
+    // setting; this screen must not override it unconditionally.
 
     var sliderValue by remember(state.id) { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }

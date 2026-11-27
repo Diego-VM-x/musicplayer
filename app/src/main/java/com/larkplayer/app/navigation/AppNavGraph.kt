@@ -72,6 +72,7 @@ import com.larkplayer.feature.player.ui.MiniPlayerOverlay
 import com.larkplayer.feature.player.ui.PlayerScreen
 import com.larkplayer.feature.player.ui.QueueScreen
 import com.larkplayer.feature.player.ui.SleepTimerScreen
+import com.larkplayer.feature.player.ui.VideoPlayerScreen
 import com.larkplayer.feature.settings.ui.AboutScreen
 import com.larkplayer.feature.settings.ui.FeedbackScreen
 import com.larkplayer.feature.settings.ui.LanguageScreen
@@ -92,6 +93,7 @@ private object Routes {
     const val PLAYLIST = "playlist/{playlistId}"
     fun playlist(id: Long) = "playlist/$id"
     const val SETTINGS = "settings"
+    const val VIDEO = "video"
     const val LYRICS = "lyrics"
     const val BACKUP = "backup"
     const val QUEUE = "queue"
@@ -112,6 +114,7 @@ private object Routes {
 
 private val MINI_PLAYER_HIDDEN_ROUTES = setOf(
     Routes.PLAYER,
+    Routes.VIDEO,
     Routes.PLAYLIST,
     Routes.SETTINGS,
     Routes.PLAY_TIME,
@@ -234,6 +237,9 @@ fun AppNavGraph(
         composable(Routes.LIBRARY) {
             LibraryHome(navController)
         }
+        composable(Routes.VIDEO) {
+            VideoPlayerScreen(onBack = { navController.goBack() })
+        }
         composable(Routes.PLAYER) {
             PlayerScreen(
                 onBack = { navController.backFromPlayer() },
@@ -280,6 +286,7 @@ fun AppNavGraph(
                 onAbout = { navController.go(Routes.ABOUT) },
                 onUpdates = { navController.go(Routes.UPDATES) },
                 onMemories = { navController.go(Routes.MEMORIES) },
+                versionName = com.larkplayer.app.BuildConfig.VERSION_NAME,
             )
         }
         composable(Routes.PLAY_TIME) { PlayTimeScreen(onBack = { navController.goBack() }) }
@@ -290,7 +297,12 @@ fun AppNavGraph(
         composable(Routes.NOTIFICATIONS) { NotificationSettingsScreen(onBack = { navController.goBack() }) }
         composable(Routes.LANGUAGE) { LanguageScreen(onBack = { navController.goBack() }) }
         composable(Routes.THEME) { ThemeScreen(onBack = { navController.goBack() }) }
-        composable(Routes.ABOUT) { AboutScreen(onBack = { navController.goBack() }) }
+        composable(Routes.ABOUT) {
+            AboutScreen(
+                onBack = { navController.goBack() },
+                versionName = com.larkplayer.app.BuildConfig.VERSION_NAME,
+            )
+        }
         composable(Routes.FEEDBACK) { FeedbackScreen(onBack = { navController.goBack() }) }
         composable(Routes.UPDATES) { UpdateSettingsScreen(onBack = { navController.goBack() }) }
         composable(Routes.MEMORIES) {
@@ -388,6 +400,7 @@ private fun LibraryHome(navController: NavHostController) {
         Box(Modifier.fillMaxSize()) {
             LibraryScreen(
                 onOpenPlayer = { navController.go(Routes.PLAYER) },
+                onOpenVideo = { navController.go(Routes.VIDEO) },
                 onOpenSettings = { navController.go(Routes.SETTINGS) },
                 onOpenPlaylist = { id -> navController.go(Routes.playlist(id)) },
             )

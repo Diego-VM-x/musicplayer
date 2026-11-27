@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,9 +35,12 @@ import com.larkplayer.core.designsystem.component.LocalAppBackground
 import com.larkplayer.core.designsystem.theme.LarkTheme
 import com.larkplayer.core.model.ThemeConfig
 import com.larkplayer.core.update.UpdateManager
+import com.larkplayer.feature.player.PlayerRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -45,6 +49,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsDataStore: SettingsDataStore
     @Inject lateinit var scanBus: MediaScanBus
+    @Inject lateinit var playerRepository: PlayerRepository
 
     /** Tapping the media notification asks the graph to open the full player. */
     private val openPlayerRequests = MutableSharedFlow<Unit>(
@@ -59,10 +64,38 @@ class MainActivity : ComponentActivity() {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { scanBus.requestScan() }
+    ) { if (hasMediaReadPermission()) scanBus.requestScan() }
+
+    /** Scanning without this permission clears MediaStore results and used to wipe the library. */
+    private fun hasMediaReadPermission(): Boolean {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /** Honours "mantener pantalla encendida" only while audio is actually playing. */
+    private fun observeScreenWake() {
+        lifecycleScope.launch {
+            combine(settingsDataStore.keepScreenOn, playerRepository.isPlaying) { enabled, playing ->
+                enabled && playing
+            }
+                .distinctUntilChanged()
+                .collect { keep ->
+                    if (keep) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        observeScreenWake()
         openPlayerOnStart = intent?.getBooleanExtra(EXTRA_OPEN_PLAYER, false) == true
 
         // A cold start must stay on the Songs tab. LibraryViewModel restores the
@@ -172,7 +205,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        scanBus.requestScan()
+        if (hasMediaReadPermission()) scanBus.requestScan()
         UpdateManager.checkNow(manual = false)
     }
 }

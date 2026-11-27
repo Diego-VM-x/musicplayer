@@ -33,13 +33,26 @@ object MediaFileUtils {
      * Important: IS_MUSIC alone hides valid .flac/.m4a/.opus files on many ROMs,
      * so we use a MIME_TYPE filter OR a positive duration instead.
      */
-    fun queryAudio(context: Context): List<Song> {
+    fun queryAudio(context: Context): List<Song> = queryAudioOrNull(context).orEmpty()
+
+    /**
+     * Same query as [queryAudio], but returns `null` when MediaStore refused
+     * the query (for example the read permission was revoked). Callers that
+     * overwrite a persisted library must use this variant so a failed scan is
+     * never mistaken for an empty device.
+     */
+    fun queryAudioOrNull(context: Context): List<Song>? {
         val result = mutableListOf<Song>()
         val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
         val selection = "${MediaStore.Audio.Media.MIME_TYPE} LIKE 'audio/%'"
         val sort = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
         try {
-            context.contentResolver.query(uri, AUDIO_PROJECTION, selection, null, sort)?.use { c ->
+            val cursor = context.contentResolver.query(uri, AUDIO_PROJECTION, selection, null, sort)
+                ?: run {
+                    Timber.w("MediaStore query returned null; not replacing the library")
+                    return null
+                }
+            cursor.use { c ->
                 val idIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
                 val titleIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
                 val artistIdx = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
@@ -68,8 +81,11 @@ object MediaFileUtils {
                     )
                 }
             }
-        } catch (e: SecurityException) {
-            Timber.e(e, "MediaStore permission not granted")
+        } catch (e: Exception) {
+            // Any resolver failure (permission, dead provider, malformed row)
+            // means we cannot trust an empty result as "no songs".
+            Timber.e(e, "MediaStore query failed")
+            return null
         }
         return result.distinctBy { it.id }
     }

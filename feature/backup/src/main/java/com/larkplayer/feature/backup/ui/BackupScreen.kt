@@ -47,11 +47,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.larkplayer.core.designsystem.component.CircleIconButton
 import com.larkplayer.core.designsystem.component.LarkCard
 import com.larkplayer.core.designsystem.component.LarkSwitch
 import com.larkplayer.core.designsystem.theme.ApplePalette
+import com.larkplayer.feature.backup.BackupScheduler
 import com.larkplayer.feature.backup.BackupViewModel
 import com.larkplayer.feature.backup.DetectedBackup
 import kotlinx.coroutines.launch
@@ -62,6 +64,7 @@ fun BackupScreen(
     viewModel: BackupViewModel = hiltViewModel(),
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var statusMessage by remember { mutableStateOf("") }
     var isOperating by remember { mutableStateOf(false) }
     var includeSongsInExport by remember { mutableStateOf(false) }
@@ -107,6 +110,15 @@ fun BackupScreen(
                 statusMessage = viewModel.exportZip(uri, includeSongsInExport)
                 isOperating = false
             }
+        }
+    }
+
+    val scheduleBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            BackupScheduler.schedule(context, uri, includeSongsInExport)
+            statusMessage = "Copia automática programada cada 24 horas en el archivo elegido."
         }
     }
 
@@ -370,6 +382,13 @@ fun BackupScreen(
                         exportBackupLauncher.launch("lark-backup-${System.currentTimeMillis() / 1000}.zip")
                     }
                 },
+            )
+            BackupItemRow(
+                icon = Icons.Rounded.TaskAlt,
+                title = "Programar copia automática (cada 24 h)",
+                subtitle = "Elige el archivo ZIP destino; se sobrescribe en cada copia",
+                accent = accent,
+                onClick = { scheduleBackupLauncher.launch("lark-backup-automatico.zip") },
             )
             BackupItemRow(
                 icon = Icons.Rounded.CloudDownload,

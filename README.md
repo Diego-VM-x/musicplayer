@@ -11,10 +11,12 @@
 | Configuración Gradle / version catalog | ✅ Completo |
 | Documentación (estructura, arquitectura, funciones, cambios) | ✅ Completo |
 | Módulos `core` (model, common, database, datastore, designsystem) | ✅ Completo |
-| Módulos `feature` (player, library, lyrics, backup, settings, theme) | ⏳ Pendiente |
+| Módulos `feature` (player, library, lyrics, equalizer, backup, settings) | ✅ Completo |
 | App `app` (navegación, DI, pantallas) | ✅ Completo |
-| Repo Git inicial | ✅ Completo (commit `f0b5579`, 80 archivos) |
-| Build `assembleDebug` y APK | ✅ BUILD SUCCESSFUL — `app/build/outputs/apk/debug/app-debug.apk` (~22.4 MB) |
+| Build `assembleRelease` y APK firmado | ✅ BUILD SUCCESSFUL |
+| Widgets | Eliminados (no funcionaban en varios launchers) |
+| Tests JVM (JUnit4) | ✅ 32 tests — `gradlew testDebugUnitTest` |
+| Auditoría frente al APK original | ✅ skill `.opencode/skill/larkplayer-audit/SKILL.md` |
 
 ## Stack (solo lo necesario)
 

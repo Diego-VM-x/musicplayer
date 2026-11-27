@@ -4,6 +4,23 @@ Formato: `YYYY-MM-DD — cambio — archivos afectados`
 
 ---
 
+## 2026-11-27 - v1.1.4: vídeos, letras online y actualizaciones más claras
+
+Versión para todos los usuarios: **ya puedes ver tus vídeos en la app**, mantener la pantalla
+encendida mientras escuchas, cambiar de idioma al instante y encontrar letras en internet cuando
+el archivo no las trae. Además, la biblioteca y las copias de seguridad son más fiables.
+
+- **Vídeos**: pestaña Vídeos con `PlayerView` sobre el mismo reproductor, gestos táctiles y doble
+  toque para avanzar/retroceder 10 s.
+- **Letras**: búsqueda online con LRCLIB (sin clave) y botón «Buscar online».
+- **Ajustes**: «Mantener la pantalla encendida» y aplicación del idioma en caliente.
+- **Correcciones**: escaneo que ya no vacía la biblioteca al fallar un permiso, restauración de ZIP
+  segura, validación del APK antes de instalar, duración en la notificación y wake lock.
+- **Texto de versión legible**: `UpdateSettingsScreen` ya no muestra el número de compilación
+  entre paréntesis; `AppUpdate.sanitizeNotes()` quita Markdown y metadatos técnicos de las notas
+  que se muestran al usuario, y la descripción de la release está escrita en lenguaje corriente.
+- `versionCode` 56 / `versionName` 1.1.4.
+
 ## 2026-11-25 - v1.1.3: orden aleatorio real, barra izquierda→derecha, letras, navegación y widgets (4 subagentes)
 
 Código entregado por cuatro subagentes **sin compilar** e integrado/compilado por el agent principal.
@@ -827,6 +844,138 @@ Ver [`10-LARK-UI.md`](10-LARK-UI.md) para el detalle completo.
 ### Próximos cambios (Fase 8)
 - [ ] Widget Glance (pendiente)
 - [ ] Build release + push
+
+## 2026-11-27 — Endurecimiento tras auditoría estática (v55)
+
+Auditoría paralela de `feature:player`, `feature:library`/`lyrics` y `settings`/`backup`/`update`
+frente a las fuentes descompiladas del original. Ver
+`docs/superpowers/specs/2026-11-27-larkplayer-endurecido-design.md` y el plan asociado.
+
+**Correcciones de datos y seguridad**
+- `MediaFileUtils.queryAudioOrNull()` distingue "consulta fallida" de "sin canciones". `MediaScanner`
+  ya no llama a `clear()` cuando el permiso fue denegado: antes podía vaciar toda la biblioteca.
+  `LibrarySync.merge()` conserva el `lyricsText` cacheado al reescanear y deduplica por id.
+  `SongDao.replaceAll()` hace `clear()+insertAll()` en una transacción.
+  `MainActivity` solo emite el escaneo si el permiso de lectura sigue concedido.
+- `BackupPath` valida los nombres de entrada del ZIP antes de escribir (Zip Slip) y genera nombres
+  únicos para canciones con el mismo nombre de archivo. La rama `backup.json` también restaura el
+  audio incluido en `Music/` y vuelve a escanear la biblioteca.
+- `UpdateManager` revalida SHA-256/firma del APK justo antes de instalar, también al restaurar el
+  estado `Ready` y desde `UpdateInstallActivity`. El sondeo de descarga tiene rama `else` y límite
+  de 30 min para no girar infinitamente si desaparece el registro de `DownloadManager`.
+
+**Correcciones funcionales**
+- Desactivar aleatorio ya no fuerza `REPEAT_MODE_ALL`; `MODE_NORMAL` mapea a `REPEAT_MODE_OFF`.
+- La notificación recibe la duración real vía `MediaMetadata.setDurationMs` (antes mostraba 0:00).
+- El wake lock se readquiere al reanudar la reproducción tras pulsar la X de la notificación.
+- El borrado en Android < 11 comprueba las filas devueltas por `ContentResolver.delete`.
+- La detección de seek en letras escala con la velocidad (un tick a 2× ya no borra el resaltado).
+- `LyricsRepository` vuelve a resolver la fuente aunque la caché tenga tiempos: reemplazar el `.lrc`
+  surte efecto. La insignia de letras usa una comprobación de archivo hermano en lugar de una
+  consulta MediaStore por fila.
+- Declarado `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; la versión mostrada en Ajustes/Sobre sale de
+  `BuildConfig.VERSION_NAME`.
+
+**Funciones añadidas**
+- `BackupWorker` ejecuta una exportación real con la URI de destino pasada en `inputData`.
+- Control manual de sincronía de letras ±0.1 s en la pantalla de letras (persistencia por canción).
+
+**Segunda pasada (skill `larkplayer-audit`, auditoría de `core/update`)**
+- El skill se validó con un subagente: entregó evidencia `archivo:línea`, comprobó rutas de fallo,
+  nombró tests JUnit y comandos Gradle, y descartó tres "bugs" que solo aparecían en docs obsoletos.
+- `AppUpdate.versionCodeFromApkName()` sustituye `lastOrNull()` sobre todos los dígitos
+  (`larkplayer-2027.1.8.apk` ya no se interpreta como versión 8). Un cuerpo HTTP no-JSON se propaga
+  como `Error` en vez de caer al fallback y disfrazarse de `NotFound`.
+- `UpdateManager.checkNowSuspend()` espera el resultado de red para que `AppUpdateWorker` pueda
+  reintentar los fallos. `verifyDownload()` devuelve `VerifyOutcome` tri-estado: un APK rechazado
+  por hash/firma ya no provoca un bucle infinito de reintentos.
+- Corregida una regresión del límite de sondeo: un `STATUS_SUCCESSFUL` en el último poll ya no se
+  sobrescribe con el error de timeout (bandera `terminal`).
+
+**Tests y verificación**
+- JUnit4 restaurado en el version catalog. Nuevos tests: `LibrarySyncTest` (4), `LyricsClockTest`
+  (5), `BackupPathTest` (5), `ApkVersionNameTest` (4). Ciclo TDD verificado con stubs (RED:
+  `NotImplementedError` / `AssertionError`) y con implementaciones (GREEN).
+**Correcciones del revisor de código (tras la verificación)**
+- `checkNowSuspend` conserva el estado `Ready`: una comprobación en `onResume` o del worker ya no
+  oculta el botón «Instalar ahora» ni sustituye un APK verificado por `Idle`/`Error`.
+- En el ZIP propio se descomprime y escanea el audio **antes** de resolver las referencias de
+  playlists; antes, en un dispositivo limpio, las playlists se importaban sin canciones.
+- `BackupScheduler.schedule()` encola el `BackupWorker` (24 h) desde «Programar copia automática»
+  en Ajustes → Respaldar y guardar; antes el worker nunca se ejecutaba.
+- `queryAudioOrNull` devuelve `null` ante cualquier fallo del resolver (o `query()` nula), no solo
+  `SecurityException`, para que un escaneo fallido nunca vacíe la biblioteca.
+- `BackupPath.musicEntry` garantiza nombres únicos incluso si colisiona con un `${id}-${base}` previo.
+  El test de separador de Windows ahora ejercita realmente la rama `\\`.
+
+**Verificación final de la segunda tanda**
+- `gradlew testDebugUnitTest assembleDebug --no-daemon` → BUILD SUCCESSFUL (478 tareas),
+  18 tests / 0 fallos / 0 errores, `app-debug.apk` 23.590.729 bytes.
+
+## 2026-11-27 — Funciones faltantes (tercera tanda)
+
+- **Mantener pantalla encendida**: `SettingsDataStore.keepScreenOn` + interruptor en
+  «Ajustes de reproducción». `MainActivity.observeScreenWake()` combina el ajuste con
+  `PlayerRepository.isPlaying` (nuevo `StateFlow<Boolean>` para no exponer tipos Media3 al módulo
+  `app`) y pone/quito `FLAG_KEEP_SCREEN_ON` solo mientras suena música.
+- **Cambio de idioma en caliente**: `AppLocaleController.apply()` usa `LocaleManager` por app en
+  API 33+ y, en versiones anteriores, actualiza la configuración y recrea la actividad.
+  `SettingsViewModel.setLanguage()` lo invoca justo después de persistir el tag.
+  *Limitación*: las cadenas de la UI están escritas en español, así que el cambio aplica a
+  formato/región y a futuros recursos localizados, no a traducciones inexistentes.
+- **Búsqueda de letras en internet**: `LrclibClient` consulta `https://lrclib.net/api/get`
+  (HTTPS, sin clave ni cuenta) y `LyricsRepository` la usa solo cuando no hay `.lrc`/tags con
+  tiempos; prioriza siempre la fuente local y cachea el resultado en Room. La pantalla de letras
+  añade además un botón «Buscar online» (`LyricsViewModel.searchOnline`) con estado de resultado.
+
+**Tests (TDD, RED → GREEN)**
+- Nuevos: `AppLocaleControllerTest` (4) y `LrclibClientTest` (5). RED verificado con stubs:
+  9 tests fallaron con `NotImplementedError`; GREEN con las implementaciones.
+- Corregidos dos fallos de compilación detectados durante la verificación: paquete correcto de
+  `LocaleManager` (`android.app`) y factory `LocaleList.forLanguageTags`.
+
+**Verificación**
+- `gradlew testDebugUnitTest assembleDebug --no-daemon` → BUILD SUCCESSFUL (482 tareas),
+  **27 tests / 0 fallos / 0 errores**, `app-debug.apk` 23.992.413 bytes.
+
+## 2026-11-27 — Superficie de vídeo (cuarta tanda)
+
+- **Pestaña Vídeos real**: `LibraryUiState.videos` filtra `Song.isVideo`; la pestaña antes vacía
+  ahora lista los vídeos locales y abre la nueva ruta al reproducir.
+- **`VideoPlayerScreen`** (`feature:player`): `PlayerView` dentro de `AndroidView`, conectado al
+  `MediaController` que ya usa el reproductor de audio (expuesto por `PlayerViewModel.controller`).
+  No se crea un segundo `ExoPlayer` y no se pide ningún permiso nuevo. La pantalla se limpia al
+  salir sin liberar el controlador, que es propiedad de `PlayerRepository`.
+- **Gestos**: controles nativos de `PlayerView` (toque, deslizar, pellizcar) más doble toque a
+  izquierda/derecha para ±10 s, con límites al inicio/final (`VideoGestures.seekDelta`).
+- Se retiró el `FLAG_KEEP_SCREEN_ON` incondicional de `PlayerScreen`: ahora lo gobierna
+  exclusivamente `MainActivity` según el ajuste del usuario.
+
+**Tests (TDD, RED → GREEN)**
+- `VideoGesturesTest` (5). RED verificado con stub (`NotImplementedError`, `lark_video_red.txt`),
+  GREEN con la implementación (`lark_video_green.txt`).
+
+**Verificación**
+- `gradlew testDebugUnitTest assembleDebug --no-daemon` → BUILD SUCCESSFUL (486 tareas),
+  **32 tests / 0 fallos / 0 errores**, `app-debug.apk` 23.831.474 bytes.
+
+**Decisión del usuario (2026-11-27)**
+Preguntado por las tres funciones restantes que requieren permisos o cambios de comportamiento
+(overlay de pantalla de bloqueo / modos de ventana con `SYSTEM_ALERT_WINDOW`, y bloqueo de app con
+PIN), el usuario eligió **dejarlas pendientes**. No se añaden esos permisos ni flujos. La app
+sigue usando la sesión multimedia del sistema para la pantalla de bloqueo.
+
+**Skills ejecutadas**
+Se invocaron las 20 skills disponibles: `brainstorming`, `browser`, `diagnosing-superpowers`,
+`dispatching-parallel-agents`, `executing-plans`, `find-skills`,
+`finishing-a-development-branch`, `opencode`, `receiving-code-review`, `report`,
+`requesting-code-review`, `reverse-engineer-anything`, `subagent-driven-development`,
+`systematic-debugging`, `test-driven-development`, `using-git-worktrees`,
+`using-superpowers`, `verification-before-completion`, `writing-plans`, `writing-skills`.
+Operativas sobre el proyecto: brainstorming, auditoría paralela, systematic-debugging, TDD,
+writing-plans, writing-skills (skill `larkplayer-audit`), requesting/receiving-code-review y
+verification-before-completion. Las demás se cargaron y se evaluó su aplicabilidad: no procedía
+abrir navegador, diagnosticar sesiones de superpowers ni publicar issues de OpenCode.
 
 
 

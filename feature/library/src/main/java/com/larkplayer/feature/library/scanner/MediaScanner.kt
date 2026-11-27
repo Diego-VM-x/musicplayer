@@ -4,7 +4,6 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.larkplayer.core.common.MediaFileUtils
 import com.larkplayer.core.database.dao.SongDao
-import com.larkplayer.core.database.entity.SongEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -17,21 +16,11 @@ class MediaScanner @Inject constructor(
     private val songDao: SongDao,
 ) {
     suspend fun scan(): Int = withContext(Dispatchers.IO) {
-        val songs = MediaFileUtils.queryAudio(context).map { it.toEntity() }
-        songDao.clear()
-        songDao.insertAll(songs)
-        songs.size
-    }
+        val fresh = MediaFileUtils.queryAudioOrNull(context)
+        val merged = LibrarySync.merge(songDao.observeAllOnce(), fresh.orEmpty(), fresh != null)
+        if (!merged.shouldReplace) return@withContext songDao.observeAllOnce().size
 
-    private fun com.larkplayer.core.model.Song.toEntity() = SongEntity(
-        id = id,
-        title = title,
-        artist = artist,
-        album = album,
-        albumId = albumId,
-        duration = duration,
-        path = path,
-        isVideo = isVideo,
-        dateAdded = dateAdded,
-    )
+        songDao.replaceAll(merged.songs)
+        merged.songs.size
+    }
 }

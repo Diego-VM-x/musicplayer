@@ -4,9 +4,11 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.larkplayer.core.common.AppLocaleController
 import com.larkplayer.core.datastore.SettingsDataStore
 import com.larkplayer.core.model.ThemeConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -28,6 +30,7 @@ data class PlaybackSettings(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val dataStore: SettingsDataStore,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     val themeConfig: StateFlow<ThemeConfig> = dataStore.themeConfig.stateIn(
@@ -48,6 +51,10 @@ class SettingsViewModel @Inject constructor(
 
     val sleepTimerMinutes: StateFlow<Int> = dataStore.sleepTimerMinutes.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), 0,
+    )
+
+    val keepScreenOn: StateFlow<Boolean> = dataStore.keepScreenOn.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), false,
     )
 
     // `combine` supports up to 5 sources, so the notification flag is merged last.
@@ -100,7 +107,15 @@ class SettingsViewModel @Inject constructor(
         if (enabled) dataStore.setGapless(false)
     }
     fun setCrossfadeSeconds(seconds: Int) = viewModelScope.launch { dataStore.setCrossfadeSeconds(seconds) }
-    fun setLanguage(tag: String) = viewModelScope.launch { dataStore.setLanguage(tag) }
+    fun setKeepScreenOn(enabled: Boolean) = viewModelScope.launch {
+        dataStore.setKeepScreenOn(enabled)
+    }
+
+    fun setLanguage(tag: String) = viewModelScope.launch {
+        dataStore.setLanguage(tag)
+        // Apply immediately instead of waiting for the next process start.
+        AppLocaleController.apply(appContext, tag)
+    }
     fun setNotificationPlayback(enabled: Boolean) = viewModelScope.launch { dataStore.setNotificationPlayback(enabled) }
     fun setNotificationLockScreen(enabled: Boolean) = viewModelScope.launch { dataStore.setNotificationLockScreen(enabled) }
 

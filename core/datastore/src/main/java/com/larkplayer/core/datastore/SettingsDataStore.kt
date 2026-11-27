@@ -35,6 +35,7 @@ class SettingsDataStore @Inject constructor(
         val GAPLESS = booleanPreferencesKey("gapless")
         val PLAY_WITH_OTHERS = booleanPreferencesKey("play_with_others")
         val BACKGROUND_PLAYBACK = booleanPreferencesKey("background_playback")
+        val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
         val CROSSFADE_ENABLED = booleanPreferencesKey("crossfade_enabled")
         val CROSSFADE_SECONDS = intPreferencesKey("crossfade_seconds")
         val SLEEP_TIMER_MIN = intPreferencesKey("sleep_timer_min")
@@ -93,6 +94,8 @@ class SettingsDataStore @Inject constructor(
     val gapless: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.GAPLESS] ?: true }
     val playWithOthers: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.PLAY_WITH_OTHERS] ?: true }
     val backgroundPlayback: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.BACKGROUND_PLAYBACK] ?: true }
+    /** Keep the display awake while a track is actually playing. */
+    val keepScreenOn: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.KEEP_SCREEN_ON] ?: false }
     val crossfadeEnabled: Flow<Boolean> = context.settingsDataStore.data.map { p -> p[Keys.CROSSFADE_ENABLED] ?: false }
     val crossfadeSeconds: Flow<Int> = context.settingsDataStore.data.map { p -> p[Keys.CROSSFADE_SECONDS] ?: 4 }
     val sleepTimerMinutes: Flow<Int> = context.settingsDataStore.data.map { p -> p[Keys.SLEEP_TIMER_MIN] ?: 0 }
@@ -136,6 +139,7 @@ class SettingsDataStore @Inject constructor(
     suspend fun setGapless(enabled: Boolean) = edit { it[Keys.GAPLESS] = enabled }
     suspend fun setPlayWithOthers(enabled: Boolean) = edit { it[Keys.PLAY_WITH_OTHERS] = enabled }
     suspend fun setBackgroundPlayback(enabled: Boolean) = edit { it[Keys.BACKGROUND_PLAYBACK] = enabled }
+    suspend fun setKeepScreenOn(enabled: Boolean) = edit { it[Keys.KEEP_SCREEN_ON] = enabled }
     suspend fun setCrossfadeEnabled(enabled: Boolean) = edit { it[Keys.CROSSFADE_ENABLED] = enabled }
     suspend fun setCrossfadeSeconds(seconds: Int) = edit { it[Keys.CROSSFADE_SECONDS] = seconds.coerceIn(1, 12) }
     suspend fun setSleepTimer(minutes: Int) = edit { it[Keys.SLEEP_TIMER_MIN] = minutes }

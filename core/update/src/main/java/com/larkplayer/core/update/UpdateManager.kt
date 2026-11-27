@@ -20,6 +20,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
+/** Result of validating a downloaded APK; REJECTED must not be retried forever. */
+enum class VerifyOutcome { SUCCESS, RETRY, REJECTED }
+
 /**
  * Single source of truth for the in-app updater: checks GitHub releases, asks
  * before downloading, verifies the APK and exposes the state to the settings UI.
@@ -99,16 +102,39 @@ object UpdateManager {
     }
 
     fun checkNow(manual: Boolean) {
-        if (!initialized) return
+        scope.launch { checkNowSuspend(manual) }
+    }
+
+    /**
+     * Same check as [checkNow] but suspends until the network result is known.
+     * WorkManager calls this so a failed fetch can be retried instead of being
+     * reported as a successful no-op.
+     */
+    suspend fun checkNowSuspend(manual: Boolean): Boolean {
+        if (!initialized) return false
         val now = System.currentTimeMillis()
-        if (!manual && now - preferences.getLong(KEY_LAST_CHECK, 0L) < MIN_CHECK_INTERVAL_MS) return
+        if (!manual && now - preferences.getLong(KEY_LAST_CHECK, 0L) < MIN_CHECK_INTERVAL_MS) return true
+        // A background check (onResume / worker) must not hide the "Install now"
+        // button of an APK that is already verified and ready.
+        val readyInfo = (_state.value as? UpdateState.Ready)?.info
         preferences.edit().putLong(KEY_LAST_CHECK, now).apply()
-        _state.value = UpdateState.Checking
-        scope.launch {
-            when (val result = AppUpdate.fetchLatest()) {
-                is UpdateFetchResult.Found -> onUpdateFound(result.info)
-                UpdateFetchResult.NotFound -> _state.value = UpdateState.Idle
-                is UpdateFetchResult.Error -> _state.value = UpdateState.Error(null, result.message)
+        if (readyInfo == null) _state.value = UpdateState.Checking
+        return when (val result = AppUpdate.fetchLatest()) {
+            is UpdateFetchResult.Found -> {
+                if (readyInfo == null || result.info.versionCode > readyInfo.versionCode) {
+                    onUpdateFound(result.info)
+                }
+                true
+            }
+            UpdateFetchResult.NotFound -> {
+                if (readyInfo == null) _state.value = UpdateState.Idle
+                true
+            }
+            is UpdateFetchResult.Error -> {
+                if (readyInfo == null) _state.value = UpdateState.Error(null, result.message)
+                // The worker still retries on a network error, but the UI keeps
+                // the ready APK available.
+                false
             }
         }
     }
@@ -161,7 +187,10 @@ object UpdateManager {
     private fun pollDownload(id: Long, info: AppUpdateInfo) {
         pollJob?.cancel()
         pollJob = scope.launch {
-            while (isActive) {
+            var polls = 0
+            var terminal = false
+            while (isActive && polls < MAX_DOWNLOAD_POLLS) {
+                polls++
                 val snapshot = AppUpdate.queryDownload(context!!, id)
                 when (snapshot?.status) {
                     android.app.DownloadManager.STATUS_RUNNING,
@@ -173,15 +202,30 @@ object UpdateManager {
                         _state.value = UpdateState.Downloading(info, progress = progress)
                     }
                     android.app.DownloadManager.STATUS_SUCCESSFUL -> {
+                        terminal = true
                         onDownloadComplete(id)
                         break
                     }
                     android.app.DownloadManager.STATUS_FAILED -> {
+                        terminal = true
                         onDownloadFailed(id, "La descarga falló. Puedes reintentarla desde Ajustes.")
+                        break
+                    }
+                    // The DownloadManager row can disappear ( reboot / user
+                    // clears Downloads ). Without an else branch the coroutine
+                    // polled forever and the UI stayed on "Descargando".
+                    else -> {
+                        terminal = true
+                        onDownloadFailed(id, "No se pudo comprobar la descarga. Puedes reintentarla.")
                         break
                     }
                 }
                 delay(1_000)
+            }
+            // A successful download on the last poll is terminal: without this
+            // flag the timeout branch overwrote Ready with an Error.
+            if (!terminal && isActive) {
+                onDownloadFailed(id, "La descarga tardó demasiado. Puedes reintentarla.")
             }
         }
     }
@@ -194,13 +238,15 @@ object UpdateManager {
         UpdateScheduler.verify(context!!, id)
     }
 
-    fun verifyDownload(id: Long): Boolean {
-        if (!initialized) return false
+    fun verifyDownload(id: Long): VerifyOutcome {
+        if (!initialized) return VerifyOutcome.RETRY
         val p = preferences
-        if (id != p.getLong(KEY_DOWNLOAD_ID, -1L)) return false
-        val info = pendingInfo() ?: return false
+        if (id != p.getLong(KEY_DOWNLOAD_ID, -1L)) return VerifyOutcome.REJECTED
+        val info = pendingInfo() ?: return VerifyOutcome.REJECTED
         val snapshot = AppUpdate.queryDownload(context!!, id)
-        if (snapshot?.status != android.app.DownloadManager.STATUS_SUCCESSFUL) return false
+        if (snapshot?.status != android.app.DownloadManager.STATUS_SUCCESSFUL) {
+            return VerifyOutcome.RETRY
+        }
         val file = snapshot.localUri?.let { runCatching { File(it.toUri().path ?: "").takeIf { f -> f.exists() } }.getOrNull() }
             ?: AppUpdate.targetFile(context!!, info)
         val error = AppUpdate.validateApk(context!!, file, info, currentCode)
@@ -209,7 +255,9 @@ object UpdateManager {
             clearPending()
             _state.value = UpdateState.Error(info, error)
             notifyError(context!!, error)
-            return false
+            // Permanent rejection: the error was already shown and the pending
+            // id cleared, so WorkManager must not retry forever.
+            return VerifyOutcome.REJECTED
         }
         p.edit().apply {
             putInt(KEY_READY_CODE, info.versionCode)
@@ -223,7 +271,7 @@ object UpdateManager {
         deleteOldApks(file)
         _state.value = UpdateState.Ready(info, file.absolutePath)
         notifyReady(context!!, info, file)
-        return true
+        return VerifyOutcome.SUCCESS
     }
 
     fun onDownloadFailed(id: Long, message: String) {
@@ -247,8 +295,10 @@ object UpdateManager {
     fun installReady() {
         if (!initialized) return
         val path = preferences.getString(KEY_READY_PATH, "").orEmpty()
-        if (path.isBlank() || !File(path).exists()) {
-            _state.value = UpdateState.Error(null, "El APK ya no está disponible.")
+        val error = validateInstallPath(path)
+        if (error != null) {
+            clearReady()
+            _state.value = UpdateState.Error(null, error)
             return
         }
         val intent = Intent(context!!, UpdateInstallActivity::class.java).apply {
@@ -256,6 +306,46 @@ object UpdateManager {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         runCatching { context!!.startActivity(intent) }
+    }
+
+    /**
+     * The APK is re-validated immediately before the installer is opened. A
+     * file can be replaced or corrupted between verification and installation
+     * (including while the app was in the background), and `Ready` state is
+     * restored from preferences after a process death.
+     */
+    fun validateInstallPath(path: String): String? {
+        if (!initialized) return "El actualizador no está listo."
+        if (path.isBlank()) return "El APK ya no está disponible."
+        val file = File(path)
+        if (!file.exists()) return "El APK ya no está disponible."
+        val info = readyInfo() ?: pendingInfo()
+            ?: return "No hay datos de la actualización; vuelve a comprobarla."
+        return AppUpdate.validateApk(context!!, file, info, currentCode)
+    }
+
+    private fun readyInfo(): AppUpdateInfo? {
+        val p = preferences
+        val code = p.getInt(KEY_READY_CODE, 0)
+        if (code <= 0) return null
+        return AppUpdateInfo(
+            versionCode = code,
+            versionName = p.getString(KEY_READY_VERSION, code.toString()).orEmpty(),
+            apkUrl = p.getString(KEY_READY_URL, "").orEmpty(),
+            sha256 = p.getString(KEY_READY_SHA, "").orEmpty(),
+            sizeBytes = p.getLong(KEY_READY_SIZE, 0L),
+        )
+    }
+
+    private fun clearReady() {
+        preferences.edit().apply {
+            remove(KEY_READY_CODE)
+            remove(KEY_READY_VERSION)
+            remove(KEY_READY_PATH)
+            remove(KEY_READY_URL)
+            remove(KEY_READY_SHA)
+            remove(KEY_READY_SIZE)
+        }.apply()
     }
 
     fun onCheckError(message: String) {
@@ -302,8 +392,11 @@ object UpdateManager {
                 sha256 = p.getString(KEY_READY_SHA, "").orEmpty(),
                 sizeBytes = p.getLong(KEY_READY_SIZE, 0L),
             )
-            _state.value = UpdateState.Ready(info, readyPath)
-            return
+            if (AppUpdate.validateApk(context!!, File(readyPath), info, currentCode) == null) {
+                _state.value = UpdateState.Ready(info, readyPath)
+                return
+            }
+            clearReady()
         }
         val id = p.getLong(KEY_DOWNLOAD_ID, -1L)
         if (id > 0) {
@@ -424,6 +517,9 @@ object UpdateManager {
             cancel(7703)
         }
     }
+
+    /** 1 s per poll, 30 min ceiling: a lost DownloadManager row cannot spin forever. */
+    private const val MAX_DOWNLOAD_POLLS = 1_800
 
     private const val KEY_AUTO = "auto_download"
     private const val KEY_WIFI = "wifi_only"

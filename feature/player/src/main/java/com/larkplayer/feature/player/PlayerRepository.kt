@@ -93,6 +93,10 @@ class PlayerRepository @Inject constructor(
     private val _shuffleEnabled = MutableStateFlow(false)
     val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled.asStateFlow()
 
+    /** Playback state as a plain Flow so the app module needs no Media3 types. */
+    private val _isPlaying = MutableStateFlow(false)
+    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
     private var pendingPlayMs = 0L
 
     private var connecting = false
@@ -245,6 +249,7 @@ class PlayerRepository @Inject constructor(
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                _isPlaying.value = isPlaying
                 writeWidgetState(
                     title = controller.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty(),
                     artist = controller.currentMediaItem?.mediaMetadata?.artist?.toString().orEmpty(),
@@ -267,11 +272,13 @@ class PlayerRepository @Inject constructor(
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                _isPlaying.value = isPlaying
                 persistQueue(controller, controller.currentPosition, isPlaying)
             }
         }
         runCatching { controller.addListener(stateCacheListener) }
 
+        _isPlaying.value = runCatching { controller.isPlaying }.getOrDefault(false)
         writeWidgetState(
             title = controller.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty(),
             artist = controller.currentMediaItem?.mediaMetadata?.artist?.toString().orEmpty(),
@@ -614,7 +621,7 @@ class PlayerRepository @Inject constructor(
         setRepeat(
             when (mode) {
                 MODE_REPEAT_ONE -> Player.REPEAT_MODE_ONE
-                // Only three radio-like modes exist: one is always active.
+                MODE_NORMAL -> Player.REPEAT_MODE_OFF
                 else -> Player.REPEAT_MODE_ALL
             },
         )
@@ -860,6 +867,8 @@ class PlayerRepository @Inject constructor(
                 .setTitle(title)
                 .setArtist(artist)
                 .setAlbumTitle(album)
+                // Without this the system/custom notification shows 0:00 and an empty bar.
+                .setDurationMs(duration)
                 .setArtworkUri(android.net.Uri.parse(
                     "content://media/external/audio/albumart/$albumId"
                 ))

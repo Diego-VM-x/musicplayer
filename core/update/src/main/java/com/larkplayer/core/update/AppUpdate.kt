@@ -49,6 +49,7 @@ object AppUpdate {
     private const val USER_AGENT = "LarkClean-Updater"
     private const val TIMEOUT_MS = 25_000
     private const val MAX_APK_BYTES = 200L * 1024L * 1024L
+    private val APK_VERSION_CODE = Regex("""(?:^|[-_])v?(\d+)\.apk$""", RegexOption.IGNORE_CASE)
     private const val ASSET_PREFIX = "larkplayer"
     private val ASSET_VERSION_REGEX = Regex("""^[A-Za-z0-9_-]+-(\d+)\.apk$""", RegexOption.IGNORE_CASE)
     private val SHA256_REGEX = Regex("""^[0-9a-f]{64}$""")
@@ -107,10 +108,17 @@ object AppUpdate {
         }
         val fromReleases = parseReleases(raw)
         if (fromReleases is UpdateFetchResult.Found) return@withContext fromReleases
+        // An HTML/rate-limit body is an error, not "no update". Falling through
+        // to contents() would replace it with a misleading NotFound.
+        if (fromReleases is UpdateFetchResult.Error) return@withContext fromReleases
         // Repositories that publish APKs directly in the root (no releases yet)
         // are supported as a fallback, with an optional update.json manifest.
         fetchFromContents()
     }
+
+    /** Extracts a simple versionCode suffix (`musicplayer-14.apk`, `player_v51.apk`). */
+    fun versionCodeFromApkName(name: String): Int? =
+        APK_VERSION_CODE.find(name)?.groupValues?.get(1)?.toIntOrNull()
 
     /** Fallback: detect APKs committed to the repository root. */
     private suspend fun fetchFromContents(): UpdateFetchResult = withContext(Dispatchers.IO) {
@@ -131,9 +139,8 @@ object AppUpdate {
         val apkCandidates = items.mapNotNull { entry ->
             val name = entry.optString("name")
             if (!name.endsWith(".apk", ignoreCase = true)) return@mapNotNull null
-            val code = Regex("""(\d+)""").findAll(name)
-                .mapNotNull { it.groupValues[1].toIntOrNull() }
-                .lastOrNull() ?: return@mapNotNull null
+            // Previously `lastOrNull()` over all digits turned 2027.1.8 into 8.
+            val code = versionCodeFromApkName(name) ?: return@mapNotNull null
             val download = entry.optString("download_url")
             if (!isSecureUrl(download)) return@mapNotNull null
             AppUpdateInfo(
@@ -221,12 +228,23 @@ object AppUpdate {
         return candidates.maxByOrNull { it.versionCode }
     }
 
+    /**
+     * GitHub release bodies are written for developers. The in-app updater
+     * shows them to every user, so strip Markdown and build metadata and keep
+     * only readable sentences.
+     */
     fun sanitizeNotes(raw: String): String = raw.lines()
-        .map { it.trim() }
+        .map { line ->
+            line.trim()
+                .replace("**", "")
+                .replace("__", "")
+                .replace("`", "")
+                .trimStart('#', '*', '_', '-', '+', '>', ' ')
+                .trim()
+        }
         .filter { it.isNotEmpty() }
         .filterNot { line ->
-            val normalized = line.trimStart('*', '_', '-', '#', '`', ' ').trimEnd('`', ' ').trim()
-            TECHNICAL_LINE_REGEX.matches(normalized) || SHA256_REGEX.matches(normalized)
+            TECHNICAL_LINE_REGEX.matches(line) || SHA256_REGEX.matches(line)
         }
         .joinToString("\n")
         .trim()

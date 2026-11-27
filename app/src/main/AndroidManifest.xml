@@ -24,6 +24,9 @@
     <!-- In-app updater -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Required by ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS in MainActivity -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <application
         android:name=".LarkApp"
         android:allowBackup="false"

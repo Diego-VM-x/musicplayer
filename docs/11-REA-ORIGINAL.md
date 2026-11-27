@@ -53,19 +53,25 @@ Equivalente en LarkClean: caché de Room con `lastScanAt` (10 min) y migración 
 
 | Función original | Estado en LarkClean |
 |---|---|
-| Reproducción de vídeo con superficie y gestos (IJKPlayer) | Falta; los vídeos se listan pero se reproducen como audio |
-| Widget de pantalla de inicio | Falta (`feature:widget` solo tiene la notificación) |
-| Pantalla de bloqueo propia (overlay) | Falta; se usa la sesión multimedia del sistema |
-| Visualizador de audio | Falta |
-| Búsqueda de letras en internet | Falta; solo `.lrc` locales |
+> Actualizado 2026-11-27: varias filas que antes figuraban como "Falta" ya están implementadas;
+> la fuente de verdad es [`03-FUNCIONES.md`](03-FUNCIONES.md).
+
+| Función original | Estado real en LarkClean |
+|---|---|
+| Reproducción de vídeo con superficie y gestos | ✅ `PlayerView` sobre el mismo `MediaController`/ExoPlayer; gestos propios de Media3 + doble toque ±10 s. Sin iJKPlayer ni permisos extra |
+| Widget de pantalla de inicio | Eliminado a propósito (fallaba en varios launchers) |
+| Pantalla de bloqueo propia (overlay) | No; se usa la sesión multimedia del sistema (`SYSTEM_ALERT_WINDOW` no se pide) |
+| Visualizador de audio | ✅ Implementado con `AudioProcessor` PCM, sin `RECORD_AUDIO` (ver `18-VISUALIZADOR.md`) |
+| Búsqueda de letras en internet | ✅ `LrclibClient` (API pública LRCLIB, sin clave); local tiene prioridad |
 | Transferencia de archivos web / QR | Descartada |
-| Velocidad de reproducción | Falta |
-| Ecualizador con presets/bass/treble y visualizador | Parcial: `audiofx.Equalizer` por bandas |
-| Backup automático programado | `BackupWorker` es un stub; solo ZIP manual |
-| «Musical memories» / recap | Solo historial y tiempo de escucha |
-| Mantener pantalla encendida, modos de ventana, bloqueo de app | No implementados |
-| Cambio de idioma en caliente | El idioma se guarda pero no traduce la UI hasta reiniciar |
-| Proceso de reproducción aislado y `stopWithTask=false` | Falta (ver tabla anterior) |
+| Velocidad de reproducción | ✅ `PlayerRepository.setPlaybackSpeed`, persistida en DataStore |
+| Ecualizador con presets/bass/treble y visualizador | ✅ `audiofx.Equalizer` + presets + visualizador PCM |
+| Backup automático programado | ✅ `BackupWorker` exporta a la URI recibida en `inputData` |
+| «Musical memories» / recap | ✅ `ui/MemoriesScreen.kt` + historial y tiempo de escucha |
+| Mantener pantalla encendida | ✅ `FLAG_KEEP_SCREEN_ON` solo durante reproducción y si el ajuste está activo |
+| Modos de ventana, overlay de bloqueo, bloqueo de app | No implementados — decisión del usuario 2026-11-27: no conceder `SYSTEM_ALERT_WINDOW` ni añadir bloqueo por PIN |
+| Cambio de idioma en caliente | ✅ `AppLocaleController` aplica el locale sin reiniciar (API 33+ por-app; en versiones antiguas recrea la activity). Las cadenas de la UI no están traducidas: siguen en español |
+| Proceso de reproducción aislado | No replicado (IPC); `stopWithTask="false"` ✅ en el manifiesto |
 | Anuncios, analytics, Drive, iJKPlayer y `.so` propios | Eliminados intencionalmente |
 
 ## 5. Conclusiones y recomendaciones

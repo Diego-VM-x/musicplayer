@@ -10,6 +10,5 @@ build/
 local.properties
 *.apk
 *.aab
+*.log
 .kotlin/
-build_debug.log
-build_*.log

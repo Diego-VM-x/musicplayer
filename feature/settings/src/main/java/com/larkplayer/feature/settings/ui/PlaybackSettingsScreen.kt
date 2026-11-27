@@ -37,6 +37,7 @@ fun PlaybackSettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val playback by viewModel.playback.collectAsStateWithLifecycle()
+    val keepScreenOn by viewModel.keepScreenOn.collectAsStateWithLifecycle()
     val accent = MaterialTheme.colorScheme.primary
     val context = LocalContext.current
 
@@ -72,6 +73,17 @@ fun PlaybackSettingsScreen(
                     }
                 }
             },
+            accent = accent,
+        )
+
+        Spacer(Modifier.height(26.dp))
+
+        PlayToggleRow(
+            icon = Icons.Rounded.Headphones,
+            title = "Mantener la pantalla encendida",
+            subtitle = "Solo mientras se esté reproduciendo música",
+            checked = keepScreenOn,
+            onCheckedChange = viewModel::setKeepScreenOn,
             accent = accent,
         )
 

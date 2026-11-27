@@ -90,6 +90,9 @@ class PlaybackService : MediaSessionService() {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (isPlaying) {
                 shuttingDown = false
+                // The X button released the wake lock; a new playback session
+                // must reacquire it or background playback silently freezes.
+                updateWakeLock()
                 return
             }
             // pauseAtEndOfMediaItems pauses the outgoing track right when the

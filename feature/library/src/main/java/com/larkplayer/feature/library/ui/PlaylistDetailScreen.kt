@@ -883,7 +883,7 @@ private fun DetailSongRow(
     val context = LocalContext.current
     var hasLyrics by remember(song.path) { mutableStateOf(false) }
     LaunchedEffect(song.path) {
-        hasLyrics = withContext(Dispatchers.IO) { MediaFileUtils.hasLocalLyrics(context, song) }
+        hasLyrics = withContext(Dispatchers.IO) { MediaFileUtils.hasLocalLyrics(song.path) }
     }
 
     // Spring-driven lift: the row grows slightly, gains a shadow and follows

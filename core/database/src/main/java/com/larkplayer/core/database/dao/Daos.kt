@@ -29,6 +29,13 @@ interface SongDao {
     @Query("DELETE FROM songs")
     suspend fun clear()
 
+    /** Atomic rescan: a crash mid-write must not leave an empty library. */
+    @Transaction
+    suspend fun replaceAll(songs: List<SongEntity>) {
+        clear()
+        insertAll(songs)
+    }
+
     @Query("UPDATE songs SET lyricsText = :text WHERE id = :id")
     suspend fun updateLyrics(id: Long, text: String)
 

@@ -43,8 +43,9 @@ class UpdateInstallActivity : Activity() {
 
     private fun installFromPath(path: String) {
         val file = File(path)
-        if (!file.exists()) {
-            Toast.makeText(this, "El APK ya no está disponible.", Toast.LENGTH_LONG).show()
+        val error = UpdateManager.validateInstallPath(path)
+        if (error != null) {
+            Toast.makeText(this, error, Toast.LENGTH_LONG).show()
             finish()
             return
         }

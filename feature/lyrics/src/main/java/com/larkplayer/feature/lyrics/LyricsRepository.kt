@@ -53,9 +53,9 @@ class LyricsRepository @Inject constructor(
     suspend fun loadForSongId(id: Long): Lyrics = withContext(Dispatchers.IO) {
         if (id <= 0) return@withContext Lyrics(0)
         val cached = songDao.lyricsFor(id)
-        if (!cached.isNullOrBlank() && LyricsTextUtils.hasTimestamps(cached)) {
-            return@withContext LrcParser.parse(id, cached)
-        }
+        // Do not return early for a timed cache: replacing the sibling .lrc
+        // file must still take effect. resolve() compares timedScore and keeps
+        // the cache when nothing better was found.
         val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
         val song = runCatching {
             context.contentResolver.query(
@@ -84,6 +84,21 @@ class LyricsRepository @Inject constructor(
         resolve(song, cached)
     }
 
+    /** Explicit online lookup from the lyrics screen; always caches the result. */
+    suspend fun searchOnline(
+        title: String,
+        artist: String,
+        durationMs: Long,
+        songId: Long,
+    ): Lyrics? = withContext(Dispatchers.IO) {
+        val text = LrclibClient.fetch(artist, title, durationMs)
+            ?.let { LyricsTextUtils.clean(it) }
+            ?.takeIf { it.isNotBlank() }
+            ?: return@withContext null
+        if (songId > 0) runCatching { songDao.updateLyrics(songId, text) }
+        LrcParser.parse(songId, text)
+    }
+
     /**
      * Embedded tags / local .lrc files, then cache the raw text in Room.
      *
@@ -100,12 +115,27 @@ class LyricsRepository @Inject constructor(
 
         val useFresh = fresh != null &&
             (cached.isNullOrBlank() || LyricsTextUtils.timedScore(fresh) > LyricsTextUtils.timedScore(cached))
-        val chosen = if (useFresh) fresh else cached
-            ?: return Lyrics(song.id)
+        var chosen = if (useFresh) fresh else cached
+        var fromInternet = false
 
-        val parsed = LrcParser.parse(song.id, chosen)
-        if (useFresh && song.id > 0 && chosen != cached) {
-            runCatching { songDao.updateLyrics(song.id, chosen) }
+        // Local .lrc/tags first. When they are missing or untimed, ask LRCLIB
+        // (free, no API key). Network failures are silent: local lyrics still work.
+        if (chosen == null || LyricsTextUtils.timedScore(chosen) == 0) {
+            val remote = LrclibClient.fetch(song.artist, song.title, song.duration)
+                ?.let { LyricsTextUtils.clean(it) }
+                ?.takeIf { it.isNotBlank() }
+            if (remote != null &&
+                (chosen == null || LyricsTextUtils.timedScore(remote) > LyricsTextUtils.timedScore(chosen))
+            ) {
+                chosen = remote
+                fromInternet = true
+            }
+        }
+        val text = chosen ?: return Lyrics(song.id)
+
+        val parsed = LrcParser.parse(song.id, text)
+        if ((useFresh || fromInternet) && song.id > 0 && text != cached) {
+            runCatching { songDao.updateLyrics(song.id, text) }
         }
         return parsed
     }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -174,7 +175,52 @@ fun LyricsScreen(
             modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
         )
 
-        // Sync is derived automatically from the file/audio; no manual trim UI.
+        val notice by lyricsViewModel.notice.collectAsStateWithLifecycle()
+        if (notice.isNotBlank()) {
+            Text(
+                notice,
+                color = ApplePalette.TextSecondary,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 62.dp),
+            )
+        }
+
+        // Manual trim for the cases automatic detection cannot fix. The value
+        // is persisted per song by LyricsViewModel.adjustOffset.
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = { lyricsViewModel.adjustOffset(-100) }) {
+                Text("−0.1 s", color = ApplePalette.TextSecondary)
+            }
+            Text(
+                "${offsetMs} ms",
+                color = ApplePalette.TextSecondary,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+            TextButton(onClick = { lyricsViewModel.adjustOffset(100) }) {
+                Text("+0.1 s", color = ApplePalette.TextSecondary)
+            }
+            TextButton(
+                onClick = {
+                    lyricsViewModel.searchOnline(
+                        title = playerState.title,
+                        artist = playerState.artist,
+                        durationMs = playerState.duration,
+                        songId = playerState.id,
+                    )
+                },
+            ) {
+                Text("Buscar online", color = MaterialTheme.colorScheme.primary)
+            }
+        }
     }
 }
 

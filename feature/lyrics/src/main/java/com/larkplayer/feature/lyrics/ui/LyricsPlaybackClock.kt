@@ -66,8 +66,7 @@ internal class LyricsPlaybackClock {
                 val speed = playbackSpeed().coerceIn(0.1f, 4f)
 
                 val trackChanged = lastSongKey != key
-                val seeked = lastTicker != Long.MIN_VALUE &&
-                    abs(tick - lastTicker) >= SEEK_THRESHOLD_MS
+                val seeked = LyricsClock.isSeek(lastTicker, tick, speed)
                 val pausedTick = !playing && tick != lastTicker
                 val resumed = playing && !wasPlaying
                 wasPlaying = playing
@@ -157,7 +156,6 @@ internal class LyricsPlaybackClock {
     }
 
     private companion object {
-        const val SEEK_THRESHOLD_MS = 500L
         const val DEFAULT_LINE_SPAN_MS = 2_000L
         const val PULSE_REFERENCE = 0.35f
         const val PULSE_ATTACK = 0.28f

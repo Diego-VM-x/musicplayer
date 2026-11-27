@@ -75,6 +75,9 @@ class PlayerViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
+    /** Shared player used by the video surface; never create a second ExoPlayer. */
+    val controller = repository.controller
+
     /** User-chosen accent (never derived from the artwork). */
     val accent: StateFlow<Int> = settings.accentColor
         .map { it.toInt() }
@@ -383,10 +386,8 @@ class PlayerViewModel @Inject constructor(
     fun skipNext() = repository.skipNext()
     fun skipPrevious() = repository.skipPrevious()
     fun seek(ms: Long) = repository.seekTo(ms)
-    /** Kept for compatibility: toggles shuffle through the single-choice mode API. */
-    fun toggleShuffle() {
-        setPlaybackMode(if (_uiState.value.shuffle) MODE_NORMAL else MODE_SHUFFLE)
-    }
+    /** Toggling shuffle must not change the user's repeat mode (all / one / off). */
+    fun toggleShuffle() = repository.setShuffle(!_uiState.value.shuffle)
     fun setRepeatMode(mode: Int) = repository.setRepeat(mode)
 
     fun currentPlaybackMode(): Int = when {

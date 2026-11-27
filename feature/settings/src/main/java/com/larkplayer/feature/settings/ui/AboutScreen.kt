@@ -27,7 +27,7 @@ import com.larkplayer.core.designsystem.component.SettingsRow
 import com.larkplayer.core.designsystem.theme.ApplePalette
 
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(onBack: () -> Unit, versionName: String = "1.1.4") {
     SettingsPage(title = "Sobre", onBack = onBack) {
         Column(
             Modifier.fillMaxWidth().padding(vertical = 12.dp),
@@ -44,7 +44,7 @@ fun AboutScreen(onBack: () -> Unit) {
             }
             Spacer(Modifier.height(14.dp))
             Text("Lark Player", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-            Text("Versión 2027.5 · mod limpia", color = ApplePalette.TextSecondary, fontSize = 12.sp)
+            Text("Versión $versionName · sin anuncios", color = ApplePalette.TextSecondary, fontSize = 12.sp)
         }
 
         Spacer(Modifier.height(16.dp))

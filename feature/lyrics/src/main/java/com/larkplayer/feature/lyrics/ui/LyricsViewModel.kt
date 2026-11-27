@@ -49,6 +49,25 @@ class LyricsViewModel @Inject constructor(
         }
     }
 
+    /** Status shown after an explicit online lookup ("no results", network error, ...). */
+    private val _notice = MutableStateFlow("")
+    val notice: StateFlow<String> = _notice.asStateFlow()
+
+    fun searchOnline(title: String, artist: String, durationMs: Long, songId: Long) {
+        viewModelScope.launch {
+            _notice.value = "Buscando letras en internet…"
+            val result = withContext(Dispatchers.IO) {
+                repository.searchOnline(title, artist, durationMs, songId)
+            }
+            if (result != null && result.hasText) {
+                _lyrics.value = result
+                _notice.value = "Letras obtenidas de internet"
+            } else {
+                _notice.value = "No se encontraron letras en internet"
+            }
+        }
+    }
+
     /** Nudges the highlight earlier (negative) or later (positive). */
     fun adjustOffset(deltaMs: Int) = viewModelScope.launch {
         val id = _lyrics.value.songId

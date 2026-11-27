@@ -34,6 +34,8 @@ internal const val DEFAULT_LIBRARY_TAB = TAB_SONGS
 
 data class LibraryUiState(
     val songs: List<Song> = emptyList(),
+    /** Local video files, shown in the Videos tab and played on the video surface. */
+    val videos: List<Song> = emptyList(),
     val hiddenSongs: List<Song> = emptyList(),
     val playlists: List<PlaylistWithCover> = emptyList(),
     val query: String = "",
@@ -95,6 +97,7 @@ class LibraryViewModel @Inject constructor(
         val visible = allSongs.filter { it.id !in p.hidden }
         LibraryUiState(
             songs = sort(repository.search(visible, c.query), c.sortMode),
+            videos = sort(visible.filter { it.isVideo }, c.sortMode),
             hiddenSongs = allSongs.filter { it.id in p.hidden },
             playlists = sortPlaylists(playlists, p.playlistSortMode),
             query = c.query,

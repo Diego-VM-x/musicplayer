@@ -129,6 +129,7 @@ private val TABS = listOf("Videos", "Canciones", "Playlists", "Carpetas", "Artis
 @Composable
 fun LibraryScreen(
     onOpenPlayer: () -> Unit,
+    onOpenVideo: () -> Unit = {},
     onOpenSettings: () -> Unit,
     onOpenPlaylist: (Long) -> Unit,
     viewModel: LibraryViewModel = hiltViewModel(),
@@ -325,11 +326,33 @@ fun LibraryScreen(
                         },
                     ) { tab ->
                         when (tab) {
-                            TAB_VIDEOS -> EmptyTab(
-                            icon = Icons.Rounded.Album,
-                            title = "No hay videos",
-                            subtitle = "Los videos locales aparecerán aquí.",
-                        )
+                            TAB_VIDEOS -> if (state.videos.isEmpty()) {
+                                EmptyTab(
+                                    icon = Icons.Rounded.Album,
+                                    title = "No hay videos",
+                                    subtitle = "Los videos locales aparecerán aquí.",
+                                )
+                            } else {
+                                SongsTab(
+                                    songs = state.videos,
+                                    themeSize = state.themeSize,
+                                    accent = accent,
+                                    selectionMode = selectionMode,
+                                    selectedIds = selectedIds,
+                                    onToggle = { id ->
+                                        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                                    },
+                                    onLongPress = { id ->
+                                        selectionMode = true
+                                        selectedIds = setOf(id)
+                                    },
+                                    onPlay = { list, index ->
+                                        viewModel.play(list, index)
+                                        onOpenVideo()
+                                    },
+                                    onRescan = { viewModel.scan(force = true) },
+                                )
+                            }
                         TAB_SONGS -> SongsTab(
                             songs = state.songs,
                             themeSize = state.themeSize,
@@ -689,8 +712,11 @@ private fun deleteSelected(
     } else {
         var ok = true
         uris.forEach { uri ->
-            runCatching { context.contentResolver.delete(uri, null, null) }
-                .onFailure { ok = false }
+            val deleted = runCatching { context.contentResolver.delete(uri, null, null) }
+                .getOrDefault(0)
+            // MediaStore returns the number of deleted rows; 0 means the URI was
+            // stale or unwritable, which must not be reported as success.
+            if (deleted <= 0) ok = false
         }
         Toast.makeText(
             context,
@@ -800,7 +826,9 @@ private fun SongRow(
     val context = LocalContext.current
     var hasLyrics by remember(song.path) { mutableStateOf(false) }
     LaunchedEffect(song.path) {
-        hasLyrics = withContext(Dispatchers.IO) { MediaFileUtils.hasLocalLyrics(context, song) }
+        // Cheap sibling-file check: the full findLyricsText() would run a
+        // MediaStore query for every visible row and stutter the list.
+        hasLyrics = withContext(Dispatchers.IO) { MediaFileUtils.hasLocalLyrics(song.path) }
     }
     Row(
         modifier = Modifier

@@ -61,8 +61,9 @@ object UpdateScheduler {
 class AppUpdateWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         if (!UpdateManager.isInitialized()) UpdateManager.initFromPackage(applicationContext)
-        UpdateManager.checkNow(manual = false)
-        Result.success()
+        // Wait for the network result: a failed check must be retried, not
+        // silently reported as a successful no-update.
+        if (UpdateManager.checkNowSuspend(manual = false)) Result.success() else Result.retry()
     }
 }
 
@@ -71,7 +72,10 @@ class VerifyUpdateWorker(context: Context, params: WorkerParameters) : Coroutine
         if (!UpdateManager.isInitialized()) UpdateManager.initFromPackage(applicationContext)
         val id = inputData.getLong(KEY_DOWNLOAD_ID, -1L)
         if (id <= 0L) Result.failure()
-        else if (UpdateManager.verifyDownload(id)) Result.success() else Result.retry()
+        else when (UpdateManager.verifyDownload(id)) {
+            VerifyOutcome.SUCCESS, VerifyOutcome.REJECTED -> Result.success()
+            VerifyOutcome.RETRY -> Result.retry()
+        }
     }
 
     companion object {
